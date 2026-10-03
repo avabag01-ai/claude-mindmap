@@ -1,7 +1,7 @@
 ## TOPIC_HUB v3.1
 topic: claude-mindmap
 title: 전체 (관제)
-latest_session: .toon/claude-mindmap/SESSION_20261003.toon
+latest_session: .toon/claude-mindmap/SESSION_20261003b.toon
 
 ## DECISIONS
 - [확인] 가로 세 칸: 왼쪽 탭 | 마인드맵 | 대화창. 보내기 = claude -p --resume <id> --output-format stream-json
@@ -37,7 +37,7 @@ latest_session: .toon/claude-mindmap/SESSION_20261003.toon
 - flowcode PR #1(claude/session-mindmap)과 이 앱의 관계: 이 앱이 본체, flowcode 쪽은 정리 필요
 
 ## NEXT
-- NEXT 000000 맥 실측: npm install && npm start, 맥북·맥미니 둘 다 켜서 iCloud Drive/FlowCode/machines 에 서로 보이는지
+- NEXT 000000 맥 실측: 브랜치 claude/epic-clarke-x1kk5z 로 npm install && npm start — 답 길이·분량 %·툰 줄기·iCloud machines (맥 세션 session_019TFMmVP1eJCPQFECsTvuwz 에 전달함, 승인 대기)
+- NEXT 000001 실측 버그 수정 후 PR #1 ready → main 머지
 - [완료 10-03] MachineSync 연결 (attachGit → publish/readOthers/merge → 카드 표시 → 테스트)
-- NEXT 000001 맥 실측 후 버그 수정
 - NEXT 000002 SNS 홍보 스킬 (초안까지 자동, 게시는 사람이 확인)
