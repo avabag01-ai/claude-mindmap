@@ -54,6 +54,7 @@ class SessionHub {
         this.leftTab = 'sessions';
         this._bind();
         this._bindFiles();
+        this._bindListDrag();
         this.finder = typeof HubFinder !== 'undefined' && document.getElementById('finder-body') ? new HubFinder(this, { previewFs: options.previewFs }) : null;
         this.memos = typeof HubMemos !== 'undefined' && document.getElementById('memo-body') ? new HubMemos(this, { previewMemos: options.previewMemos }) : null;
         this.github = typeof HubGitHub !== 'undefined' && document.getElementById('gh-body') ? new HubGitHub(this) : null;
@@ -392,7 +393,7 @@ class SessionHub {
             const chain = prevCount ? `<span class="hub-chain-toggle" role="button" tabindex="0" data-chain="${esc(chainKey)}" title="툰으로 이어진 이전 세션">${this.openChains.has(chainKey) ? '▾' : '▸'} 이전 ${prevCount}</span>` : '';
             const alarm = SessionMindMap.alarm(s, now);
             const ctx = SessionMindMap.contextInfo(s);
-            return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}${isPrev ? ' is-prev' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
+            return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}${isPrev ? ' is-prev' : ''}"${s.remote ? '' : ' draggable="true"'} data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
                 <span class="hub-item-title">${isPrev ? '↑ ' : ''}${esc(s.title)}</span>
                 <span class="hub-item-sub">${chain}${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
@@ -807,6 +808,50 @@ class SessionHub {
         // 다른 폴더: 복사는 파일을 새로 쓰니 한 번 묻는다
         this.dropAsk = { src: { root: p.root, id: s.id, title: s.title }, to: { root: tp.root, name: tp.name }, parent: ts ? { id: ts.id, title: ts.title } : null };
         this._renderDropAsk();
+    }
+
+    // 왼쪽 목록에서 끌기: 세션 위 = 하위로, 가지 위 = 그 가지로, 폴더 위 = 폴더 바로 아래(다른 폴더면 복사 묻기)
+    _bindListDrag() {
+        const TYPE = 'application/x-mindmap-session';
+        const body = this.el('hub-list-body');
+        if (!body) return;
+        const proj = root => this.data && this.data.projects.find(p => p.root === root);
+        const targetOf = e => {
+            const el = e.target.closest ? e.target : e.target.parentElement;
+            const it = el && el.closest('.hub-item');
+            if (it) { const p = proj(it.dataset.root), s = p && p.sessions.find(x => x.id === it.dataset.id); return s && !s.remote ? { el: it, t: { kind: 'session', project: p, data: s } } : null; }
+            const tp = el && el.closest('.hub-topic');
+            if (tp) { const p = proj(tp.dataset.root); return p ? { el: tp, t: { kind: 'topic', project: p, topic: tp.dataset.topic, label: tp.textContent.replace(/\d+$/, '').trim() } } : null; }
+            const f = el && el.closest('.hub-folder');
+            if (f) { const p = proj(f.dataset.folder); return p && !p.remoteOnly ? { el: f, t: { kind: 'project', data: p } } : null; }
+            return null;
+        };
+        let src = null, marked = null;
+        const unmark = () => { if (marked) marked.classList.remove('hub-drop-target'); marked = null; };
+        body.addEventListener('dragstart', e => {
+            const it = e.target.closest && e.target.closest('.hub-item[draggable="true"]');
+            const p = it && proj(it.dataset.root), s = p && p.sessions.find(x => x.id === it.dataset.id);
+            if (!s) return;
+            src = { project: p, data: s, el: it };
+            e.dataTransfer.setData(TYPE, s.id);
+            e.dataTransfer.effectAllowed = 'copyMove';
+        });
+        body.addEventListener('dragover', e => {
+            if (!src) return;
+            const h = targetOf(e);
+            const ok = h && h.el !== src.el;
+            if (ok) { e.preventDefault(); e.dataTransfer.dropEffect = h.t.kind === 'project' && h.t.data.root !== src.project.root ? 'copy' : 'move'; }
+            if (!ok || h.el !== marked) { unmark(); if (ok) { marked = h.el; marked.classList.add('hub-drop-target'); } }
+        });
+        body.addEventListener('drop', e => {
+            if (!src) return;
+            e.preventDefault();
+            const h = targetOf(e);
+            const from = src;
+            unmark(); src = null;
+            if (h && h.el !== from.el) this._onDrop(from, h.t);
+        });
+        body.addEventListener('dragend', () => { unmark(); src = null; });
     }
 
     _meta(root, id, meta, done) {
