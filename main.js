@@ -163,6 +163,22 @@ ipcMain.on('sessions:copy', (event, { root, id, toRoot, parentId } = {}) => {
     }
 });
 
+ipcMain.on('sessions:move', (event, { root, id, toRoot, parentId } = {}) => {
+    try {
+        const indexer = getSessionIndexer();
+        if (!indexer.lastRoots || !indexer.lastRoots.has(toRoot)) throw new Error('세션 목록에 없는 폴더로는 옮기지 않아요');
+        const moved = indexer.moveSession(root, id, toRoot);
+        let linked = null;
+        if (parentId) {
+            indexer.lastSessions.set(`${toRoot}::${id}`, { id }); // 바로 붙일 수 있게 임시 등록
+            linked = indexer.setParent(toRoot, id, parentId);
+        }
+        event.reply('sessions:changed', { ok: true, action: 'move', ...moved, parentId: linked ? linked.parentId : null });
+    } catch (error) {
+        event.reply('sessions:changed', { ok: false, error: error.message });
+    }
+});
+
 // ---------------------------------------------------------------------
 // 세션 허브: 파인더 (폴더 목록만 읽는다, 파일 내용은 읽지 않음)
 // ---------------------------------------------------------------------

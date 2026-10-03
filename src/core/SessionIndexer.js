@@ -218,6 +218,46 @@ class SessionIndexer {
         if (!s) throw new Error('세션 목록에 없는 세션이에요');
         if (!toRoot || !fs.existsSync(toRoot) || !fs.statSync(toRoot).isDirectory()) throw new Error(`폴더가 없어요: ${toRoot}`);
         const newId = require('crypto').randomUUID();
+        const file = this._writeIn(s, toRoot, newId);
+        return { root: toRoot, id: newId, file, from: { root, id } };
+    }
+
+    /**
+     * 세션을 다른 폴더로 옮긴다. id 는 그대로, 기록의 cwd 만 바꿔 새 폴더 기록 자리로 쓰고 원본 파일을 지운다.
+     * 작업 중(10분 안에 기록됨)인 세션은 옮기지 않는다 — 돌고 있는 claude 가 옛 자리에 이어 써서 갈라진다.
+     * 하위·줄기 묶음은 폴더 안에서만 뜻이 있어서 끊는다 (세션 종류만 따라간다).
+     */
+    moveSession(root, id, toRoot) {
+        const s = this.lastSessions.get(`${root}::${id}`);
+        if (!s) throw new Error('세션 목록에 없는 세션이에요');
+        if (!toRoot || !fs.existsSync(toRoot) || !fs.statSync(toRoot).isDirectory()) throw new Error(`폴더가 없어요: ${toRoot}`);
+        if (this._projectRoot(toRoot) === root) throw new Error('같은 폴더예요');
+        let mtime = 0;
+        try { mtime = fs.statSync(s.file).mtimeMs; } catch { throw new Error('기록 파일이 없어요'); }
+        if (this.now() - mtime < WORKING_MS) throw new Error('작업 중인 세션이라 옮기지 않아요. 끝나고 10분 뒤에 다시 해 주세요');
+        const dest = path.join(this.claudeDir, 'projects', SessionIndexer.encodeCwd(toRoot), id + '.jsonl');
+        if (fs.existsSync(dest)) throw new Error('그 폴더에 같은 세션이 이미 있어요');
+        const file = this._writeIn(s, toRoot, id);
+        fs.unlinkSync(s.file);
+        // 하위 에이전트 기록 폴더(<id>/)가 있으면 같이 옮긴다
+        const sub = s.file.slice(0, -'.jsonl'.length);
+        try { if (fs.statSync(sub).isDirectory()) fs.renameSync(sub, file.slice(0, -'.jsonl'.length)); } catch { /* 없음 */ }
+        const links = this._readLinks();
+        const key = `${root}::${id}`;
+        const kind = links.kinds[key];
+        for (const k of ['parents', 'prev', 'topics', 'kinds']) {
+            for (const [kk, v] of Object.entries(links[k])) {
+                if (kk === key || ((k === 'parents' || k === 'prev') && kk.startsWith(root + '::') && v === id)) delete links[k][kk];
+            }
+        }
+        if (kind) links.kinds[`${toRoot}::${id}`] = kind;
+        this._writeLinks(links);
+        this.cache.delete(s.file);
+        return { root: toRoot, id, file, from: { root, id } };
+    }
+
+    /** 기록을 toRoot 의 기록 자리에 newId 로 쓴다 (sessionId·cwd 바꿈) */
+    _writeIn(s, toRoot, newId) {
         const fromCwd = s.cwd;
         const lines = fs.readFileSync(s.file, 'utf8').split('\n');
         const out = lines.map(line => {
@@ -234,7 +274,7 @@ class SessionIndexer {
         fs.mkdirSync(dir, { recursive: true });
         const file = path.join(dir, newId + '.jsonl');
         fs.writeFileSync(file, out.join('\n'));
-        return { root: toRoot, id: newId, file, from: { root, id } };
+        return file;
     }
 
     // ---------------------------------------------------------------------

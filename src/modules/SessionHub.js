@@ -888,20 +888,22 @@ class SessionHub {
         if (!a) { el.hidden = true; el.innerHTML = ''; return; }
         const esc = SessionMindMap._esc;
         el.hidden = false;
-        el.innerHTML = `<h4>다른 폴더로 복사</h4>
-            <p><b>${esc(a.src.title)}</b> → <b>${esc(a.to.name)}</b> 폴더${a.parent ? `의 <b>${esc(a.parent.title)}</b> 아래` : ''}로 복사해요.</p>
-            <p class="hub-muted">원본은 그대로예요. 대화 기록을 새 세션으로 복사하고 작업 폴더를 바꿔서, 그 폴더에서 이어서 말할 수 있어요.</p>
-            ${this.ipc ? '' : '<p class="hub-muted">미리보기에서는 복사할 수 없어요 (맥 앱에서 돼요).</p>'}
-            <div class="row"><button class="btn btn-primary" data-act="drop-copy"${this.ipc ? '' : ' disabled'}>복사</button><button class="btn" data-act="drop-cancel">취소</button></div>`;
+        const off = this.ipc ? '' : ' disabled';
+        el.innerHTML = `<h4>다른 폴더로 옮기기</h4>
+            <p><b>${esc(a.src.title)}</b> → <b>${esc(a.to.name)}</b> 폴더${a.parent ? `의 <b>${esc(a.parent.title)}</b> 아래` : ''}로 옮겨요.</p>
+            <p class="hub-muted">이동: 같은 세션 그대로 새 폴더로 (원래 폴더에서는 사라져요). 복사: 원본은 두고 새 세션을 하나 더 만들어요 — 그 뒤로는 따로 가요.</p>
+            <p class="hub-muted">Claude 데스크톱 앱 세션은 처음 연 폴더를 기억해서, 옮긴 뒤에는 새 폴더에서 새로 열어야 이어져요.</p>
+            ${this.ipc ? '' : '<p class="hub-muted">미리보기에서는 옮길 수 없어요 (맥 앱에서 돼요).</p>'}
+            <div class="row"><button class="btn btn-primary" data-act="drop-move"${off}>이동</button><button class="btn" data-act="drop-copy"${off}>복사</button><button class="btn" data-act="drop-cancel">취소</button></div>`;
     }
 
     _onChanged(r) {
         if (!r) return;
         if (!r.ok) { this.map._toast(r.error || '바꾸지 못했어요'); return; }
-        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
+        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : r.action === 'move' ? '옮겼어요' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
         this._pendingToast = null;
         if (r.quiet && !msg) { this.refresh(); return; }
-        if (r.action === 'copy') {
+        if (r.action === 'copy' || r.action === 'move') {
             this._afterIndex = () => { if (this.data.projects.some(p => p.root === r.root && p.sessions.some(x => x.id === r.id))) this.selectSession(r.root, r.id); };
         }
         this.map._toast(msg);
@@ -1132,6 +1134,10 @@ class SessionHub {
             if (b.dataset.act === 'drop-copy' && this.dropAsk && this.ipc) {
                 const a = this.dropAsk;
                 this.ipc.send('sessions:copy', { root: a.src.root, id: a.src.id, toRoot: a.to.root, parentId: a.parent ? a.parent.id : null });
+            }
+            if (b.dataset.act === 'drop-move' && this.dropAsk && this.ipc) {
+                const a = this.dropAsk;
+                this.ipc.send('sessions:move', { root: a.src.root, id: a.src.id, toRoot: a.to.root, parentId: a.parent ? a.parent.id : null });
             }
             this.dropAsk = null;
             this._renderDropAsk();

@@ -188,6 +188,27 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     assert.ok(fs.existsSync(path.join(claudeDir, 'projects', '-logic-pro-mcp', 'sess-a.jsonl')), '원본은 그대로');
     assert.strictEqual(SessionIndexer.encodeCwd('/home/user/a.b_c'), '-home-user-a-b-c');
 
+    // 이동: id 그대로, 원본은 사라짐, 작업 중이면 거절
+    const srcFile = path.join(claudeDir, 'projects', '-logic-pro-mcp', 'sess-a.jsonl');
+    const old = new Date(NOW - 60 * 60 * 1000);
+    fs.utimesSync(srcFile, old, old);
+    ix.setMeta(repo, 'sess-a', { kind: 'chat' });
+    const busy = new SessionIndexer({ claudeDir, linksFile, foldersFile: path.join(tmp, 'folders0.json'), now: () => NOW - 60 * 60 * 1000 + 1000 });
+    await busy.index();
+    assert.throws(() => busy.moveSession(repo, 'sess-a', other), /작업 중/);
+    assert.throws(() => ix.moveSession(repo, 'sess-a', repo), /같은 폴더/);
+    const moved = ix.moveSession(repo, 'sess-a', other);
+    assert.strictEqual(moved.id, 'sess-a', 'id 그대로');
+    assert.ok(!fs.existsSync(srcFile), '원래 자리에서는 사라진다');
+    const mp = fs.readFileSync(moved.file, 'utf8').split('\n').filter(l => l.startsWith('{')).map(l => JSON.parse(l));
+    assert.ok(mp.filter(d => d.sessionId).every(d => d.sessionId === 'sess-a') && mp.filter(d => d.cwd).every(d => d.cwd.startsWith(other)), 'cwd 만 새 폴더로');
+    const links = JSON.parse(fs.readFileSync(linksFile, 'utf8'));
+    assert.strictEqual(links.kinds[`${other}::sess-a`], 'chat', '세션 종류는 따라간다');
+    assert.ok(!(`${repo}::sess-a` in links.kinds), '옛 자리 묶음은 지운다');
+    const afterMove = await ix.index();
+    assert.ok(afterMove.projects.find(p => p.root === other).sessions.some(s => s.id === 'sess-a'), '새 폴더에 보인다');
+    assert.ok(!(afterMove.projects.find(p => p.root === repo) || { sessions: [] }).sessions.some(s => s.id === 'sess-a'), '옛 폴더에는 없다');
+
     // ~/.claude 가 없어도 빈 결과
     const none = await new SessionIndexer({ claudeDir: path.join(tmp, 'nope'), linksFile: path.join(tmp, 'links0.json'), foldersFile: path.join(tmp, 'folders0.json') }).index();
     assert.deepStrictEqual(none.projects, []);
