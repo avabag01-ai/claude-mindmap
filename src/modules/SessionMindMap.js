@@ -182,6 +182,7 @@ class SessionMindMap {
             this.render();
         });
         q('.smm-refresh').addEventListener('click', () => this.refresh());
+        if (SessionMindMap.addTools) SessionMindMap.addTools(this);   // MindMapTools.js: ＋/− 확대, 우클릭 지우기
 
         this._bindPanZoom();
         this._bindDrag();
@@ -610,6 +611,7 @@ class SessionMindMap {
         }
 
         this.gNodes.innerHTML = this.nodes.map(n => this._nodeSvg(n)).join('');
+        if (SessionMindMap.markRecent) SessionMindMap.markRecent(this);   // MindMapRecent.js
         this._drawSelection();
 
         if (this._fitPending) this._fit(false);

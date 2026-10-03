@@ -256,6 +256,35 @@ class SessionIndexer {
         return { root: toRoot, id, file, from: { root, id } };
     }
 
+    /**
+     * 세션 지우기: 기록 파일을 바로 없애지 않고 ~/.claude-mindmap/trash/<지운 시각>/ 로 옮긴다 (되살리기 = 도로 옮기기).
+     * 작업 중(10분 안에 기록됨)인 세션은 지우지 않는다. 묶기(하위·줄기·주제·종류)에서도 뺀다.
+     */
+    trashSession(root, id, trashDir = settingsFile('trash')) {
+        const key = `${root}::${id}`;
+        const s = this.lastSessions.get(key);
+        if (!s) throw new Error('세션 목록에 없는 세션이에요');
+        let mtime = 0;
+        try { mtime = fs.statSync(s.file).mtimeMs; } catch { throw new Error('기록 파일이 없어요'); }
+        if (this.now() - mtime < WORKING_MS) throw new Error('작업 중인 세션이라 지우지 않아요. 끝나고 10분 뒤에 다시 해 주세요');
+        const dir = path.join(trashDir, String(Math.floor(this.now())));
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = path.join(dir, id + '.jsonl');
+        try { fs.renameSync(s.file, dest); } catch { fs.copyFileSync(s.file, dest); fs.unlinkSync(s.file); }
+        const sub = s.file.slice(0, -'.jsonl'.length);
+        try { if (fs.statSync(sub).isDirectory()) fs.renameSync(sub, path.join(dir, id)); } catch { /* 없음 */ }
+        const links = this._readLinks();
+        for (const k of ['parents', 'prev', 'topics', 'kinds']) {
+            for (const [kk, v] of Object.entries(links[k])) {
+                if (kk === key || ((k === 'parents' || k === 'prev') && kk.startsWith(root + '::') && v === id)) delete links[k][kk];
+            }
+        }
+        this._writeLinks(links);
+        this.cache.delete(s.file);
+        this.lastSessions.delete(key);
+        return { root, id, trashed: dest, from: s.file };
+    }
+
     /** 기록을 toRoot 의 기록 자리에 newId 로 쓴다 (sessionId·cwd 바꿈) */
     _writeIn(s, toRoot, newId) {
         const fromCwd = s.cwd;

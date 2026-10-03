@@ -16,6 +16,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+mod trash; // 세션 지우기 (session_indexer/trash.rs)
+
 const EDIT_TOOLS: [&str; 4] = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
 const WORKING_MS: f64 = 10.0 * 60.0 * 1000.0; // 마지막 기록이 10분 안이면 "작업 중"
 const RECENT_MS: f64 = 24.0 * 60.0 * 60.0 * 1000.0; // 24시간 안이면 "최근"
