@@ -1,0 +1,11 @@
+## TOPIC_HUB v3.1
+topic: side-tabs
+title: 왼쪽 탭
+parent: claude-mindmap
+files: src/modules/HubPanels.js · src/core/GitPanel.js · src/core/MemoStore.js · src/core/BrowserBridge.js · scripts/flowcode-browser-mcp.js
+
+## SCOPE
+- 파인더, 메모(키체인 비밀 메모), GitHub(git·gh), 브라우저(크롬·사파리 애플스크립트, MCP 등록)
+
+## NEXT
+- NEXT 000000 맥에서 키체인 메모·크롬 조종 실측

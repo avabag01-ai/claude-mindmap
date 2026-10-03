@@ -10,7 +10,7 @@
  */
 
 // 끌어다 놓기로 넘기는 경로 목록의 데이터 형식
-const FLOWCODE_PATHS = 'application/x-flowcode-paths';
+const MINDMAP_PATHS = 'application/x-mindmap-paths';
 
 class HubFinder {
     constructor(hub, options = {}) {
@@ -98,7 +98,7 @@ class HubFinder {
         body.addEventListener('dragstart', e => {
             const it = e.target.closest('.finder-item');
             if (!it) return;
-            e.dataTransfer.setData(FLOWCODE_PATHS, JSON.stringify([it.dataset.path]));
+            e.dataTransfer.setData(MINDMAP_PATHS, JSON.stringify([it.dataset.path]));
             e.dataTransfer.setData('text/plain', it.dataset.path);
             e.dataTransfer.effectAllowed = 'copy';
             document.body.classList.add('hub-dragging-file');
@@ -356,9 +356,9 @@ class HubMemos {
 if (typeof window !== 'undefined') {
     window.HubFinder = HubFinder;
     window.HubMemos = HubMemos;
-    window.FLOWCODE_PATHS = FLOWCODE_PATHS;
+    window.MINDMAP_PATHS = MINDMAP_PATHS;
 }
-if (typeof module !== 'undefined' && module.exports) module.exports = { HubFinder, HubMemos, FLOWCODE_PATHS };
+if (typeof module !== 'undefined' && module.exports) module.exports = { HubFinder, HubMemos, MINDMAP_PATHS };
 
 /**
  * GitHub 탭: 고른 세션(또는 폴더)의 저장소 상태, 커밋·푸시·가져오기·브랜치, PR·이슈·체크,

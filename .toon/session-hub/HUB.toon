@@ -1,0 +1,14 @@
+## TOPIC_HUB v3.1
+topic: session-hub
+title: 세션 허브
+parent: claude-mindmap
+files: src/core/SessionIndexer.js · src/core/ClaudeRunner.js · src/modules/SessionHub.js · main.js(sessions:*)
+
+## SCOPE
+- 세션 기록 읽기(프로젝트 → 세션 → 파일), 왼쪽 세션 목록, 새 세션, 보내기(claude -p --resume)
+
+## OPEN
+- 맥 실측 전: 진짜 claude 보내기, 복사한 세션 --resume
+
+## NEXT
+- NEXT 000000 맥에서 보내기·새 세션 실측

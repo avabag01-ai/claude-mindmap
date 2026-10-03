@@ -23,7 +23,8 @@ class SessionHub {
         this.el = id => document.getElementById(id);
 
         this.data = null;
-        this.group = 'recent';     // recent | folder
+        this.group = 'folder';     // folder(가지·줄기로 묶음) | recent — 고른 것은 기억
+        try { if (localStorage.getItem('hub.group') === 'recent') this.group = 'recent'; } catch { /* 미리보기 */ }
         this.listQuery = '';
         this.center = 'all';       // all | project | session
         this.sel = null;           // { root, id? }
@@ -31,6 +32,8 @@ class SessionHub {
         this.run = null;           // { runId, text, events[], sessionId, root }
         this.newFolder = null;     // 새 세션을 열 폴더
         this.permission = 'default';
+        this.answerMode = SessionHub._loadAnswerMode(); // result | summary | detail
+        this.openChains = new Set();  // 왼쪽 목록에서 "이전 N" 을 펼친 줄기 ("root::맨 끝 id")
         this.toonStart = true;      // 새 세션: 툰 허브를 읽고 시작
         this.newTopic = '';         // 새 세션: 주제 허브
         this.previewTranscripts = options.transcripts || null; // 미리보기: 세션 id → 메시지 목록
@@ -43,7 +46,7 @@ class SessionHub {
             now: this.now,
             infoKinds: ['project', 'file'],
             compact: true,
-            onAddSession: root => this.newSessionIn(root),
+            onAddSession: (root, meta) => this.newSessionIn(root, meta),
             onDropSession: (src, target) => this._onDrop(src, target),
             onSelect: n => this._onMapSelect(n)
         });
@@ -112,7 +115,7 @@ class SessionHub {
     // 파인더 항목 또는 맥 Finder 의 파일을 끌어다 놓기: 대화창 = 첨부, 세션(목록·맵) = 그 세션을 고르고 첨부
     _bindFiles() {
         const pathsOf = dt => {
-            const raw = dt.getData(typeof FLOWCODE_PATHS !== 'undefined' ? FLOWCODE_PATHS : 'application/x-flowcode-paths');
+            const raw = dt.getData(typeof MINDMAP_PATHS !== 'undefined' ? MINDMAP_PATHS : 'application/x-mindmap-paths');
             if (raw) { try { return JSON.parse(raw); } catch { return []; } }
             const out = [];
             let webUtils = null;
@@ -123,7 +126,7 @@ class SessionHub {
             }
             return out;
         };
-        const isFileDrag = dt => dt && [...(dt.types || [])].some(t => t === 'Files' || t === 'application/x-flowcode-paths');
+        const isFileDrag = dt => dt && [...(dt.types || [])].some(t => t === 'Files' || t === 'application/x-mindmap-paths');
         const targetOf = e => {
             const el = e.target.closest ? e.target : e.target.parentElement;
             if (!el) return null;
@@ -188,11 +191,18 @@ class SessionHub {
             this.ipc.on('sessions:hub-result', (e, r) => this._onHub(r));
             this.ipc.on('sessions:changed', (e, r) => this._onChanged(r));
             this.ipc.on('usage:result', (e, r) => { this.usage = r; this._renderUsage(); });
-            this.ipc.on('sessions:pick-folder-result', (e, r) => { if (r && r.path) { this.newFolder = r.path; this._renderChat(); } });
+            // 고른(또는 새로 만든) 폴더: 목록을 다시 읽어 폴더가 보이게 하고 그 폴더에 새 세션 자리를 연다
+            this.ipc.on('sessions:pick-folder-result', (e, r) => {
+                if (!r || !r.path) return;
+                this.newFolder = r.path;
+                this._afterIndex = () => this.newSessionIn(r.path);
+                this.refresh();
+            });
             this.refresh();
             this._poll = setInterval(() => this._pollTranscript(), 4000);
             // 사용량: 2분마다, 창으로 돌아올 때, 보내기가 끝날 때
             this.readUsage();
+            this._cachePoll = setInterval(() => this._tickCache(), 15000);
             this._usagePoll = setInterval(() => { if (!document.hidden) this.readUsage(); }, 120000);
             window.addEventListener('focus', () => { if (!this.usage || Date.now() - this.usage.at > 30000) this.readUsage(); });
         }
@@ -265,7 +275,7 @@ class SessionHub {
         if (this.map.pendingRoot && !(this.run && !this.run.done && !this.run.sessionId)) this.map.pendingRoot = null;
         const changed = !this.sel || this.sel.root !== root || this.sel.id !== id;
         this.sel = { root, id };
-        if (changed) { this.transcript = null; this.newFolder = null; this.toonAsk = false; }
+        if (changed) { this.transcript = null; this.newFolder = null; this.toonAsk = false; this.newMeta = null; }
         if (this.center === 'all') this.center = 'session';
         this._applyCenter(true);
         this._renderList();
@@ -276,6 +286,7 @@ class SessionHub {
 
     selectFolder(root) {
         this.sel = { root };
+        this.newMeta = null;
         this.transcript = null;
         this.newFolder = root;
         this.center = 'project';
@@ -290,12 +301,18 @@ class SessionHub {
         if (root) this.newSessionIn(root);
     }
 
-    // 폴더의 + : 그 폴더에 새 세션 자리를 만들고 입력창으로 간다. 첫 메시지를 보내면 claude 가 세션을 만든다
-    newSessionIn(root) {
+    /**
+     * ⊕ : 새 세션 자리를 만들고 입력창으로 간다. 첫 메시지를 보내면 claude 가 세션을 만든다.
+     * meta = 폴더 ⊕ 는 없음, 주제 가지 ⊕ 는 { topic }, 세션 ⊕ 는 { parentId, topic } (하위 세션)
+     */
+    newSessionIn(root, meta) {
+        this.newMeta = meta && (meta.topic || meta.parentId) ? { ...meta } : null;
+        if (this.newMeta && this.newMeta.topic) { this.newTopic = this.newMeta.topic; this.toonStart = true; }
         this.newFolder = root;
         this.sel = { root };
         this.transcript = null;
         this.map.pendingRoot = root;
+        this.map.pendingMeta = this.newMeta;
         if (this.center === 'session') this.center = 'project';
         this._applyCenter(true);
         this._renderList();
@@ -317,6 +334,10 @@ class SessionHub {
         }
         if (n.kind === 'project' && !n.isRoot) {
             this.selectFolder(n.data.root);
+            return true;
+        }
+        if (n.kind === 'topic') { // 주제 가지: 그 주제 허브 보기
+            this.showHub(n.project.root, n.topic);
             return true;
         }
         return false; // 파일, 가운데 노드는 맵의 정보 패널이 맡는다
@@ -361,38 +382,46 @@ class SessionHub {
                 rows.push({ p, s });
             }
         }
-        if (!rows.length) { body.innerHTML = `<p class="hub-empty">${q ? '찾는 세션이 없어요' : '아직 세션 기록이 없어요'}</p>`; return; }
+        // 폴더별 보기에서는 세션이 없는 폴더(새로 더한 폴더)도 보인다
+        const emptyFolders = this.group === 'folder' ? this.data.projects.filter(p => !p.sessions.length && !p.remoteOnly && (!q || p.name.toLowerCase().includes(q))) : [];
+        if (!rows.length && !emptyFolders.length) { body.innerHTML = `<p class="hub-empty">${q ? '찾는 세션이 없어요' : '아직 세션 기록이 없어요'}</p>`; return; }
 
-        const item = ({ p, s, depth }) => {
+        const item = ({ p, s, depth, prevCount, isPrev }) => {
             const on = this.sel && this.sel.root === p.root && this.sel.id === s.id;
-            return `<button class="hub-item${on ? ' is-on' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
+            const chainKey = `${p.root}::${s.id}`;
+            const chain = prevCount ? `<span class="hub-chain-toggle" role="button" tabindex="0" data-chain="${esc(chainKey)}" title="툰으로 이어진 이전 세션">${this.openChains.has(chainKey) ? '▾' : '▸'} 이전 ${prevCount}</span>` : '';
+            const alarm = SessionMindMap.alarm(s, now);
+            const ctx = SessionMindMap.contextInfo(s);
+            return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}${isPrev ? ' is-prev' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
-                <span class="hub-item-title">${esc(s.title)}</span>
-                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}</span>
+                <span class="hub-item-title">${isPrev ? '↑ ' : ''}${esc(s.title)}</span>
+                <span class="hub-item-sub">${chain}${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
             </button>`;
         };
 
         let html = '';
         if (this.group === 'folder') {
             const byRoot = new Map();
+            for (const p of this.data.projects) if (emptyFolders.includes(p) || rows.some(r => r.p === p)) byRoot.set(p, []); // 폴더 순서는 최근 순 그대로
             rows.forEach(r => { if (!byRoot.has(r.p)) byRoot.set(r.p, []); byRoot.get(r.p).push(r); });
             for (const [p, flat] of byRoot) {
-                // 하위 세션은 부모 바로 아래, 들여쓰기
-                const ids = new Set(flat.map(r => r.s.id));
-                const kids = new Map();
-                const roots = [];
-                flat.forEach(r => {
-                    const pid = r.s.parentId && ids.has(r.s.parentId) ? r.s.parentId : null;
-                    if (pid) { if (!kids.has(pid)) kids.set(pid, []); kids.get(pid).push(r); } else roots.push(r);
-                });
-                const list = [];
-                const walk = (r, depth) => { list.push({ ...r, depth }); (kids.get(r.s.id) || []).forEach(k => walk(k, depth + 1)); };
-                roots.forEach(r => walk(r, 0));
                 const on = this.sel && this.sel.root === p.root && !this.sel.id;
+                const { branches, loose, empty, count } = SessionHub.listTree(p, flat.map(r => r.s), this.openChains, !!q);
+                const rowsHtml = list => list.map(x => item({ p, ...x })).join('');
+                let body = '';
+                for (const b of branches) {
+                    const tOn = this.hubView && this.hubView.root === p.root && this.hubView.topic === b.topic;
+                    body += `<div class="hub-branch">
+                        <div class="hub-topic-row"><button class="hub-topic${tOn ? ' is-on' : ''}" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 주제 허브 보기">${esc(b.title)}<span class="hub-count">${b.count}</span></button>
+                        <button class="hub-topic-add" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 가지에 새 세션" aria-label="${esc(b.title)} 가지에 새 세션">+</button></div>
+                        ${rowsHtml(b.rows)}</div>`;
+                }
+                if (loose.length) body += `${branches.length ? '<div class="hub-loose">가지 없음</div>' : ''}${rowsHtml(loose)}`;
+                if (empty.length) body += `<div class="hub-empty-branches">빈 가지 ${empty.map(b => `<button class="hub-topic-add hub-chip-btn" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 가지에 첫 세션">${esc(b.title)} +</button>`).join('')}</div>`;
                 html += `<div class="hub-group">
                     <button class="hub-folder${on ? ' is-on' : ''}" data-folder="${esc(p.root)}" title="${esc(p.root)}">
-                      <i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${list.length}</span>
-                    </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${list.map(item).join('')}</div>`;
+                      <i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${count}</span>
+                    </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${body}</div>`;
             }
         } else {
             const day = 864e5;
@@ -415,6 +444,7 @@ class SessionHub {
     // ---------------------------------------------------------------------
     _loadTranscript(force) {
         const s = this._selSession();
+        if (s && s.remote) return; // 다른 기기 세션: 대화 기록은 그 기기에만 있다
         if (s && !this.ipc && this.previewTranscripts) {
             const messages = this.previewTranscripts[s.id] || [];
             this._onTranscript({ file: s.file, messages, truncated: false, mtimeMs: 0 });
@@ -448,50 +478,76 @@ class SessionHub {
         if (s) {
             const resume = `cd ${SessionMindMap._shellQuote(s.cwd)} && claude --resume ${s.id}`;
             head.innerHTML = `<div class="hub-chat-title">${esc(s.title)}</div>
-              <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>
+              <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>${SessionMindMap.contextInfo(s) ? `<span class="hub-ctxbar hub-ctx-${SessionMindMap.contextInfo(s).phase}" title="세션 분량 ${SessionMindMap._k(SessionMindMap.contextInfo(s).tokens)} / ${SessionMindMap._k(SessionMindMap.contextInfo(s).window)} 토큰 (마지막 답 기준)"><i style="width:${Math.min(100, SessionMindMap.contextInfo(s).pct * 100).toFixed(0)}%"></i><b>${Math.round(SessionMindMap.contextInfo(s).pct * 100)}%</b></span>` : ''}${s.remote ? '' : '<span id="hub-cache" class="hub-cache"></span>'}
                 <span>${esc(p.name)}</span>${s.gitBranch ? `<span class="hub-mono">${esc(s.gitBranch)}</span>` : ''}
+                ${s.git ? `<span class="smm-git-pill smm-git-${s.git}" title="${SessionMindMap.GIT_LONG[s.git]}">${SessionMindMap.GIT[s.git]}</span>` : ''}
                 ${s.costUSD != null ? `<span>$${s.costUSD.toFixed(2)}</span>` : ''}
-                <button class="hub-link" data-copy="${esc(resume)}" title="${esc(resume)}">터미널 명령 복사</button></div>
-              ${this.ipc ? `<div class="hub-toon-row"><button class="btn hub-toon" data-act="toon-ask"${this.run && !this.run.done ? ' disabled' : ''} title="툰 저장 후 새 세션에서 이어가기">툰 → 이어가기</button></div>` : ''}
+                ${s.remote ? '' : `<button class="hub-link" data-act="kind" title="대화 세션 / 코드 세션 바꾸기 (지도 모양이 바뀌어요)">${s.kind === 'chat' ? '대화 → 코드로' : '코드 → 대화로'}</button>`}
+                <button class="hub-link" data-copy="${esc(resume)}" title="${esc(resume)}">${s.remote ? `${esc(s.machine)} 에서 열기 (명령 복사)` : '터미널 명령 복사'}</button></div>
+              ${this.ipc && !s.remote ? `<div class="hub-toon-row"><button class="btn hub-toon" data-act="toon-ask"${this.run && !this.run.done ? ' disabled' : ''} title="툰 저장 후 새 세션에서 이어가기">툰 → 이어가기</button></div>` : ''}
               ${this.toonAsk ? `<div class="hub-confirm" role="group" aria-label="툰 저장 후 이어가기 확인">
                 <p>이 세션에 <b>툰 저장</b>을 시키고, 저장 결과의 시작 메시지로 <b>같은 폴더에 새 세션</b>을 열어 이어가요. 툰 저장은 파일을 써야 해서 최소 "파일 수정 자동 허용"으로 실행해요.</p>
                 <div class="row"><button class="btn btn-primary" data-act="toon-go">시작</button><button class="btn" data-act="toon-cancel">취소</button></div></div>` : ''}`;
         } else if (this.newFolder) {
             const folders = this.data ? this.data.projects.map(x => x.root) : [];
             if (!folders.includes(this.newFolder)) folders.unshift(this.newFolder);
-            head.innerHTML = `<div class="hub-chat-title">새 세션</div>
+            const parent = this.newMeta && this.newMeta.parentId && this._selProject() ? this._selProject().sessions.find(x => x.id === this.newMeta.parentId) : null;
+            head.innerHTML = `<div class="hub-chat-title">${parent ? `하위 세션 <span class="hub-sub-of">⤷ ${esc(parent.title)}</span>` : '새 세션'}</div>
               <div class="hub-chat-meta"><label for="hub-folder">폴더</label>
                 <select id="hub-folder">${folders.map(f => `<option value="${esc(f)}"${f === this.newFolder ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>
                 ${this.ipc ? '<button class="hub-link" data-act="pick-folder">다른 폴더…</button>' : ''}</div>
               ${this._newHub() ? `<div class="hub-chat-meta">
                 <label><input type="checkbox" id="hub-toonstart"${this.toonStart ? ' checked' : ''}> 툰 허브 읽고 시작</label>
-                ${this._newHub().topics.length ? `<label for="hub-topic">주제</label><select id="hub-topic"><option value="">(프로젝트 허브)</option>${this._newHub().topics.map(t => `<option value="${esc(t)}"${t === this.newTopic ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>` : ''}
+                ${this._newHub().topics.length ? `<label for="hub-topic">주제</label><select id="hub-topic"><option value="">(프로젝트 허브)</option>${this._newHub().topics.map(t => `<option value="${esc(t)}"${t === this.newTopic ? ' selected' : ''}>${esc((this._newHub().titles || {})[t] || t)}</option>`).join('')}</select>` : ''}
               </div>` : ''}`;
         } else {
             head.innerHTML = `<div class="hub-chat-title">대화</div><div class="hub-chat-meta">왼쪽에서 세션을 고르거나 새 세션을 시작하세요</div>`;
         }
         this._renderMessages(true);
         this._renderComposer();
+        this._tickCache();
     }
 
     _renderMessages(scroll) {
         const box = this.el('hub-messages');
         const s = this._selSession();
         let html = '';
-        if (s) {
+        if (s && s.remote) {
+            const resume = `cd ${SessionMindMap._shellQuote(s.cwd)} && claude --resume ${s.id}`;
+            html = `<div class="hub-welcome"><p><b>${SessionMindMap._esc(s.machine)}</b> 의 세션이에요. 대화 기록은 그 기기에만 있어서 여기서는 목록만 보여요.</p>
+              <p>그 기기 터미널에서 이어서 하세요: <code>${SessionMindMap._esc(resume)}</code></p></div>`;
+        } else if (s) {
             if (!this.transcript || this.transcript.file !== s.file) html = '<p class="hub-empty">대화 불러오는 중…</p>';
             else if (this.transcript.error) html = `<p class="hub-empty">대화를 읽지 못했어요: ${SessionMindMap._esc(this.transcript.error)}</p>`;
             else {
                 if (this.transcript.truncated) html += '<p class="hub-note">앞부분은 생략했어요 (최근 메시지만 보여요)</p>';
-                html += this.transcript.messages.map(m => this._msgHtml(m)).join('');
+                const modes = SessionHub.answerModes(this.transcript.messages, SessionHub._answerLog()[s.id]);
+                html += this.transcript.messages.map((m, i) => this._msgHtml(m, modes[i])).join('');
             }
         } else if (!this.newFolder) {
             html = `<div class="hub-welcome"><p>세션을 고르면 여기서 대화를 보고 이어서 말할 수 있어요.</p>
               <p>보낸 메시지는 그 세션을 <code>claude --resume</code> 으로 이어서 실행해요.</p></div>`;
         }
-        if (this.run && this._runBelongsHere()) html += this._runHtml();
+        const msgs = this.transcript && s && this.transcript.file === s.file ? this.transcript.messages || [] : [];
+        // 끝난 실행이 기록 파일에 이미 들어왔으면 실시간 칸은 빼서 같은 답이 두 번 안 보이게
+        const live = this.run && this._runBelongsHere() && !SessionHub.runRecorded(this.run, msgs);
+        if (live) html += this._runHtml();
+        // 마지막 답 아래 "자세히": 짧게 받은 답을 다시 풀어 달라고 한다
+        const lastIsAnswer = live ? this.run.done && !this.run.stopped : msgs.length && msgs[msgs.length - 1].role === 'assistant';
+        if (s && !s.remote && this.ipc && lastIsAnswer) html += '<button class="btn hub-more" data-act="more" title="방금 답을 자세히 다시 설명해 달라고 보내요">자세히 설명해 줘</button>';
         box.innerHTML = html || '<p class="hub-empty">첫 메시지를 보내면 새 세션이 시작돼요</p>';
         if (scroll) box.scrollTop = box.scrollHeight;
+    }
+
+    /**
+     * 끝난 실행이 세션 기록에 들어왔는지: 보낸 시각 뒤(5초 여유)의 사람 메시지와 그 뒤 Claude 답이 있으면 들어온 것.
+     * 오류(stderr)가 있으면 기록에 없는 정보라 실시간 칸을 남긴다.
+     */
+    static runRecorded(run, messages) {
+        if (!run || !run.done || !messages || !messages.length) return false;
+        if (run.events.some(e => e.type === 'stderr' && String(e.text || '').trim())) return false;
+        const i = messages.findIndex(m => m.role === 'user' && m.at && m.at >= run.sentAt - 5000);
+        return i >= 0 && messages.slice(i + 1).some(m => m.role === 'assistant');
     }
 
     _runBelongsHere() {
@@ -500,7 +556,7 @@ class SessionHub {
             (this.run.newSessionId && s && this.run.newSessionId === s.id);
     }
 
-    _msgHtml(m) {
+    _msgHtml(m, mode) {
         const esc = SessionMindMap._esc;
         const MAX = 6;
         const shown = (m.tools || []).slice(0, MAX);
@@ -508,7 +564,8 @@ class SessionHub {
         const tools = shown.length
             ? `<div class="hub-tools">${shown.map(t => `<span class="hub-tool" title="${esc(t.target)}"><b>${esc(t.name.replace(/^mcp__[^_]+(?:-[^_]+)*__/, ''))}</b> ${esc(SessionMindMap._base(t.target) || '')}</span>`).join('')}${more > 0 ? `<span class="hub-tool-more">도구 ${more}개 더</span>` : ''}</div>` : '';
         const time = m.at ? `<time>${SessionMindMap._fmt(m.at)}</time>` : '';
-        return `<div class="hub-msg hub-${m.role}">${m.text ? `<div class="hub-bubble">${SessionHub.md(m.text)}</div>` : ''}${tools}${time}</div>`;
+        const tag = mode && m.role === 'assistant' ? `<span class="hub-mode" title="${SessionHub.ANSWER_LABEL[mode]} 버튼으로 받은 답">${SessionHub.ANSWER_LABEL[mode]}</span>` : '';
+        return `<div class="hub-msg hub-${m.role}">${tag}${m.text ? `<div class="hub-bubble">${SessionHub.md(m.text)}</div>` : ''}${tools}${time}</div>`;
     }
 
     _runHtml() {
@@ -527,7 +584,7 @@ class SessionHub {
         const res = r.events.find(e => e.type === 'result');
         let status = r.done ? (r.stopped ? '멈췄어요' : res && res.is_error ? '오류로 끝났어요' : '끝났어요') : '실행 중…';
         if (r.done && !res && !r.stopped) status = '응답 없이 끝났어요';
-        return `<div class="hub-live">${r.label ? `<div class="hub-step">${SessionMindMap._esc(r.label)}</div>` : ''}${this._msgHtml(parts[0])}${a.text || a.tools.length ? this._msgHtml(a) : ''}
+        return `<div class="hub-live">${r.label ? `<div class="hub-step">${SessionMindMap._esc(r.label)}</div>` : ''}${this._msgHtml(parts[0])}${a.text || a.tools.length ? this._msgHtml(a, r.answerMode) : ''}
             <div class="hub-runstate${r.done ? '' : ' is-running'}">${status}${res && res.total_cost_usd != null ? ` · $${res.total_cost_usd.toFixed(2)}` : ''}</div>
             ${err && (r.done || !a.text) ? `<pre class="hub-err">${SessionMindMap._esc(err.slice(-1500))}</pre>` : ''}</div>`;
     }
@@ -546,16 +603,150 @@ class SessionHub {
 
     _renderComposer() {
         const s = this._selSession();
-        const can = !!(s || this.newFolder) && !!this.ipc;
+        const can = !!(s || this.newFolder) && !!this.ipc && !(s && s.remote);
         const running = this.run && !this.run.done;
         this.el('hub-input').disabled = !can || running;
         this.el('hub-input').placeholder = !this.ipc ? '미리보기에서는 보낼 수 없어요'
-            : s ? '이 세션에 이어서 말하기 (⌘↩ 보내기)'
+            : s && s.remote ? `${s.machine} 의 세션은 그 기기에서 이어서 말할 수 있어요`
+            : s ? `"${SessionMindMap._clip(s.title, 24)}" 에 이어서 말하기 (⌘↩ 보내기)` // 어느 세션으로 가는지 보이게
             : this.newFolder ? (this._newHub() && this.toonStart ? '세션 제목이나 할 일만 쓰세요 · 툰 허브를 읽고 시작해요 (⌘↩)' : '새 세션 첫 메시지 (⌘↩ 보내기)')
             : '왼쪽에서 세션을 고르세요';
         this.el('hub-send').hidden = running;
         this.el('hub-send').disabled = !can;
+        this.el('hub-send').title = s ? `보낼 곳: ${s.title}` : this.newFolder ? `새 세션 · ${this.newFolder}` : '';
         this.el('hub-stop').hidden = !running;
+    }
+
+    /** 선택한 세션의 마지막 메시지 시각 (보내는 중이면 지금) */
+    _lastActivity(s) {
+        let t = s.lastAt || 0;
+        const msgs = this.transcript && this.transcript.file === s.file ? this.transcript.messages || [] : [];
+        if (msgs.length) t = Math.max(t, msgs[msgs.length - 1].at || 0);
+        if (this.run && this._runBelongsHere()) t = Math.max(t, this.run.done ? this.run.sentAt : this.now());
+        return t;
+    }
+
+    /** 캐시 타이머: 대화창 머리의 남은 시간, 55분부터 깜박 + 툰 버튼 강조. 깜박이는 세션이 바뀌면 목록·맵도 다시 그린다 */
+    _tickCache() {
+        const now = this.now();
+        const s = this._selSession();
+        const pill = this.el('hub-cache');
+        if (pill && s) {
+            const ttl = SessionMindMap.cacheMs(s);
+            const { phase, left } = SessionMindMap.cachePhase(this._lastActivity(s), now, ttl);
+            const min = Math.ceil(left / 60e3);
+            const alarm = SessionMindMap.alarm({ ...s, lastAt: this._lastActivity(s) }, now);
+            pill.className = `hub-cache hub-cache-${phase}${alarm ? ' is-alarm' : ''}`;
+            pill.textContent = alarm === 'full' ? '툰 할 때 · 세션 거의 참' : alarm ? `툰 할 때 · 캐시 ${min}분` : phase === 'over' ? '캐시 지남' : `캐시 ${min}분`;
+            pill.title = phase === 'over' ? '캐시가 끝나 다음 메시지는 앞 대화를 다시 비싸게 읽어요'
+                : `마지막 메시지 뒤 ${ttl / 60e3}분까지 캐시로 싸게 이어가요 · ${min}분 남음`;
+            const toon = document.querySelector('[data-act="toon-ask"]');
+            if (toon) toon.classList.toggle('is-blink', !!alarm);
+        }
+        if (!this.data) return;
+        const sig = this.data.projects.flatMap(p => p.sessions)
+            .filter(x => SessionMindMap.alarm(x, now)).map(x => x.id).join();
+        if (sig !== this._cacheSig) {
+            const first = this._cacheSig === undefined;
+            this._cacheSig = sig;
+            if (!first) { this._renderList(); this.map.render(); }
+        }
+    }
+
+    /**
+     * 왼쪽 목록(폴더별): 가지 → 줄기 맨 끝 세션(이전 N, 펼치면 앞 세션) → 하위 세션
+     * @returns {{ branches: [{topic, title, count, rows}], loose: rows, empty: [{topic, title}], count }}
+     *   rows = [{ s, depth, prevCount, isPrev }]
+     */
+    static listTree(p, sessions, openChains = new Set(), searching = false) {
+        const { heads, headOf } = SessionMindMap.chains(sessions);
+        const byTime = list => [...list].sort((a, b) => b.lastAt - a.lastAt);
+        const headIds = new Set(heads.keys());
+        const kids = new Map();
+        const top = [];
+        for (const s of byTime(sessions.filter(x => headIds.has(x.id)))) {
+            const pid = s.parentId && (headOf.get(s.parentId) || s.parentId);
+            if (pid && pid !== s.id && headIds.has(pid)) { if (!kids.has(pid)) kids.set(pid, []); kids.get(pid).push(s); } else top.push(s);
+        }
+        const walk = (s, depth, out) => {
+            const prev = heads.get(s.id) || [];
+            out.push({ s, depth, prevCount: prev.length, isPrev: false });
+            if (prev.length && openChains.has(`${p.root}::${s.id}`)) [...prev].reverse().forEach(x => out.push({ s: x, depth: depth + 1, prevCount: 0, isPrev: true }));
+            (kids.get(s.id) || []).forEach(k => walk(k, depth + 1, out));
+            return out;
+        };
+        const hub = p.hub || { topics: [], titles: {} };
+        const names = [...new Set([...(hub.topics || []), ...top.map(s => s.topic).filter(Boolean)])];
+        const title = t => (hub.titles || {})[t] || t;
+        const branches = [], empty = [], loose = [];
+        for (const t of names) {
+            const mine = top.filter(s => s.topic === t);
+            if (!mine.length) { if (!searching) empty.push({ topic: t, title: title(t) }); continue; }
+            const rows = [];
+            mine.forEach(s => walk(s, 1, rows));
+            branches.push({ topic: t, title: title(t), count: rows.filter(r => !r.isPrev).length, rows, lastAt: mine[0].lastAt });
+        }
+        branches.sort((a, b) => b.lastAt - a.lastAt);
+        top.filter(s => !s.topic || !names.includes(s.topic)).forEach(s => walk(s, 0, loose));
+        return { branches, loose, empty, count: sessions.length };
+    }
+
+    /** 답 길이 버튼: 결과만 / 요약 / 자세히 (기억해 둔다) */
+    setAnswerMode(mode) {
+        this.answerMode = SessionHub.ANSWER_MODES.includes(mode) ? mode : 'summary';
+        document.querySelectorAll('.hub-answer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.answer === this.answerMode)));
+        try { localStorage.setItem('hub.answerMode', this.answerMode); } catch { /* 저장 못 해도 이번엔 쓴다 */ }
+    }
+
+    static _loadAnswerMode() {
+        try {
+            const m = localStorage.getItem('hub.answerMode');
+            if (SessionHub.ANSWER_MODES.includes(m)) return m;
+        } catch { /* 미리보기·테스트 */ }
+        return 'summary';
+    }
+
+    // 어느 버튼으로 받은 답인지: 기록 파일에는 남지 않으니 보낸 시각과 버튼을 따로 기억한다 (세션 id → [{ at, mode }])
+    static _answerLog() {
+        try { return JSON.parse(localStorage.getItem('hub.answerLog') || '{}') || {}; } catch { return {}; }
+    }
+
+    static _logAnswer(sessionId, at, mode) {
+        try {
+            const log = SessionHub._answerLog();
+            log[sessionId] = [...(log[sessionId] || []), { at, mode }].slice(-100);
+            const ids = Object.keys(log);
+            if (ids.length > 300) ids.slice(0, ids.length - 300).forEach(id => delete log[id]); // 오래된 세션부터 버린다
+            localStorage.setItem('hub.answerLog', JSON.stringify(log));
+        } catch { /* 기억 못 해도 보내기는 된다 */ }
+    }
+
+    /**
+     * 메시지마다 답 길이 표시: 사람 메시지 시각에 가장 가까운 보낸 기록(보낸 뒤 2분 안)을 찾아
+     * 그 뒤에 이어지는 Claude 답에 붙인다. 앱 밖(터미널)에서 보낸 메시지는 표시 없음.
+     */
+    static answerModes(messages, log) {
+        const out = new Array(messages.length).fill(null);
+        if (!log || !log.length) return out;
+        let mode = null;
+        messages.forEach((m, i) => {
+            if (m.role === 'user') {
+                let best = null;
+                for (const r of log) {
+                    const d = m.at - r.at;
+                    if (d >= -5000 && d <= 120000 && (!best || Math.abs(d) < Math.abs(m.at - best.at))) best = r;
+                }
+                mode = best ? best.mode : null;
+            } else out[i] = mode;
+        });
+        return out;
+    }
+
+    /** 마지막 답을 자세히 다시 설명해 달라고 보낸다 (이번 한 번만 자세히) */
+    askDetail() {
+        const s = this._selSession();
+        if (!s || s.remote || !this.ipc || (this.run && !this.run.done)) return;
+        this._startRun({ cwd: s.cwd, sessionId: s.id, root: this.sel.root, text: SessionHub.DETAIL_TEXT, permissionMode: this.permission, answerMode: 'detail' });
     }
 
     send() {
@@ -564,6 +755,7 @@ class SessionHub {
         if ((!typed && !this.attachments.length) || !this.ipc || (this.run && !this.run.done)) return;
         const text = SessionHub.withAttachments(typed, this.attachments);
         const s = this._selSession();
+        if (s && s.remote) return; // 다른 기기 세션에는 보낼 수 없다
         const folderSel = this.el('hub-folder');
         const cwd = s ? s.cwd : (folderSel ? folderSel.value : this.newFolder);
         if (!cwd) return;
@@ -576,10 +768,14 @@ class SessionHub {
         this._renderAttachments();
     }
 
-    _startRun({ cwd, sessionId, root, text, permissionMode, label }) {
+    _startRun({ cwd, sessionId, root, text, permissionMode, label, answerMode, meta }) {
         const runId = 'run-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-        this.run = { runId, text, label, events: [], sessionId, root, done: false };
-        this.ipc.send('sessions:send', { runId, cwd, sessionId, text, permissionMode });
+        // 새 세션이면 끝난 뒤 제자리(하위·줄기·주제)에 붙인다
+        if (!sessionId) meta = meta || this.newMeta || null;
+        const mode = answerMode || this.answerMode;
+        this.run = { runId, text, label, events: [], sessionId, root, done: false, answerMode: mode, sentAt: Date.now(), meta: sessionId ? null : meta };
+        if (sessionId) SessionHub._logAnswer(sessionId, this.run.sentAt, mode);
+        this.ipc.send('sessions:send', { runId, cwd, sessionId, text, permissionMode, answerMode: mode });
         this._renderMessages(true);
         this._renderComposer();
         return runId;
@@ -590,21 +786,40 @@ class SessionHub {
     // ---------------------------------------------------------------------
     _onDrop(src, t) {
         const p = src.project, s = src.data;
+        if (s.remote) return;
         if (!t) {
             if (s.parentId) this._link(p.root, s.id, null, `떼어냈어요: ${s.title}`);
+            return;
+        }
+        if (t.kind === 'topic') { // 주제 가지 위: 그 가지로 옮긴다 (같은 폴더만)
+            if (t.project.root === p.root) this._meta(p.root, s.id, { parentId: null, topic: t.topic }, `${t.label} 가지로 옮겼어요: ${s.title}`);
             return;
         }
         const isSession = t.kind === 'session' || (t.kind === 'root' && t.ref.kind === 'session');
         const ts = isSession ? (t.kind === 'session' ? t.data : t.ref.data) : null;
         const tp = t.kind === 'session' ? t.project : t.kind === 'project' ? t.data : t.ref.kind === 'project' ? t.ref.data : t.ref.project;
         if (tp.root === p.root) {
-            if (ts) this._link(p.root, s.id, ts.id, `붙였어요: ${ts.title} 아래에 ${s.title}`);
-            else if (s.parentId) this._link(p.root, s.id, null, `폴더 바로 아래로 옮겼어요: ${s.title}`);
+            // 세션 위 = 그 아래로 (주제도 따라감), 폴더 위 = 가지·부모 없이 폴더 바로 아래로
+            if (ts) this._meta(p.root, s.id, { parentId: ts.id, topic: ts.topic || null }, `붙였어요: ${ts.title} 아래에 ${s.title}`);
+            else if (s.parentId || s.topic) this._meta(p.root, s.id, { parentId: null, topic: null }, `폴더 바로 아래로 옮겼어요: ${s.title}`);
             return;
         }
         // 다른 폴더: 복사는 파일을 새로 쓰니 한 번 묻는다
         this.dropAsk = { src: { root: p.root, id: s.id, title: s.title }, to: { root: tp.root, name: tp.name }, parent: ts ? { id: ts.id, title: ts.title } : null };
         this._renderDropAsk();
+    }
+
+    _meta(root, id, meta, done) {
+        if (!this.ipc) {
+            const p = this.data.projects.find(x => x.root === root);
+            const s = p && p.sessions.find(x => x.id === id);
+            if (s) Object.assign(s, meta);
+            this._onIndex(this.data);
+            this.map._toast(done);
+            return;
+        }
+        this._pendingToast = done;
+        this.ipc.send('sessions:meta', { root, id, ...meta });
     }
 
     _link(root, id, parentId, done) {
@@ -638,8 +853,9 @@ class SessionHub {
     _onChanged(r) {
         if (!r) return;
         if (!r.ok) { this.map._toast(r.error || '바꾸지 못했어요'); return; }
-        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : this._pendingToast || '바꿨어요';
+        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
         this._pendingToast = null;
+        if (r.quiet && !msg) { this.refresh(); return; }
         if (r.action === 'copy') {
             this._afterIndex = () => { if (this.data.projects.some(p => p.root === r.root && p.sessions.some(x => x.id === r.id))) this.selectSession(r.root, r.id); };
         }
@@ -698,7 +914,7 @@ class SessionHub {
         const topics = v.topics || (p && p.hub ? p.hub.topics : []);
         const chips = `<div class="hub-toon-tabs" role="tablist">
             <button role="tab" aria-selected="${!v.topic}" data-act="hub-topic" data-topic="">프로젝트 허브</button>
-            ${topics.map(t => `<button role="tab" aria-selected="${v.topic === t}" data-act="hub-topic" data-topic="${esc(t)}">${esc(t)}</button>`).join('')}</div>`;
+            ${topics.map(t => `<button role="tab" aria-selected="${v.topic === t}" data-act="hub-topic" data-topic="${esc(t)}">${esc((v.titles || {})[t] || t)}</button>`).join('')}</div>`;
         const body = v.loading ? '<p class="hub-muted">불러오는 중…</p>'
             : v.error ? `<p class="hub-muted">${esc(v.error)}</p>`
             : `<pre class="hub-toon-text">${SessionHub.toonHtml(v.text)}</pre>`;
@@ -731,7 +947,7 @@ class SessionHub {
             permissionMode: this.permission === 'default' ? 'acceptEdits' : this.permission,
             label: '1/2 툰 저장'
         });
-        this.toonFlow = { stage: 'save', runId, fromId: s.id, root: this.sel.root, cwd: s.cwd };
+        this.toonFlow = { stage: 'save', runId, fromId: s.id, root: this.sel.root, cwd: s.cwd, topic: s.topic || null };
         this._renderChat();
     }
 
@@ -756,7 +972,9 @@ class SessionHub {
         this.map.pendingRoot = flow.root;
         this._applyCenter(true);
         this._renderList();
-        flow.runId = this._startRun({ cwd: flow.cwd, sessionId: null, root: flow.root, text: prompt, permissionMode: this.permission, label: '2/2 새 세션' });
+        // 새 세션은 원래 세션의 다음 칸(같은 줄기, 같은 주제)
+        flow.runId = this._startRun({ cwd: flow.cwd, sessionId: null, root: flow.root, text: prompt, permissionMode: this.permission, label: '2/2 새 세션',
+            meta: { prevId: flow.fromId, topic: flow.topic || SessionHub.topicOf(prompt) || undefined } });
         this._renderChat();
     }
 
@@ -767,7 +985,10 @@ class SessionHub {
     _onRunEvent({ runId, event }) {
         if (!this.run || this.run.runId !== runId) return;
         this.run.events.push(event);
-        if (event.session_id && !this.run.sessionId) this.run.newSessionId = event.session_id;
+        if (event.session_id && !this.run.sessionId && !this.run.newSessionId) {
+            this.run.newSessionId = event.session_id;
+            SessionHub._logAnswer(event.session_id, this.run.sentAt, this.run.answerMode); // 새 세션은 id 를 알게 된 뒤 기록
+        }
         const box = this.el('hub-messages');
         const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
         if (this._runBelongsHere()) this._renderMessages(atBottom);
@@ -793,6 +1014,8 @@ class SessionHub {
                 const p = this.data.projects.find(x => x.sessions.some(y => y.id === newId));
                 this.map.pendingRoot = null;
                 if (p) this.selectSession(p.root, newId);
+                const m = run.meta;
+                if (p && m && this.ipc) this.ipc.send('sessions:meta', { root: p.root, id: newId, parentId: m.parentId, prevId: m.prevId, topic: m.topic });
             }
         };
         this.refresh();
@@ -805,24 +1028,41 @@ class SessionHub {
         this.el('hub-list-body').addEventListener('click', e => {
             const add = e.target.closest('.hub-add');
             if (add) return this.newSessionIn(add.dataset.add);
+            const chain = e.target.closest('.hub-chain-toggle');
+            if (chain) {
+                e.stopPropagation();
+                if (this.openChains.has(chain.dataset.chain)) this.openChains.delete(chain.dataset.chain); else this.openChains.add(chain.dataset.chain);
+                return this._renderList();
+            }
+            const tAdd = e.target.closest('.hub-topic-add');
+            if (tAdd) return this.newSessionIn(tAdd.dataset.root, { topic: tAdd.dataset.topic });
+            const topic = e.target.closest('.hub-topic');
+            if (topic) return this.showHub(topic.dataset.root, topic.dataset.topic);
             const it = e.target.closest('.hub-item');
             if (it) return this.selectSession(it.dataset.root, it.dataset.id);
             const f = e.target.closest('.hub-folder');
             if (f) this.selectFolder(f.dataset.folder);
         });
         this.el('hub-search').addEventListener('input', e => { this.listQuery = e.target.value.trim().toLowerCase(); this._renderList(); });
+        document.querySelectorAll('.hub-group-toggle button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === this.group)));
         document.querySelectorAll('.hub-group-toggle button').forEach(b => b.addEventListener('click', () => {
             this.group = b.dataset.group;
+            try { localStorage.setItem('hub.group', this.group); } catch { /* 미리보기 */ }
             document.querySelectorAll('.hub-group-toggle button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
             this._renderList();
         }));
         this.el('hub-new').addEventListener('click', () => this.newSession());
         this.el('hub-refresh').addEventListener('click', () => this.refresh());
+        const addFolder = this.el('hub-add-folder');
+        if (addFolder) addFolder.addEventListener('click', () => { if (this.ipc) this.ipc.send('sessions:pick-folder'); });
         if (this.el('hub-usage')) this.el('hub-usage').addEventListener('click', () => { this.usage = null; this._renderUsage(); this.readUsage(); });
         document.querySelectorAll('.hub-seg button').forEach(b => b.addEventListener('click', () => this.setCenter(b.dataset.center)));
         this.el('hub-send').addEventListener('click', () => this.send());
         this.el('hub-stop').addEventListener('click', () => this.stop());
         this.el('hub-perm').addEventListener('change', e => { this.permission = e.target.value; });
+        document.querySelectorAll('.hub-answer button').forEach(b => b.addEventListener('click', () => this.setAnswerMode(b.dataset.answer)));
+        this.setAnswerMode(this.answerMode);
+        this.el('hub-messages').addEventListener('click', e => { if (e.target.closest('[data-act="more"]')) this.askDetail(); });
         this.el('hub-input').addEventListener('keydown', e => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.send(); }
         });
@@ -830,6 +1070,11 @@ class SessionHub {
             const c = e.target.closest('[data-copy]');
             if (c) { this._copy(c.dataset.copy); return; }
             const act = e.target.closest('[data-act]');
+            if (act && act.dataset.act === 'kind') {
+                const s = this._selSession();
+                if (s) this._meta(this.sel.root, s.id, { kind: s.kind === 'chat' ? 'code' : 'chat' }, s.kind === 'chat' ? '코드 세션으로 바꿨어요' : '대화 세션으로 바꿨어요');
+                return;
+            }
             if (act && act.dataset.act === 'toon-ask') { this.toonAsk = true; this._renderChat(); return; }
             if (act && act.dataset.act === 'toon-cancel') { this.toonAsk = false; this._renderChat(); return; }
             if (act && act.dataset.act === 'toon-go') { this.toonAndContinue(); return; }
@@ -857,7 +1102,7 @@ class SessionHub {
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && this.hubView) this.hideHub(); });
         this.el('hub-chat-head').addEventListener('change', e => {
             if (e.target.id === 'hub-toonstart') { this.toonStart = e.target.checked; this._renderComposer(); return; }
-            if (e.target.id === 'hub-topic') { this.newTopic = e.target.value; return; }
+            if (e.target.id === 'hub-topic') { this.newTopic = e.target.value; if (this.newMeta) this.newMeta.topic = e.target.value || undefined; return; }
             if (e.target.id === 'hub-folder') {
                 this.newFolder = e.target.value;
                 this.newTopic = '';
@@ -908,6 +1153,11 @@ class SessionHub {
     }
 }
 
+SessionHub.ANSWER_MODES = ['result', 'summary', 'detail'];
+/** 시작 메시지의 "topic: X" (SessionIndexer.topicOf 와 같은 규칙) */
+SessionHub.topicOf = prompt => { const m = /\btopic:\s*([\w.-]+)/.exec(String(prompt || '')); return m ? m[1] : null; };
+SessionHub.ANSWER_LABEL = { result: '결과만', summary: '요약', detail: '자세히' };
+SessionHub.DETAIL_TEXT = '방금 답을 자세히 설명해 줘.';
 SessionHub.TOON_SAVE_TEXT = '툰 저장해줘. 저장이 끝나면 새 세션에서 이어갈 시작 메시지를 ```toon-next 코드 블록 하나에만 담아서 답의 맨 끝에 보여줘.';
 
 if (typeof window !== 'undefined') window.SessionHub = SessionHub;

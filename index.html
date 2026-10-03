@@ -49,6 +49,20 @@
         .hub-dot.hub-recent { background: var(--c); }
         .hub-dot.hub-working { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(78, 201, 176, .25); }
         .hub-group { margin-bottom: 8px; position: relative; }
+        .hub-branch { margin: 2px 0 4px; }
+        .hub-topic-row { display: flex; align-items: center; gap: 4px; padding-left: 10px; }
+        .hub-topic { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: transparent; border: 0; padding: 4px 6px; border-radius: 6px; cursor: pointer;
+          color: var(--ink); font-size: 12px; font-weight: 700; text-align: left; }
+        .hub-topic::before { content: ""; width: 8px; height: 8px; border-radius: 4px; border: 2px solid var(--accent); }
+        .hub-topic:hover, .hub-topic.is-on { background: var(--panel); }
+        .hub-topic-add { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; margin-right: 34px; }
+        .hub-topic-add:hover { background: var(--accent); color: #0b1512; border-color: var(--accent); }
+        .hub-loose { color: var(--muted); font-size: 11px; padding: 6px 16px 2px; }
+        .hub-empty-branches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--muted); font-size: 11px; padding: 6px 10px 2px 16px; }
+        .hub-chip-btn { width: auto; height: auto; margin: 0; border-radius: 999px; border-style: dashed; padding: 1px 8px; font-size: 11px; }
+        .hub-chain-toggle { margin-right: 6px; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; font-weight: 600; white-space: nowrap; }
+        .hub-chain-toggle:hover { color: var(--ink); border-color: var(--muted); }
+        .hub-item.is-prev { opacity: .75; }
         .hub-add { position: absolute; top: 5px; right: 34px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line);
             background: var(--panel-2); cursor: pointer; line-height: 1; font-size: 16px; padding: 0; }
         .hub-add:hover { background: var(--accent); color: #0b1512; border-color: var(--accent); }
@@ -212,6 +226,21 @@
         .hub-runstate { color: var(--muted); font-size: 12px; }
         .hub-runstate.is-running::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: hub-blink 1s infinite; }
         @keyframes hub-blink { 50% { opacity: .2; } }
+        .hub-cache { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; white-space: nowrap; }
+        .hub-cache:empty { display: none; }
+        .hub-cache-over { opacity: .7; }
+        .hub-cache.is-alarm { background: #e0b44c; color: #1a1406; border-color: #e0b44c; font-weight: 700; animation: hub-blink 1s infinite; }
+        .hub-toon.is-blink { border-color: #e0b44c; color: #e0b44c; animation: hub-blink 1s infinite; }
+        .hub-item.is-alarm .hub-dot { background: #e0b44c !important; animation: hub-blink 1s infinite; }
+        @media (prefers-reduced-motion: reduce) { .hub-cache.is-alarm, .hub-toon.is-blink, .hub-item.is-alarm .hub-dot { animation: none; } }
+        .hub-ctxbar { position: relative; display: inline-flex; align-items: center; width: 64px; height: 14px; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; font-size: 10px; }
+        .hub-ctxbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); opacity: .45; }
+        .hub-ctxbar b { position: relative; width: 100%; text-align: center; color: var(--ink); }
+        .hub-ctxbar.hub-ctx-warn i { background: #e0b44c; }
+        .hub-ctxbar.hub-ctx-full i { background: #ef7d6b; opacity: .7; }
+        b.hub-ctx-warn { color: #e0b44c; }
+        b.hub-kind-chat { color: #b48ead; }
+        b.hub-ctx-full { color: #ef7d6b; }
         @media (prefers-reduced-motion: reduce) { .hub-runstate.is-running::before { animation: none; } }
         .hub-err { background: #2a1d1f; color: #f2a7a7; padding: 8px; border-radius: 6px; white-space: pre-wrap; font-family: var(--mono); font-size: 11px; margin: 0; }
         .hub-toon-row { display: flex; gap: 6px; margin-top: 4px; }
@@ -223,6 +252,15 @@
         #hub-input { width: 100%; resize: vertical; min-height: 64px; max-height: 40vh; }
         .composer .row { justify-content: space-between; }
         .composer label { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+        .composer .row { flex-wrap: wrap; gap: 6px; }
+        .composer label, #hub-send, #hub-stop { white-space: nowrap; }
+        #hub-perm { max-width: 150px; }
+        .hub-answer { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+        .hub-answer button { white-space: nowrap; background: none; border: 0; color: var(--muted); font-size: 12px; padding: 3px 9px; cursor: pointer; }
+        .hub-answer button + button { border-left: 1px solid var(--line); }
+        .hub-answer button[aria-pressed="true"] { background: var(--accent); color: #0b1512; font-weight: 700; }
+        .hub-more { align-self: flex-start; justify-self: start; font-size: 11px; padding: 2px 9px; }
+        .hub-mode { justify-self: start; background: var(--accent); color: #0b1512; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 0 6px; }
 
         @media (max-width: 1100px) { .hub { grid-template-columns: 220px minmax(0, 1fr) 340px; } }
         /* 좁은 화면(폰·작은 창): 목록 → 맵 → 대화 순으로 쌓는다 */
@@ -250,10 +288,10 @@
             </div>
             <div class="hub-panel" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
             <div class="col-head">
-                <div class="row"><h2>세션</h2><button class="btn" id="hub-refresh" title="세션 기록 다시 읽기">새로고침</button><button class="btn btn-primary" id="hub-new">새 세션</button></div>
+                <div class="row"><h2>세션</h2><button class="btn" id="hub-refresh" title="세션 기록 다시 읽기">새로고침</button><button class="btn" id="hub-add-folder" title="폴더 더하기 (새 폴더도 만들 수 있어요) · 세션이 없어도 보여요">+ 폴더</button><button class="btn btn-primary" id="hub-new">새 세션</button></div>
                 <input type="search" id="hub-search" placeholder="세션 찾기" aria-label="세션 찾기">
                 <div class="hub-group-toggle" role="group" aria-label="목록 묶기">
-                    <button data-group="recent" aria-pressed="true">최근</button><button data-group="folder" aria-pressed="false">폴더별</button>
+                    <button data-group="folder" aria-pressed="true">폴더·가지</button><button data-group="recent" aria-pressed="false">최근</button>
                 </div>
             </div>
             <div id="hub-list-body"><p class="hub-empty">세션 기록 읽는 중…</p></div>
@@ -332,6 +370,11 @@
                 <div id="hub-attach" class="hub-attach" hidden></div>
                 <textarea id="hub-input" rows="3" placeholder="왼쪽에서 세션을 고르세요" disabled></textarea>
                 <div class="row">
+                    <span class="hub-answer" role="group" aria-label="답 길이">
+                        <button type="button" data-answer="result" aria-pressed="false" title="결과만 한두 줄">결과만</button>
+                        <button type="button" data-answer="summary" aria-pressed="true" title="5줄 안쪽 요약">요약</button>
+                        <button type="button" data-answer="detail" aria-pressed="false" title="무엇을 왜 했는지 자세히">자세히</button>
+                    </span>
                     <label for="hub-perm">권한
                         <select id="hub-perm">
                             <option value="default">기본 (물어볼 도구는 막힘)</option>

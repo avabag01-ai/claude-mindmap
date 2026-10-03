@@ -17,7 +17,7 @@ const path = require('path');
 class GitPanel {
     constructor(options = {}) {
         this.timeoutMs = options.timeoutMs || 60000;
-        this.ghBin = options.ghBin || process.env.FLOWCODE_GH_BIN || 'gh';
+        this.ghBin = options.ghBin || process.env.MINDMAP_GH_BIN || 'gh';
     }
 
     /** 로그인 셸 PATH 로 실행: { code, stdout, stderr } (명령이 없으면 code 127) */

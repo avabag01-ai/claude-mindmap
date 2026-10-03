@@ -1,0 +1,56 @@
+## DECODER_INSTRUCTION
+압축 세션 기록. DICTIONARY 의 $N 을 먼저 펼쳐 읽는다.
+태그: [확인]=근거 있음, [확인 클라우드]=클라우드 xvfb·가짜 claude 로만 확인, [가설]=검증 전, [변경]=지난 툰 이후 바뀜
+
+## META
+date: 2026-10-03
+session: 하위 세션 (claude.ai 클라우드) "npm install 및 start 실행" · session_013bqedKNYV1FkLmyCHmjXbE
+root: ~/claude-mindmap
+topic: claude-mindmap
+prev_session: .toon/claude-mindmap/SESSION_20261003.toon
+hub_task: NEXT 000000 맥에서 npm install && npm start, 기기·git 표시(MachineSync 연결) 마무리
+
+## DICTIONARY
+$1 = avabag01-ai/claude-mindmap
+$2 = claude/epic-clarke-x1kk5z
+$3 = https://github.com/avabag01-ai/claude-mindmap/pull/1
+$4 = ~/.flowcode/session-links.json
+$5 = 맥 세션 session_019TFMmVP1eJCPQFECsTvuwz ("Mac session Suno vocal tempo setup", bridge)
+
+## STORY
+1. 클라우드라 맥 실행 불가 → 사용자가 $1 을 GitHub 에 올림 → 붙여서 작업, 브랜치 $2, 초안 PR $3
+2. MachineSync 연결 → 답 길이 버튼 → 캐시 타이머 → 툰 알람을 세션 분량(토큰) 기준으로
+3. 폴더 아래 세션이 너무 많다 → 설계: 주제 가지 7개 + 툰 이어가기 줄기 → 지도·목록 모두 가지·줄기로
+4. 대화 세션 / 코드 세션 구분
+5. 맥 실행은 $5 에 send_message 로 전달 (사용자 승인 대기, 맥미니인지 맥북인지 모름)
+
+## RESULTS ($2, 커밋 7개, npm test 8개 통과 [확인 클라우드])
+- d688f1c 기기·git: SessionIndexer.attachGit(dirty>ahead>pushed, upstream 없으면 HEAD --not --remotes), main.js buildSessionIndex(index→attachGit→publish→readOthers→merge), 다른 기기 세션 읽기 전용
+- d2c200e 답 길이 버튼: 결과만/요약/자세히 → claude --append-system-prompt, 버튼 반전, 답마다 배지(localStorage hub.answerLog), "자세히 설명해 줘"
+- 10cd082·7f02403 세션 분량: 기록 마지막 답 usage(input+cache_creation+cache_read, sidechain 제외) → 카드 막대·목록 %·대화창 막대. 캐시 종류(ephemeral_1h/5m)도 기록에서. 깜박 = 80% 넘음 또는 50%+ 이고 캐시 곧 끝남
+- 9c02999 가지·줄기: .toon/<주제>/HUB.toon(title:) = 가지, 세션 주제 = 첫 메시지 topic: 또는 links.topics, 툰 이어가기 새 세션 = prev 줄기(지도엔 맨 끝만 "이전 N"), ⊕ 가지/세션(하위), sessions:meta IPC
+- d05b40a 종류: 코드 파일 고침 = code(</>), 아니면 chat(보라 말풍선), links.kinds 로 바꿈
+- fcd7d80 왼쪽 목록: 폴더 → 가지 → 줄기 맨 끝(▸ 이전 N) → 하위, 빈 가지는 칩, "폴더·가지" 기본
+- 설계: 가지 = session-hub · mindmap · chat · toon-flow · machine-sync · usage-alarm · side-tabs (+ claude-mindmap = 전체(관제))
+
+## GOTCHAS
+- [확인] 주제 이름은 영문 슬러그만 (readHub 정규식 [\w.-] 가 한글 불가) → 화면 이름은 title:
+- [확인] 가짜 claude 는 세션 기록을 안 써서 "툰 → 이어가기 → 줄기 연결"은 끝까지 못 봄 (setMeta 단위 테스트만)
+- [확인] 세션 분량 창 크기는 기록에 없음 → 20만, 넘으면 100만 [가설]
+- [확인] 이 클라우드 세션 캐시 = 1시간(ephemeral_1h). 맥 Claude Code 는 기록으로 확인 가능
+- [확인] 세션끼리 토큰 공유 없음: 폴더 안 세션 수는 토큰과 무관
+
+## ARTIFACTS
+- 브랜치: git checkout $2 && git pull && npm install && npm test && npm start
+- 테스트 추가: scripts/test-machine-sync.js, 나머지 test-*.js 보강
+- 링크 파일 $4: parents · prev · topics · kinds
+
+## VERIFY_ON_LOAD
+- git -C ~/claude-mindmap log --oneline -1 $2 → fcd7d80 이후
+- ls ~/claude-mindmap/.toon → 가지 폴더 8개 (claude-mindmap 포함)
+- cd ~/claude-mindmap && npm test → 8개 "모든 테스트 통과"
+
+## NEXT
+- NEXT 000000 맥 실측 ($5 결과 확인 또는 직접): 진짜 claude 답 길이, 분량 % 가 Claude Code 표시와 맞는지, 툰 → 이어가기 → 줄기 연결, iCloud machines/*.json
+- NEXT 000001 실측 버그 수정 후 PR $3 ready → main 머지
+- NEXT 000002 SNS 홍보 스킬 (초안까지 자동, 게시는 사람이 확인)

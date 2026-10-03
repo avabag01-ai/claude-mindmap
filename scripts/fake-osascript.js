@@ -8,7 +8,7 @@ process.stdin.on('end', () => {
     const US = '\u001f', RS = '\u001e';
     if (/repeat with w in windows/.test(script)) {
         process.stdout.write(['1', '1', 'false', '깃허브', 'https://github.com/'].join(US) + RS + ['1', '2', 'true', '검색: "따옴표"', 'https://www.google.com/search?q=x'].join(US) + RS + '\n');
-    } else if (/JSON\.stringify/.test(script) && /data-flowcode-id/.test(script) && /innerText/.test(script) && /items\.push/.test(script)) {
+    } else if (/JSON\.stringify/.test(script) && /data-mindmap-id/.test(script) && /innerText/.test(script) && /items\.push/.test(script)) {
         process.stdout.write(JSON.stringify({ title: '예시', url: 'https://ex.com', text: '본문', truncated: false, items: [{ id: 1, tag: 'a', text: '로그인', href: 'https://ex.com/login' }] }) + '\n');
     } else if (/JSON\.stringify/.test(script)) {
         process.stdout.write(JSON.stringify({ ok: true, clicked: '로그인' }) + '\n');

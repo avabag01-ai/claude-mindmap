@@ -21,6 +21,9 @@ const line = o => JSON.stringify(o) + '\n';
 const user = (ts, cwd, text) => line({ type: 'user', timestamp: ts, cwd, gitBranch: 'main', sessionId: 'x', message: { role: 'user', content: text } });
 const edit = (ts, name, p) => line({ type: 'assistant', timestamp: ts, message: { role: 'assistant', content: [{ type: 'tool_use', name, input: { file_path: p } }] } });
 
+// 답의 사용량 (sidechain = 하위 에이전트, 세지 않음)
+const usage = (ts, u, sidechain) => line({ type: 'assistant', timestamp: ts, isSidechain: !!sidechain, message: { model: 'claude-x', role: 'assistant', content: [{ type: 'text', text: '"input_tokens":7' }], usage: u } });
+
 function writeSession(dirName, id, body) {
     const dir = path.join(claudeDir, 'projects', dirName);
     fs.mkdirSync(dir, { recursive: true });
@@ -37,6 +40,9 @@ writeSession('-logic-pro-mcp', 'sess-a',
     edit('2026-10-03T14:40:00Z', 'Read', path.join(sub, 'ignored.py')) +
     line({ type: 'ai-title', aiTitle: 'AMT 반주 최적화', sessionId: 'sess-a' }) +
     line({ type: 'cost-state', totalCostUSD: 3.24 }) +
+    usage('2026-10-03T14:44:00Z', { input_tokens: 5, cache_creation_input_tokens: 1000, cache_read_input_tokens: 50000, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 } }) +
+    usage('2026-10-03T14:45:00Z', { input_tokens: 3, cache_creation_input_tokens: 0, cache_read_input_tokens: 90000 }) +
+    usage('2026-10-03T14:46:00Z', { input_tokens: 999999, cache_read_input_tokens: 1 }, true) +
     'not json\n' +
     edit('2026-10-03T14:55:00Z', 'NotebookEdit', path.join(repo, 'nb.ipynb')).replace('file_path', 'notebook_path'));
 
@@ -73,7 +79,11 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
         ['nb.ipynb', 1]
     ], 'Edit/Write/NotebookEdit 만 세고, Read 는 뺀다');
 
+    assert.deepStrictEqual({ ...a.context, at: 0 }, { tokens: 90003, model: 'claude-x', ttl: '1h', at: 0 },
+        '세션 분량 = 마지막 답의 입력 + 캐시 만든 것 + 캐시 읽은 것, 하위 에이전트·글 속 숫자는 무시, 캐시 종류는 앞에서 이어받음');
+
     const b = p.sessions[1];
+    assert.strictEqual(b.context, null, '사용량 없는 기록');
     assert.strictEqual(b.title, '툰 불러와 logic-pro-mcp', '제목이 없으면 첫 프롬프트');
     assert.strictEqual(b.status, 'idle');
     assert.strictEqual(b.files[0].rel, '.local-tools/amt/fast_sample.py');
@@ -134,6 +144,38 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     r2 = await ix.index();
     assert.strictEqual(r2.projects.find(x => x.root === repo).sessions.find(x => x.id === 'sess-b').parentId, null, '떼어낼 수 있다');
 
+    // 주제 가지 · 줄기
+    assert.strictEqual(SessionIndexer.topicOf('툰 불러와 — 하위 세션, root: /a, topic: logic-ax, hub_task: x'), 'logic-ax');
+    assert.strictEqual(SessionIndexer.topicOf('그냥 질문'), null);
+    assert.strictEqual(pr.sessions.find(x => x.id === 'sess-b').topic, null, '첫 메시지에 topic 없음');
+    ix.setMeta(repo, 'sess-a', { prevId: 'sess-b', topic: 'logic-ax' });
+    r2 = await ix.index();
+    pr = r2.projects.find(x => x.root === repo);
+    const sa = pr.sessions.find(x => x.id === 'sess-a');
+    assert.strictEqual(sa.prevId, 'sess-b', '툰 이어가기 줄기');
+    assert.strictEqual(sa.topic, 'logic-ax', '정한 주제');
+    assert.deepStrictEqual(pr.hub.titles, { 'logic-ax': 'logic-ax' }, 'title: 이 없으면 폴더 이름');
+    assert.throws(() => ix.setMeta(repo, 'sess-b', { prevId: 'sess-a' }), /돌고 도는/);
+    assert.throws(() => ix.setMeta(repo, 'sess-a', { topic: '눈 귀' }), /주제 이름/);
+    ix.setMeta(repo, 'sess-a', { prevId: null, topic: null });
+    r2 = await ix.index();
+    const sa2 = r2.projects.find(x => x.root === repo).sessions.find(x => x.id === 'sess-a');
+    assert.strictEqual(sa2.prevId, null);
+    assert.strictEqual(sa2.topic, null, 'null 로 정하면 첫 메시지 주제도 안 쓴다');
+    fs.writeFileSync(path.join(repo, '.toon', 'logic-ax', 'HUB.toon'), '## TOPIC_HUB\ntopic: logic-ax\ntitle: 로직 AX\n');
+    assert.deepStrictEqual(SessionIndexer.readHub(repo).titles, { 'logic-ax': '로직 AX' }, '화면 이름은 title:');
+
+    // 세션 종류: 코드 파일을 고쳤으면 code, 문서·툰만이면 chat, 정해 두면 그대로
+    assert.strictEqual(SessionIndexer.kindOf([{ path: '/a/b.js' }]), 'code');
+    assert.strictEqual(SessionIndexer.kindOf([{ path: '/a/README.md' }, { path: '/a/.toon/x/HUB.toon' }]), 'chat');
+    assert.strictEqual(SessionIndexer.kindOf([]), 'chat');
+    assert.strictEqual(pr.sessions.find(x => x.id === 'sess-a').kind, 'code');
+    ix.setMeta(repo, 'sess-a', { kind: 'chat' });
+    r2 = await ix.index();
+    assert.strictEqual(r2.projects.find(x => x.root === repo).sessions.find(x => x.id === 'sess-a').kind, 'chat', '정해 둔 종류');
+    assert.throws(() => ix.setMeta(repo, 'sess-a', { kind: 'music' }), /종류/);
+    ix.setMeta(repo, 'sess-a', { kind: null });
+
     const other = path.join(tmp, 'other');
     fs.mkdirSync(other);
     const copied = ix.copySession(repo, 'sess-a', other);
@@ -149,6 +191,27 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     // ~/.claude 가 없어도 빈 결과
     const none = await new SessionIndexer({ claudeDir: path.join(tmp, 'nope') }).index();
     assert.deepStrictEqual(none.projects, []);
+
+    // 더한 폴더: 세션이 없어도 빈 폴더로 나온다. 이미 세션이 있는 폴더는 한 번만, 없어진 폴더는 뺀다
+    {
+        const foldersFile = path.join(tmp, 'folders.json');
+        const fresh = path.join(tmp, '새 폴더');
+        fs.mkdirSync(fresh);
+        const fx = new SessionIndexer({ claudeDir, linksFile: path.join(tmp, 'links2.json'), foldersFile, now: () => NOW });
+        assert.deepStrictEqual(fx.folders(), [], '파일 없으면 빈 목록');
+        fx.addFolder(fresh);
+        fx.addFolder(fresh);
+        fx.addFolder(repo);
+        fx.addFolder(path.join(tmp, 'logic-pro-mcp'));
+        assert.strictEqual(fx.folders().length, 2, '같은 폴더는 한 번만');
+        assert.throws(() => fx.addFolder('relative/dir'));
+        const r = await fx.index();
+        const added = r.projects.find(p => p.root === fresh);
+        assert.ok(added && added.added && added.sessions.length === 0, '세션 없는 새 폴더도 보임');
+        assert.strictEqual(r.projects.filter(p => p.root === repo).length, 1, '세션 있는 폴더는 한 번만');
+        fs.rmSync(fresh, { recursive: true });
+        assert.ok(!(await fx.index()).projects.some(p => p.root === fresh), '지운 폴더는 안 보임');
+    }
 
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('SessionIndexer: 모든 테스트 통과');

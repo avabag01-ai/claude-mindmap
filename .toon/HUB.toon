@@ -14,12 +14,23 @@ updated: 2026-10-03
 - 맥 실측 전에는 "확인함"이라고 하지 않는다 (가짜 claude·osascript 로만 확인한 것은 구분)
 
 ## SUBHUBS
-- claude-mindmap: 앱 기능 개발 → .toon/claude-mindmap/HUB.toon
+- claude-mindmap: 전체 (관제) — 여러 가지에 걸친 일, 세션 기록 → .toon/claude-mindmap/HUB.toon
+- session-hub: 세션 허브 (기록 읽기·목록·보내기)
+- mindmap: 마인드맵 (그리기·가지·끌어다 놓기)
+- chat: 대화창 (대화·답 길이·첨부)
+- toon-flow: 툰 흐름 (툰 저장·이어가기·주제 가지·줄기)
+- machine-sync: 기기·git
+- usage-alarm: 사용량·알람 (사용량·세션 분량·캐시)
+- side-tabs: 왼쪽 탭 (파인더·메모·GitHub·브라우저)
 
 ## SESSIONS
 - 2026-10-03 · .toon/claude-mindmap/SESSION_20261003.toon · 관제탑(클라우드) · 세션 허브 처음부터 여기까지
+- 2026-10-03 · .toon/claude-mindmap/SESSION_20261003b.toon · 하위 세션(클라우드) · MachineSync·답 길이·분량 알람·가지·줄기·대화/코드 · 브랜치 claude/epic-clarke-x1kk5z (PR #1)
+- 2026-10-03 · .toon/claude-mindmap/SESSION_20261003c.toon · 하위 세션(클라우드) · 분량 % 창 크기, 마인드맵 폴더만·접기·겹침·끌기, + 폴더(빈 폴더 보임), 답 두 번 안 보임 · 맥 실측 대부분 통과
 
 ## NEXT
-- NEXT 000000 맥에서 실행 확인: npm install && npm start (진짜 claude 보내기, 툰 저장, 키체인 메모, 사용량, 크롬 조종)
+- NEXT 000000 맥 세션 재확인 결과 받기 (dde7046: 마인드맵 접기·끌기, + 폴더) → 문제없으면 PR #1 ready → main 머지
+- NEXT 000001 맥에서 아직 안 본 것: 툰 저장 → 이어가기 → 줄기 끝까지, 키체인 메모, 크롬 조종
+- [완료 10-03 맥 실측] npm test 8개, git·기기 표시, 분량 %, 가지, 대화 카드, iCloud machines, 답 길이 버튼, claude PATH(-il) 수정
 - [완료 10-03] GitHub 저장소 avabag01-ai/claude-mindmap 로 옮김 (flowcode 의 임시 브랜치 claude-mindmap-app 은 지워도 됨)
-- NEXT 000002 기기·git 표시 (MachineSync 연결) — .toon/claude-mindmap/HUB.toon 참고
+- [완료 10-03] 기기·git 표시, 답 길이 버튼, 세션 분량 알람, 주제 가지·줄기, 대화/코드 구분 — PR avabag01-ai/claude-mindmap#1, 맥 실측 전

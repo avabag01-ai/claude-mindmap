@@ -1,6 +1,7 @@
 ## TOPIC_HUB v3.1
 topic: claude-mindmap
-latest_session: .toon/claude-mindmap/SESSION_20261003.toon
+title: 전체 (관제)
+latest_session: .toon/claude-mindmap/SESSION_20261003b.toon
 
 ## DECISIONS
 - [확인] 가로 세 칸: 왼쪽 탭 | 마인드맵 | 대화창. 보내기 = claude -p --resume <id> --output-format stream-json
@@ -15,14 +16,28 @@ latest_session: .toon/claude-mindmap/SESSION_20261003.toon
 - [가설] 기기 간 세션 공유 = iCloud Drive/FlowCode/machines/<기기>.json (대화 내용 없이 목록만)
 
 ## OPEN
-- 기기·git 표시: src/core/MachineSync.js 작성만, 연결·테스트 전
-  - 카드에 작게 git(푸시됨) / 푸시 전 / 미커밋, GitHub 에 없고 그 기기에만 있으면 카드 아래 영어로 MacBook · Mac mini
-  - 세션 git 상태 = 그 세션이 고친 파일 기준: status --porcelain(미커밋), log @{u}..HEAD --name-only(푸시 전), 나머지 git
-  - 다른 기기 세션은 읽기 전용(remote), 대화창에 "그 기기에서 열기" 명령
+- 기기·git 표시: [연결됨 10-03] 맥·iCloud 실측 전
+  - SessionIndexer.attachGit: 세션이 고친 파일 기준 dirty(미커밋) > ahead(푸시 전) > pushed(git)
+    upstream 없는 새 브랜치는 log HEAD --not --remotes (main 에 이미 있는 건 git 으로)
+  - main.js buildSessionIndex: index → attachGit → publish → readOthers → merge (공유 폴더 오류여도 목록은 보임)
+  - 카드: 시각 옆 git/푸시 전/미커밋, 미커밋·푸시 전이거나 다른 기기 세션이면 카드 아래 기기 이름(MacBook · Mac mini)
+  - 다른 기기 세션: 점선 카드, 끌기·보내기·툰 막음, 대화창에 "그 기기에서 열기" 명령
+  - 테스트: scripts/test-machine-sync.js (진짜 git + 빈 원격, 두 기기 공유 폴더) [확인 클라우드]
+  - 기기 이름 바꾸기: ~/.flowcode/machine.json {"name":"Mac mini"}, 공유 폴더: FLOWCODE_SYNC_DIR 또는 ~/.flowcode/sync.json
+- [확인 클라우드] 답 길이 버튼: 대화창 결과만/요약/자세히 → claude --append-system-prompt (메시지는 그대로), 기본 요약, localStorage 기억
+  - 답마다 받은 버튼 표시(반전 배지): 보낸 시각·버튼을 localStorage hub.answerLog 에 기억 → 사람 메시지 시각과 맞춤 (터미널에서 보낸 것은 표시 없음)
+  - 마지막 답 아래 "자세히 설명해 줘" = 이번 한 번만 자세히
+- [확인 클라우드] 툰 알람 = 세션 분량(토큰) 기준
+  - 분량 = 마지막 답 usage 의 input + cache_creation + cache_read (하위 에이전트 제외), 기록에서 바로 읽음
+  - 창 크기는 기록에 없음 → 20만, 넘으면 100만으로 봄 [가설]. 60% 노랑, 80% 빨강+깜박
+  - 캐시 종류도 기록에 있음 (cache_creation.ephemeral_1h / 5m) → 세션마다 진짜 캐시 시간으로 타이머
+  - 깜박 조건: 80% 넘음, 또는 50% 넘은 큰 세션 + 캐시 끝나기 5분 전(5분 캐시면 1분 전). 작은 세션은 안 깜박
+  - 표시: 카드 아래 막대, 목록 %, 대화창 막대 + "툰 할 때 · …"
 - 맥 실측 전: 진짜 claude 보내기·툰 저장·복사한 세션 --resume, 키체인 암호화, 사용량 API, 크롬·사파리 애플스크립트
 - flowcode PR #1(claude/session-mindmap)과 이 앱의 관계: 이 앱이 본체, flowcode 쪽은 정리 필요
 
 ## NEXT
-- NEXT 000000 MachineSync 연결: SessionIndexer 에 git 상태 붙이기 → main 에서 publish/readOthers/merge → 카드 표시 → 테스트
-- NEXT 000001 맥 실측 후 버그 수정
+- NEXT 000000 맥 실측: 브랜치 claude/epic-clarke-x1kk5z 로 npm install && npm start — 답 길이·분량 %·툰 줄기·iCloud machines (맥 세션 session_019TFMmVP1eJCPQFECsTvuwz 에 전달함, 승인 대기)
+- NEXT 000001 실측 버그 수정 후 PR #1 ready → main 머지
+- [완료 10-03] MachineSync 연결 (attachGit → publish/readOthers/merge → 카드 표시 → 테스트)
 - NEXT 000002 SNS 홍보 스킬 (초안까지 자동, 게시는 사람이 확인)

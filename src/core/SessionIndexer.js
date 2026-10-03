@@ -9,7 +9,8 @@
  *     generatedAt, claudeDir,
  *     projects: [{ root, name, lastAt, hub: { path, next[], topics[] } | null,
  *                  sessions: [{ id, title, cwd, gitBranch, firstAt, lastAt, status,
- *                               costUSD, files: [{ path, rel, edits }] }] }]
+ *                               costUSD, git: 'dirty'|'ahead'|'pushed'|null (attachGit 후),
+ *                               files: [{ path, rel, edits }] }] }]
  *   }
  *
  * 성능: 기록 파일이 수 MB 이상일 수 있어서 한 줄씩 읽고, 필요한 줄만 JSON.parse 한다.
@@ -20,6 +21,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const readline = require('readline');
+const { settingsFile } = require('./appDir.js');
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const WORKING_MS = 10 * 60 * 1000;      // 마지막 기록이 10분 안이면 "작업 중"
@@ -28,6 +30,13 @@ const RECENT_MS = 24 * 60 * 60 * 1000;  // 24시간 안이면 "최근"
 const TS_RE = /"timestamp":"([^"]+)"/;
 const CWD_RE = /"cwd":"((?:[^"\\]|\\.)*)"/;
 const BRANCH_RE = /"gitBranch":"((?:[^"\\]|\\.)*)"/;
+// 답마다 적힌 사용량: 세 값을 더하면 그때 세션 분량(컨텍스트 토큰). 맨 앞(최상위 usage) 값을 쓴다
+const IN_RE = /"input_tokens":(\d+)/;
+const CACHE_NEW_RE = /"cache_creation_input_tokens":(\d+)/;
+const CACHE_READ_RE = /"cache_read_input_tokens":(\d+)/;
+const MODEL_RE = /"model":"([^"]+)"/;
+const TTL_1H_RE = /"ephemeral_1h_input_tokens":([1-9]\d*)/;
+const TTL_5M_RE = /"ephemeral_5m_input_tokens":([1-9]\d*)/;
 
 class SessionIndexer {
     /**
@@ -43,8 +52,10 @@ class SessionIndexer {
         this.maxFilesPerSession = options.maxFilesPerSession || 60;
         this.now = options.now || (() => Date.now());
         this.cache = new Map(); // 기록 파일 경로 → { key, session }
-        // 세션 묶기(하위 세션) 정보: Claude Code 에는 없는 개념이라 FlowCode 가 따로 저장한다
-        this.linksFile = options.linksFile || path.join(os.homedir(), '.flowcode', 'session-links.json');
+        // 세션 묶기(하위 세션) 정보: Claude Code 에는 없는 개념이라 이 앱이 따로 저장한다
+        this.linksFile = options.linksFile || settingsFile('session-links.json');
+        // 사용자가 더한 폴더: 아직 세션이 없어도 목록·지도에 보인다
+        this.foldersFile = options.foldersFile || settingsFile('folders.json');
         this.lastSessions = new Map(); // "root::id" → session (마지막 index 결과)
     }
 
@@ -78,6 +89,14 @@ class SessionIndexer {
                 s.files = s.files.map(f => ({ ...f, rel: this._relative(root, f.path) }));
                 const parent = links.parents[`${root}::${s.id}`];
                 s.parentId = parent && ids.has(parent) && parent !== s.id ? parent : null;
+                // 줄기: 툰 이어가기로 이어진 앞 세션
+                const prev = links.prev[`${root}::${s.id}`];
+                s.prevId = prev && ids.has(prev) && prev !== s.id ? prev : null;
+                // 주제 가지: 정해 둔 것 → 첫 메시지의 "topic: X"
+                const key = `${root}::${s.id}`;
+                s.topic = key in links.topics ? links.topics[key] : SessionIndexer.topicOf(s.firstPrompt);
+                // 종류: 정해 둔 것 → 코드 파일을 고쳤으면 code, 아니면 chat (대화·관제)
+                s.kind = links.kinds[key] === 'chat' || links.kinds[key] === 'code' ? links.kinds[key] : SessionIndexer.kindOf(s.files);
                 this.lastSessions.set(`${root}::${s.id}`, s);
             }
             projects.push({
@@ -88,10 +107,40 @@ class SessionIndexer {
                 sessions: list
             });
         }
+        // 더해 둔 폴더 중 세션이 아직 없는 것: 빈 폴더로 넣는다 (지운 폴더는 뺀다)
+        for (const dir of this.folders()) {
+            const root = this._projectRoot(dir);
+            if (byRoot.has(root) || projects.some(p => p.root === root)) continue;
+            let st = null;
+            try { st = fs.statSync(root); } catch { continue; }
+            if (!st.isDirectory()) continue;
+            projects.push({ root, name: path.basename(root) || root, lastAt: st.mtimeMs, hub: this._readHub(root), sessions: [], added: true });
+        }
         projects.sort((a, b) => b.lastAt - a.lastAt);
         this.lastRoots = new Set(projects.map(p => p.root));
 
         return { generatedAt: this.now(), claudeDir: this.claudeDir, projects };
+    }
+
+    /** 더해 둔 폴더 목록 */
+    folders() {
+        try {
+            const d = JSON.parse(fs.readFileSync(this.foldersFile, 'utf8'));
+            return Array.isArray(d && d.folders) ? d.folders.filter(f => typeof f === 'string' && path.isAbsolute(f)) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    /** 폴더 더하기 (새로 만든 폴더 등). 이미 있으면 그대로 */
+    addFolder(dir) {
+        if (!dir || !path.isAbsolute(dir)) throw new Error('폴더 경로가 아니에요');
+        if (!fs.statSync(dir).isDirectory()) throw new Error('폴더가 아니에요');
+        const list = this.folders();
+        if (!list.includes(dir)) list.push(dir);
+        fs.mkdirSync(path.dirname(this.foldersFile), { recursive: true });
+        fs.writeFileSync(this.foldersFile, JSON.stringify({ version: 1, folders: list }, null, 2));
+        return this._projectRoot(dir);
     }
 
     // ---------------------------------------------------------------------
@@ -100,9 +149,10 @@ class SessionIndexer {
     _readLinks() {
         try {
             const d = JSON.parse(fs.readFileSync(this.linksFile, 'utf8'));
-            return { version: 1, parents: d && typeof d.parents === 'object' ? d.parents : {} };
+            const obj = k => (d && d[k] && typeof d[k] === 'object' ? d[k] : {});
+            return { version: 1, parents: obj('parents'), prev: obj('prev'), topics: obj('topics'), kinds: obj('kinds') };
         } catch {
-            return { version: 1, parents: {} };
+            return { version: 1, parents: {}, prev: {}, topics: {}, kinds: {} };
         }
     }
 
@@ -129,6 +179,34 @@ class SessionIndexer {
         }
         this._writeLinks(links);
         return { root, id, parentId: parentId || null };
+    }
+
+    /**
+     * 새로 만든 세션을 제자리에 붙인다 (한 번에 쓰기): 하위 세션(parentId), 줄기의 앞 세션(prevId), 주제(topic)
+     * 값이 undefined 면 그대로, null 이면 지운다.
+     */
+    setMeta(root, id, { parentId, prevId, topic, kind } = {}) {
+        if (kind !== undefined && kind !== null && kind !== 'chat' && kind !== 'code') throw new Error('세션 종류는 chat 또는 code 예요');
+        if (!this.lastSessions.has(`${root}::${id}`)) throw new Error('세션 목록에 없는 세션이에요');
+        if (topic && !/^[\w.-]+$/.test(topic)) throw new Error('주제 이름이 올바르지 않아요');
+        if (parentId !== undefined) this.setParent(root, id, parentId);
+        const links = this._readLinks();
+        const key = `${root}::${id}`;
+        if (prevId !== undefined) {
+            if (prevId && (prevId === id || !this.lastSessions.has(`${root}::${prevId}`))) throw new Error('같은 폴더의 세션만 이을 수 있어요');
+            for (let cur = prevId, guard = 0; cur; cur = links.prev[`${root}::${cur}`], guard++) {
+                if (cur === id || guard > 1000) throw new Error('돌고 도는 줄기는 만들 수 없어요');
+            }
+            if (prevId) links.prev[key] = prevId; else delete links.prev[key];
+        }
+        if (topic !== undefined) {
+            if (topic) links.topics[key] = topic; else links.topics[key] = null; // null = 주제 없음으로 고정
+        }
+        if (kind !== undefined) {
+            if (kind) links.kinds[key] = kind; else delete links.kinds[key]; // null = 다시 자동
+        }
+        this._writeLinks(links);
+        return { root, id, parentId, prevId, topic, kind };
     }
 
     /**
@@ -221,6 +299,7 @@ class SessionIndexer {
             firstAt: 0,
             lastAt: 0,
             costUSD: null,
+            context: null, // { tokens, model, ttl: '1h'|'5m'|null, at } 마지막 답 기준
             files: []
         };
         const edits = new Map(); // 파일 경로 → 수정 횟수
@@ -244,6 +323,16 @@ class SessionIndexer {
             if (!s.gitBranch) {
                 const m = BRANCH_RE.exec(line);
                 if (m) s.gitBranch = JSON.parse(`"${m[1]}"`);
+            }
+
+            // 세션 분량: 하위 에이전트 말고 본 대화의 마지막 답 (JSON 파싱 없이 숫자만)
+            if (line.includes('"usage"') && line.includes('"type":"assistant"') && !line.includes('"isSidechain":true')) {
+                const a = IN_RE.exec(line), b = CACHE_NEW_RE.exec(line), c = CACHE_READ_RE.exec(line);
+                if (a) {
+                    const m = MODEL_RE.exec(line);
+                    const ttl = TTL_1H_RE.test(line) ? '1h' : TTL_5M_RE.test(line) ? '5m' : (s.context && s.context.ttl) || null;
+                    s.context = { tokens: +a[1] + (b ? +b[1] : 0) + (c ? +c[1] : 0), model: m ? m[1] : (s.context && s.context.model) || '', ttl, at: ts ? Date.parse(ts[1]) || 0 : 0 };
+                }
             }
 
             // 필요한 줄만 파싱
@@ -349,9 +438,35 @@ class SessionIndexer {
         } catch {
             // 주제 허브 없음
         }
-        return { path: hubPath, next, topics };
+        return { path: hubPath, next, topics, titles: SessionIndexer._topicTitles(root, topics) };
     }
 }
+
+/** 첫 메시지 "툰 불러와 — …, topic: X, …" 의 주제 */
+SessionIndexer.topicOf = function (prompt) {
+    const m = /\btopic:\s*([\w.-]+)/.exec(String(prompt || '').slice(0, 2000));
+    return m ? m[1] : null;
+};
+
+/** 세션 종류 짐작: 문서·툰·설정 말고 코드 파일을 고쳤으면 code, 아니면 chat */
+SessionIndexer.kindOf = function (files) {
+    return (files || []).some(f => !/\.(md|markdown|toon|txt|json|ya?ml|csv)$/i.test(f.path) && !/[\\/]\.toon[\\/]/.test(f.path)) ? 'code' : 'chat';
+};
+
+/** 주제 허브의 화면 이름: HUB.toon 앞부분의 "title: …" (없으면 폴더 이름) */
+SessionIndexer._topicTitles = function (root, topics) {
+    const out = {};
+    for (const t of topics) {
+        try {
+            const head = fs.readFileSync(path.join(root, '.toon', t, 'HUB.toon'), 'utf8').slice(0, 2000);
+            const m = /^title:\s*(.+)$/m.exec(head);
+            out[t] = m ? m[1].trim() : t;
+        } catch {
+            out[t] = t;
+        }
+    }
+    return out;
+};
 
 /** Claude Code 가 기록 폴더 이름을 만드는 방식: 영문·숫자 말고는 모두 '-' */
 SessionIndexer.encodeCwd = cwd => String(cwd).replace(/[^a-zA-Z0-9]/g, '-');
@@ -374,7 +489,7 @@ SessionIndexer.readHub = function (root, topic) {
     } catch {
         // 주제 허브 없음
     }
-    return { root, topic: topic || null, path: hubPath, text: fs.readFileSync(hubPath, 'utf8'), mtimeMs: st.mtimeMs, topics };
+    return { root, topic: topic || null, path: hubPath, text: fs.readFileSync(hubPath, 'utf8'), mtimeMs: st.mtimeMs, topics, titles: SessionIndexer._topicTitles(root, topics) };
 };
 
 /**
@@ -432,6 +547,62 @@ SessionIndexer.readTranscript = async function (file, { limit = 300 } = {}) {
         truncated: cleaned.length > limit,
         mtimeMs: st.mtimeMs
     };
+};
+
+/**
+ * 세션마다 git 상태를 붙인다 (그 세션이 고친 파일 기준)
+ *   dirty  = 고친 파일 중 커밋 안 한 것이 있음 (git status --porcelain)
+ *   ahead  = 커밋했지만 아직 푸시 전 (git log @{u}..HEAD, upstream 이 없으면 어느 원격 브랜치에도 없는 커밋)
+ *   pushed = 모두 GitHub 에 올라감
+ * 고친 파일이 없거나 git 저장소가 아니면 git 을 붙이지 않는다 (null).
+ * @param {object} index  index() 결과 (그대로 고친다)
+ * @param {(args: string[], cwd: string) => Promise<{code: number, stdout: string}>} [run]  git 실행기 (테스트용)
+ */
+SessionIndexer.attachGit = async function (index, run = SessionIndexer.runGit) {
+    await Promise.all(index.projects.map(async p => {
+        const withFiles = p.sessions.filter(s => s.files && s.files.length);
+        if (!withFiles.length) return;
+        const st = await SessionIndexer.gitState(p.root, run).catch(() => null);
+        for (const s of p.sessions) s.git = null;
+        if (!st) return;
+        for (const s of withFiles) {
+            const rels = s.files.map(f => path.relative(p.root, f.path)).filter(r => r && !r.startsWith('..') && !path.isAbsolute(r));
+            if (!rels.length) continue;
+            s.git = rels.some(r => st.dirty.has(r)) ? 'dirty' : rels.some(r => st.ahead.has(r)) ? 'ahead' : 'pushed';
+        }
+    }));
+    return index;
+};
+
+/** 저장소 한 개의 상태: { dirty: Set<rel>, ahead: Set<rel>, upstream } (git 저장소가 아니면 null) */
+SessionIndexer.gitState = async function (root, run = SessionIndexer.runGit) {
+    const status = await run(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root);
+    if (status.code !== 0) return null;
+    const dirty = new Set();
+    const parts = status.stdout.split('\0');
+    for (let i = 0; i < parts.length; i++) {
+        const e = parts[i];
+        if (e.length < 4) continue;
+        dirty.add(e.slice(3));
+        if (e[0] === 'R' || e[0] === 'C') dirty.add(parts[++i]); // 이름 바꾸기: 다음 칸이 옛 이름
+    }
+    const up = await run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], root);
+    const upstream = up.code === 0 ? up.stdout.trim() : null;
+    // 올릴 곳(upstream)이 없는 새 브랜치면 어느 원격 브랜치에도 없는 커밋만 (원격이 아예 없으면 전부)
+    const range = upstream ? ['@{u}..HEAD'] : ['HEAD', '--not', '--remotes'];
+    const log = await run(['log', ...range, '--name-only', '--pretty=format:', '-n', '500'], root);
+    const ahead = new Set(log.code === 0 ? log.stdout.split('\n').map(l => l.trim()).filter(Boolean) : []);
+    return { dirty, ahead, upstream };
+};
+
+/** 로그인 셸 PATH 로 git 실행 (실패해도 던지지 않고 code 를 돌려준다) */
+SessionIndexer.runGit = function (args, cwd) {
+    const { execFile } = require('child_process');
+    const { childEnv } = require('./loginPath.js');
+    return new Promise(resolve => {
+        execFile('git', args, { cwd, env: childEnv({ GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }), timeout: 15000, maxBuffer: 8 * 1024 * 1024 },
+            (err, stdout) => resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout: String(stdout || '') }));
+    });
 };
 
 function toolTarget(input) {

@@ -4,7 +4,7 @@
  * Claude Code 세션을 한눈에: 왼쪽 탭(세션 · 파인더 · 메모 · GitHub · 브라우저) | 마인드맵 | 대화창
  *
  * 화면은 index.html (src/modules/*), 일은 여기 IPC 와 src/core/* 가 한다.
- * flowcode 에서 떼어 낸 독립 앱이다. 설정·메모는 ~/.flowcode/ 를 flowcode 와 같이 쓴다.
+ * flowcode 에서 떼어 낸 독립 앱이다. 설정·메모는 ~/.claude-mindmap/ (처음에 ~/.flowcode 에서 복사).
  */
 
 const { app, BrowserWindow, ipcMain } = require('electron');
@@ -42,7 +42,7 @@ app.on('window-all-closed', () => {
 /**
  * 세션 허브 IPC
  *
- * - 'sessions:index'          ~/.claude/projects 세션 기록 → 프로젝트 → 세션 → 파일
+ * - 'sessions:index'          ~/.claude/projects 세션 기록 → 프로젝트 → 세션 → 파일 (+ git 상태, 다른 기기 세션)
  * - 'sessions:transcript'     고른 세션의 대화 (기록 파일이 그대로면 unchanged)
  * - 'sessions:send' / 'sessions:stop'   대화창 메시지를 claude -p (--resume) 로 실행
  * - 'sessions:pick-folder'    새 세션을 열 폴더 고르기
@@ -58,9 +58,40 @@ function getSessionIndexer() {
     return sessionIndexer;
 }
 
+// 기기 간 세션 공유: 내 목록은 공유 폴더에 쓰고, 다른 기기 목록은 읽기 전용으로 섞는다
+let machineSync = null;
+function getMachineSync() {
+    if (!machineSync) {
+        const MachineSync = require('./src/core/MachineSync.js');
+        machineSync = new MachineSync();
+    }
+    return machineSync;
+}
+
+async function buildSessionIndex() {
+    const SessionIndexer = require('./src/core/SessionIndexer.js');
+    const MachineSync = require('./src/core/MachineSync.js');
+    const index = await getSessionIndexer().index();
+    try {
+        await SessionIndexer.attachGit(index);
+    } catch (error) {
+        console.error('Session git error:', error);
+    }
+    const sync = getMachineSync();
+    index.machine = sync.name();
+    let others = [];
+    try {
+        sync.publish(index);
+        others = sync.readOthers();
+    } catch (error) {
+        console.error('Machine sync error:', error); // 공유 폴더 문제로 목록까지 못 보면 안 된다
+    }
+    return { ...MachineSync.merge(index, others, Date.now()), machine: index.machine, syncDir: sync.dir() };
+}
+
 ipcMain.on('sessions:index', async (event) => {
     try {
-        event.reply('sessions:index-result', await getSessionIndexer().index());
+        event.reply('sessions:index-result', await buildSessionIndex());
     } catch (error) {
         console.error('Session index error:', error);
         event.reply('sessions:index-result', { success: false, error: error.message });
@@ -102,6 +133,15 @@ ipcMain.on('sessions:hub', (event, { root, topic } = {}) => {
 ipcMain.on('sessions:link', (event, { root, id, parentId } = {}) => {
     try {
         event.reply('sessions:changed', { ok: true, action: parentId ? 'link' : 'unlink', ...getSessionIndexer().setParent(root, id, parentId || null) });
+    } catch (error) {
+        event.reply('sessions:changed', { ok: false, error: error.message });
+    }
+});
+
+// 새로 만든 세션 제자리 잡기: 하위 세션 · 줄기(툰 이어가기) · 주제 가지
+ipcMain.on('sessions:meta', (event, { root, id, parentId, prevId, topic, kind } = {}) => {
+    try {
+        event.reply('sessions:changed', { ok: true, action: 'meta', quiet: true, ...getSessionIndexer().setMeta(root, id, { parentId, prevId, topic, kind }) });
     } catch (error) {
         event.reply('sessions:changed', { ok: false, error: error.message });
     }
@@ -221,7 +261,7 @@ ipcMain.on('usage:read', async (event) => {
 // ---------------------------------------------------------------------
 // 세션 허브: 브라우저 탭 (맥의 진짜 크롬·사파리를 애플스크립트로 조종)
 // ---------------------------------------------------------------------
-const browserSettingsFile = () => require('path').join(require('os').homedir(), '.flowcode', 'browser.json');
+const browserSettingsFile = () => require('./src/core/appDir.js').settingsFile('browser.json');
 function readBrowserSettings() {
     try { return { browser: 'chrome', engine: 'google', ...JSON.parse(fs.readFileSync(browserSettingsFile(), 'utf8')) }; }
     catch { return { browser: 'chrome', engine: 'google' }; }
@@ -235,7 +275,7 @@ function runQuiet(bin, args, extraEnv) {
 }
 ipcMain.on('browser:get', async (event) => {
     const settings = readBrowserSettings();
-    const r = await runQuiet('claude', ['mcp', 'get', 'flowcode-browser']);
+    const r = await runQuiet('claude', ['mcp', 'get', 'mindmap-browser']);
     event.reply('browser:settings', { ...settings, mcp: r.code === 0, platform: process.platform });
 });
 ipcMain.on('browser:set', (event, next = {}) => {
@@ -270,12 +310,13 @@ ipcMain.on('browser:do', async (event, { op, args = {} } = {}) => {
 // Claude Code 에 MCP 서버로 등록: 등록하면 모든 세션이 browser_* 도구로 이 브라우저를 조종한다
 ipcMain.on('browser:register', async (event) => {
     const path = require('path');
-    const script = path.join(__dirname, 'scripts', 'flowcode-browser-mcp.js');
+    const script = path.join(__dirname, 'scripts', 'mindmap-browser-mcp.js');
     const node = await runQuiet('which', ['node']);
     const args = node.code === 0 && node.out
-        ? ['mcp', 'add', '--scope', 'user', 'flowcode-browser', '--', node.out.split('\n')[0], script]
-        : ['mcp', 'add', '--scope', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', 'flowcode-browser', '--', process.execPath, script];
-    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'flowcode-browser']);
+        ? ['mcp', 'add', '--scope', 'user', 'mindmap-browser', '--', node.out.split('\n')[0], script]
+        : ['mcp', 'add', '--scope', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', 'mindmap-browser', '--', process.execPath, script];
+    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'mindmap-browser']);
+    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'flowcode-browser']); // 예전 이름 (flowcode 와 같이 쓰던 때)
     const r = await runQuiet('claude', args);
     event.reply('browser:register-result', r.code === 0 ? { ok: true, out: r.out } : { ok: false, error: r.code === 127 ? 'claude 를 찾지 못했어요' : r.out });
 });
@@ -303,6 +344,10 @@ ipcMain.on('sessions:stop', (event, { runId } = {}) => {
 ipcMain.on('sessions:pick-folder', async (event) => {
     const { dialog } = require('electron');
     const win = BrowserWindow.fromWebContents(event.sender);
-    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: '새 세션을 열 폴더', buttonLabel: '선택' });
-    event.reply('sessions:pick-folder-result', { path: result.canceled ? null : result.filePaths[0] });
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: '폴더 고르기 (새 폴더도 만들 수 있어요)', buttonLabel: '선택' });
+    if (result.canceled) { event.reply('sessions:pick-folder-result', { path: null }); return; }
+    // 고른 폴더는 세션이 아직 없어도 목록·지도에 보이게 기억한다
+    let root = result.filePaths[0];
+    try { root = getSessionIndexer().addFolder(result.filePaths[0]); } catch (error) { console.error('add folder:', error); }
+    event.reply('sessions:pick-folder-result', { path: root });
 });

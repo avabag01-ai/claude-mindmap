@@ -24,4 +24,94 @@ const { HubBrowser } = require('../src/modules/HubPanels.js');
 const rp = HubBrowser.readPrompt({ title: '제목', url: 'https://a.b', text: 'x'.repeat(30) }, 10);
 assert.ok(rp.includes('툰 형식') && rp.includes('[페이지] 제목\nhttps://a.b') && rp.includes('xxxxxxxxxx\n…(뒤는 잘렸어요)'));
 assert.ok(HubBrowser.looksLikeUrl('github.com/a') && !HubBrowser.looksLikeUrl('맥미니 램'));
+// 답 길이 표시: 보낸 시각에 가까운 사람 메시지 뒤의 답에 붙는다
+const T = 1e12;
+const msgs = [
+    { role: 'user', at: T + 1000 }, { role: 'assistant', at: T + 5000 }, { role: 'assistant', at: T + 9000 },
+    { role: 'user', at: T + 600000 }, { role: 'assistant', at: T + 601000 },
+    { role: 'user', at: T + 900000 }, { role: 'assistant', at: T + 901000 }
+];
+const log = [{ at: T, mode: 'result' }, { at: T + 599000, mode: 'detail' }];
+assert.deepStrictEqual(SessionHub.answerModes(msgs, log), [null, 'result', 'result', null, 'detail', null, null], '터미널에서 보낸 것(기록 없음)은 표시 없음');
+assert.deepStrictEqual(SessionHub.answerModes(msgs, undefined), msgs.map(() => null));
+assert.deepStrictEqual(SessionHub.ANSWER_MODES, ['result', 'summary', 'detail']);
+// 캐시 타이머: 마지막 메시지 기준 55분부터 깜박, 1시간 넘으면 지남
+const SMM = require('../src/modules/SessionMindMap.js');
+const M = 60e3;
+assert.deepStrictEqual(SMM.cachePhase(T, T + 30 * M), { phase: 'ok', left: 30 * M });
+assert.strictEqual(SMM.cachePhase(T, T + 54 * M).phase, 'ok');
+assert.strictEqual(SMM.cachePhase(T, T + 55 * M).phase, 'soon');
+assert.strictEqual(SMM.cachePhase(T, T + 59.9 * M).phase, 'soon');
+assert.strictEqual(SMM.cachePhase(T, T + 60 * M).phase, 'over');
+// 세션 분량과 툰 알람
+const ses = (tokens, lastAt, ttl) => ({ lastAt, context: tokens ? { tokens, ttl } : null });
+assert.strictEqual(SMM.contextInfo(ses(0, T)), null);
+assert.deepStrictEqual(SMM.contextInfo(ses(100e3, T)), { tokens: 100e3, window: 200e3, pct: 0.5, phase: 'ok' });
+assert.strictEqual(SMM.contextInfo(ses(130e3, T)).phase, 'warn');
+assert.strictEqual(SMM.contextInfo(ses(170e3, T)).phase, 'full');
+assert.strictEqual(SMM.contextInfo(ses(250e3, T)).window, 1e6, '20만을 넘으면 100만 창');
+// 모델 이름으로 창 크기: Claude 5 계열·[1m] 은 100만
+assert.strictEqual(SMM.contextWindow('claude-opus-5-5', 114e3), 1e6);
+assert.strictEqual(SMM.contextWindow('claude-sonnet-5-5', 50e3), 1e6);
+assert.strictEqual(SMM.contextWindow('claude-sonnet-4-5[1m]', 50e3), 1e6);
+assert.strictEqual(SMM.contextWindow('claude-haiku-4-5-20251001', 114e3), 200e3);
+assert.strictEqual(SMM.contextWindow('', 114e3), 200e3);
+{
+    const big = ses(114e3, T);
+    big.context.model = 'claude-opus-5-5';
+    assert.strictEqual(SMM.contextInfo(big).phase, 'ok', '100만 창에서 11만은 여유');
+}
+assert.strictEqual(SMM.alarm(ses(170e3, T), T), 'full', '80% 넘으면 바로 깜박');
+assert.strictEqual(SMM.alarm(ses(110e3, T), T + 56 * M), 'cache', '큰 세션 + 캐시 곧 끝남');
+assert.strictEqual(SMM.alarm(ses(40e3, T), T + 56 * M), null, '작은 세션은 캐시가 끝나도 괜찮다');
+assert.strictEqual(SMM.alarm(ses(110e3, T), T + 30 * M), null);
+assert.strictEqual(SMM.alarm(ses(110e3, T, '5m'), T + 4.5 * M), 'cache', '5분 캐시면 1분 전부터');
+assert.strictEqual(SMM.alarm({ ...ses(170e3, T), remote: true }, T), null, '다른 기기 세션은 알람 없음');
+// 줄기: 툰 이어가기로 이어진 세션은 맨 끝만 그리고 앞은 접는다
+const ch = SMM.chains([{ id: 'a' }, { id: 'b', prevId: 'a' }, { id: 'c', prevId: 'b' }, { id: 'x' }, { id: 'y', prevId: 'gone' }]);
+assert.deepStrictEqual([...ch.heads.keys()].sort(), ['c', 'x', 'y'], '맨 끝 세션만 (지워진 앞 세션은 무시)');
+assert.deepStrictEqual(ch.heads.get('c').map(s => s.id), ['a', 'b'], '앞 세션은 오래된 것부터');
+assert.strictEqual(ch.headOf.get('a'), 'c');
+assert.strictEqual(SessionHub.topicOf('툰 불러와 — root: /a, topic: mindmap, hub_task: x'), 'mindmap');
+// 왼쪽 목록 묶기: 가지 → 줄기 맨 끝(이전 N) → 하위 세션, 빈 가지는 따로
+global.SessionMindMap.chains = SMM.chains;
+const ss = (id, lastAt, extra = {}) => ({ id, lastAt, ...extra });
+const lp = { root: '/r', hub: { topics: ['eye', 'ear'], titles: { eye: '눈', ear: '귀' } } };
+const lsess = [
+    ss('e1', 1, { topic: 'eye' }), ss('e2', 2, { topic: 'eye', prevId: 'e1' }), ss('e3', 3, { topic: 'eye', prevId: 'e2' }),
+    ss('k', 4, { topic: 'eye', parentId: 'e1' }), ss('loose', 5), ss('other', 6, { topic: 'hand' })
+];
+let lt = SessionHub.listTree(lp, lsess);
+assert.deepStrictEqual(lt.branches.map(b => [b.topic, b.title, b.rows.map(r => [r.s.id, r.depth, r.prevCount, r.isPrev])]), [
+    ['hand', 'hand', [['other', 1, 0, false]]],
+    ['eye', '눈', [['e3', 1, 2, false], ['k', 2, 0, false]]]
+], '줄기 앞 세션은 접고, 접힌 세션의 하위 세션은 맨 끝 아래로, 최근 가지 먼저');
+assert.deepStrictEqual(lt.empty, [{ topic: 'ear', title: '귀' }]);
+assert.deepStrictEqual(lt.loose.map(r => r.s.id), ['loose']);
+lt = SessionHub.listTree(lp, lsess, new Set(['/r::e3']), true);
+assert.deepStrictEqual(lt.branches.find(b => b.topic === 'eye').rows.map(r => [r.s.id, r.isPrev]), [['e3', false], ['e2', true], ['e1', true], ['k', false]], '펼치면 최근 앞 세션부터');
+assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
+// 끝난 실행이 기록에 들어오면 실시간 칸을 뺀다 (같은 답 두 번 안 보이게)
+{
+    const run = { done: true, sentAt: T, events: [{ type: 'assistant' }] };
+    const recorded = [{ role: 'user', at: T - 60000 }, { role: 'assistant', at: T - 50000 }, { role: 'user', at: T + 800 }, { role: 'assistant', at: T + 5000 }];
+    assert.strictEqual(SessionHub.runRecorded(run, recorded), true);
+    assert.strictEqual(SessionHub.runRecorded(run, recorded.slice(0, 3)), false, '답이 아직 기록에 없음');
+    assert.strictEqual(SessionHub.runRecorded(run, recorded.slice(0, 2)), false, '보낸 메시지가 아직 기록에 없음');
+    assert.strictEqual(SessionHub.runRecorded({ ...run, done: false }, recorded), false, '실행 중');
+    assert.strictEqual(SessionHub.runRecorded({ ...run, events: [{ type: 'stderr', text: 'API Error' }] }, recorded), false, '오류는 남김');
+}
+// 겹침 풀기: 겹친 두 노드는 떨어지고, 고정 노드(가운데·끌어다 놓은 노드)는 안 움직인다
+{
+    const box = [-50, 50, -15, 15];
+    const fixed = { x: 0, y: 0, fixed: true }, a = { x: 10, y: 5 }, b = { x: 20, y: 8 };
+    const left = SMM.spread([{ n: fixed, box }, { n: a, box }, { n: b, box }]);
+    assert.strictEqual(left, 0, '겹침이 다 풀림');
+    assert.deepStrictEqual([fixed.x, fixed.y], [0, 0], '고정 노드는 그대로');
+    const apart = (p, q) => Math.abs(p.x - q.x) >= 100 || Math.abs(p.y - q.y) >= 30;
+    assert.ok(apart(fixed, a) && apart(fixed, b) && apart(a, b));
+    const far = { x: 500, y: 0 };
+    SMM.spread([{ n: { x: 0, y: 0 }, box }, { n: far, box }]);
+    assert.deepStrictEqual([far.x, far.y], [500, 0], '안 겹치면 안 움직임');
+}
 console.log('SessionHub: 모든 테스트 통과');
