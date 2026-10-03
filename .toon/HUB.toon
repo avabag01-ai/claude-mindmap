@@ -1,0 +1,25 @@
+## PROJECT_HUB v3.1
+project: claude-mindmap (클로드 마인드맵)
+root: ~/claude-mindmap (맥) · GitHub: avabag01-ai/claude-mindmap (만들 예정) · 임시 보관: avabag01-ai/flowcode 브랜치 claude-mindmap-app
+goal: Claude Code 세션을 한눈에 보고 지시하는 맥 앱. 왼쪽 탭(세션·파인더·메모·GitHub·브라우저) | 마인드맵 | 대화창
+updated: 2026-10-03
+
+## STANDING_CONSTRAINTS
+- GitHub 중심. 로컬도 같이 반영. force push·reset·브랜치 삭제 기능은 만들지 않는다
+- 화면 글·커밋·주석은 한국어, 쉬운 말
+- 비밀(API 키 등)은 safeStorage(키체인)로만 저장, 화면에서는 가림, 입력창에 넣을 때 확인
+- 앱 안 브라우저 금지: 맥의 진짜 크롬·사파리를 애플스크립트로 조종
+- claude·git·gh 는 로그인 셸 PATH 로 직접 실행 (셸 출력이 섞이지 않게)
+- 무거운 일(설치·푸시)은 맥 세션에서 사람이 승인해야 진행됨
+- 맥 실측 전에는 "확인함"이라고 하지 않는다 (가짜 claude·osascript 로만 확인한 것은 구분)
+
+## SUBHUBS
+- claude-mindmap: 앱 기능 개발 → .toon/claude-mindmap/HUB.toon
+
+## SESSIONS
+- 2026-10-03 · .toon/claude-mindmap/SESSION_20261003.toon · 관제탑(클라우드) · 세션 허브 처음부터 여기까지
+
+## NEXT
+- NEXT 000000 맥에서 실행 확인: npm install && npm start (진짜 claude 보내기, 툰 저장, 키체인 메모, 사용량, 크롬 조종)
+- NEXT 000001 GitHub 에 빈 저장소 claude-mindmap 만들기 → claude-mindmap-app 브랜치를 main 으로 옮기기
+- NEXT 000002 기기·git 표시 (MachineSync 연결) — .toon/claude-mindmap/HUB.toon 참고

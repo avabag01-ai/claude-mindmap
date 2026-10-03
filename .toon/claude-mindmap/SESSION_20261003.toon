@@ -1,0 +1,54 @@
+## DECODER_INSTRUCTION
+압축 세션 기록. DICTIONARY 의 $N 을 먼저 펼쳐 읽는다.
+태그: [확인]=근거 있음, [가설]=검증 전, [변경]=지난 툰 이후 바뀜, [모순]=충돌
+
+## META
+date: 2026-10-03
+session: 관제탑 (claude.ai 클라우드, iOS) "야맥미니 RAM 업그레이드"
+root: ~/claude-mindmap
+topic: claude-mindmap
+prev_session: none
+
+## DICTIONARY
+$1 = /Users/kim/logic-pro-mcp
+$2 = avabag01-ai/flowcode
+$3 = claude -p --resume <id> --output-format stream-json --verbose
+$4 = ~/.flowcode/
+
+## STORY
+1. 맥미니 상담 → M4 Pro 48GB 결론, M5 Pro/M6 출시 확인 (가격 급등)
+2. AMT 반주 최적화를 맥 세션에 지시 → KV 캐시 6.7배 + 배치 2.5배 = 18배 [확인 맥]
+3. 맥 세션 원격 지시(send_message) · 세션 현황 정리 · 62커밋 푸시 · 상태 띠 모드(mac-band)
+4. 세션 지도(아티팩트) → flowcode 안 세션 맵 → 세 칸 세션 허브로 확장 → 독립 앱 claude-mindmap(클로드 마인드맵)으로 떼어 냄
+
+## RESULTS
+- 앱 구성: main.js(IPC) · index.html · src/core(SessionIndexer, ClaudeRunner, MemoStore, GitPanel, UsageMeter, BrowserBridge, loginPath, MachineSync[미연결]) · src/modules(SessionMindMap, SessionHub, HubPanels)
+- MCP: scripts/flowcode-browser-mcp.js (browser_tabs/open/search/switch/read/click/type/navigate/eval), 등록 = 브라우저 탭 "Claude 에 연결"
+- 테스트 7종 전부 통과 (npm test) [확인]
+- Electron 40 + xvfb 에서 화면 동작 확인 [확인] — 단, 보내기는 가짜 claude, 브라우저는 가짜 osascript, 사용량은 예시 파일
+- 미리보기 아티팩트: https://claude.ai/artifact/JFMj7uPynv3wi8mDMbKuoz (예시 데이터)
+- 같은 내용 flowcode PR: github.com/$2/pull/1 (브랜치 claude/session-mindmap)
+
+## GOTCHAS
+- [확인] 숨긴 패널이 display:flex 때문에 [hidden] 무시 → 맵 클릭 가로챔. [hidden]{display:none!important} 필수
+- [확인] 로그인 셸로 명령 실행하면 셸 출력(nvm)이 stdout 에 섞임 → PATH 만 받아 직접 실행
+- [확인] flowcode index.html 의 #tab-flowchart 가 안 닫혀 뒤 탭들이 그 안에 있음 (flowcode 원래 버그, 안 고침)
+- [확인] 맥 세션은 다른 세션이 보낸 설치·푸시 요청을 사용자 승인 없이는 안 함 (안전장치)
+- [확인] 클라우드에서는 맥에 새 세션을 못 염. 이미 열린 맥 세션에만 메시지 가능
+
+## ARTIFACTS
+- 실행: cd ~/claude-mindmap && npm install && npm start
+- 테스트: npm test
+- 브라우저 MCP 수동 등록: claude mcp add --scope user flowcode-browser -- node ~/claude-mindmap/scripts/flowcode-browser-mcp.js
+
+## VERIFY_ON_LOAD
+- ls ~/claude-mindmap/src/core/MachineSync.js → 있음 (미연결)
+- cd ~/claude-mindmap && npm test → 7개 "모든 테스트 통과"
+- grep -c "ipcMain.on" ~/claude-mindmap/main.js → 23
+- git -C ~/claude-mindmap log --oneline -1 → "클로드 마인드맵: flowcode 에서 떼어 낸 독립 앱"
+
+## NEXT
+- NEXT 000000 맥 실측 (npm install && npm start) → 버그 보고
+- NEXT 000001 빈 저장소 avabag01-ai/claude-mindmap 만들고 옮기기:
+  git clone -b claude-mindmap-app https://github.com/$2 ~/claude-mindmap && cd ~/claude-mindmap && git remote set-url origin https://github.com/avabag01-ai/claude-mindmap && git push -u origin claude-mindmap-app:main
+- NEXT 000002 MachineSync 연결 (기기·git 표시) — 토픽 허브 OPEN 참고

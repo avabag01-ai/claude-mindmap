@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>클로드 마인드맵</title>
+    <style>
+        /* 세 칸: 세션 목록 | 마인드맵 | 대화창 */
+        :root {
+            --bg: #16191d; --panel: #1f2329; --panel-2: #262b32; --ink: #d7dde4; --muted: #8a95a1; --line: #323943;
+            --accent: #4ec9b0; --user: #2b3a4a;
+            --font: -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+            --mono: ui-monospace, Menlo, Consolas, monospace;
+        }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 13px/1.5 var(--font); }
+        button, input, select, textarea { font: inherit; color: inherit; }
+        .hub { display: grid; grid-template-columns: 270px minmax(0, 1fr) minmax(320px, 420px); height: 100%; }
+        .col { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
+        .col:last-child { border-right: 0; }
+        .col-head { padding: 34px 12px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; -webkit-app-region: drag; }
+        .col-head > * { -webkit-app-region: no-drag; }
+        .row { display: flex; gap: 6px; align-items: center; }
+        h2 { margin: 0; font-size: 14px; flex: 1; }
+        .btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+        .btn:hover { border-color: var(--accent); }
+        .btn-primary { background: var(--accent); color: #0b1512; border-color: var(--accent); font-weight: 600; }
+        .btn:disabled { opacity: .45; cursor: default; }
+        input[type=search], select, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; }
+        input[type=search] { width: 100%; }
+        :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+        /* 왼쪽 */
+        .hub-group-toggle, .hub-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+        .hub-group-toggle button, .hub-seg button { background: transparent; border: 0; padding: 3px 10px; cursor: pointer; color: var(--muted); }
+        .hub-group-toggle button[aria-pressed=true], .hub-seg button[aria-pressed=true] { background: var(--panel-2); color: var(--ink); }
+        .hub-seg button:disabled { opacity: .35; cursor: default; }
+        .hub-seg button { white-space: nowrap; }
+        .col-head .row { flex-wrap: wrap; }
+        #hub-list-body { flex: 1; overflow: auto; padding: 6px; }
+        .hub-bucket { color: var(--muted); font-size: 11px; padding: 10px 8px 4px; letter-spacing: .04em; }
+        .hub-item { width: 100%; display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 6px; align-items: center; text-align: left;
+            background: transparent; border: 0; border-radius: 7px; padding: 6px 8px; cursor: pointer; }
+        .hub-item:hover { background: var(--panel); }
+        .hub-item.is-on { background: var(--panel-2); }
+        .hub-item-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hub-item-sub { grid-column: 2; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hub-dot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--c); display: inline-block; }
+        .hub-dot.hub-recent { background: var(--c); }
+        .hub-dot.hub-working { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(78, 201, 176, .25); }
+        .hub-group { margin-bottom: 8px; position: relative; }
+        .hub-add { position: absolute; top: 5px; right: 34px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line);
+            background: var(--panel-2); cursor: pointer; line-height: 1; font-size: 16px; padding: 0; }
+        .hub-add:hover { background: var(--accent); color: #0b1512; border-color: var(--accent); }
+        .hub-folder { width: 100%; display: flex; align-items: center; gap: 7px; background: transparent; border: 0; padding: 8px; font-weight: 700; cursor: pointer; border-radius: 7px; text-align: left; }
+        .hub-folder:hover, .hub-folder.is-on { background: var(--panel); }
+        .hub-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+        .hub-count { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 11px; }
+        .hub-empty { color: var(--muted); padding: 16px; text-align: center; }
+
+        /* 왼쪽 탭 */
+        .hub-left { position: relative; }
+        .hub-tabs { display: flex; gap: 2px; padding: 34px 10px 0; border-bottom: 1px solid var(--line); -webkit-app-region: drag; }
+        .hub-tabs button { -webkit-app-region: no-drag; background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 6px 10px; cursor: pointer; color: var(--muted); }
+        .hub-tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+        .hub-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .hub-panel .col-head { padding-top: 10px; -webkit-app-region: no-drag; }
+        .hub-tip { margin: 0; padding: 8px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+
+        /* 파인더 */
+        .finder-path { overflow-wrap: anywhere; }
+        .finder-hidden { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .finder-body { flex: 1; overflow: auto; padding: 4px 6px; }
+        .finder-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 6px; cursor: default; user-select: none; }
+        .finder-item:hover { background: var(--panel); }
+        .finder-item.is-dir { cursor: pointer; }
+        .finder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .finder-meta { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+        /* 메모 */
+        .memo-editor { padding: 10px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; background: var(--panel); }
+        .memo-field { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+        .memo-field input, .memo-field textarea { color: var(--ink); font-size: 13px; }
+        .memo-field textarea { font-family: var(--mono); font-size: 12px; resize: vertical; }
+        .memo-kinds { display: flex; gap: 12px; font-size: 12px; }
+        .memo-body { flex: 1; overflow: auto; padding: 6px; display: grid; gap: 6px; align-content: start; }
+        .memo-item { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 4px; }
+        .memo-top { display: flex; gap: 6px; align-items: center; min-width: 0; }
+        .memo-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .memo-kind { font-size: 10.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); flex: none; }
+        .memo-secret .memo-kind { color: #e5a050; border-color: #e5a050; }
+        .memo-code .memo-kind { color: #6cb6ff; border-color: #6cb6ff; }
+        .memo-warn { font-size: 10.5px; color: #f47067; }
+        .memo-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 var(--font); max-height: 7.5em; overflow: auto; user-select: text; }
+        .memo-text.is-code { font-family: var(--mono); font-size: 11.5px; background: var(--bg); padding: 6px 8px; border-radius: 6px; }
+        .memo-text.is-masked { letter-spacing: 2px; color: var(--muted); }
+        .memo-actions { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; }
+        .memo-danger { color: #f47067; }
+        .memo-confirm { font-size: 12px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+        /* GitHub */
+        .gh-repo { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .gh-body { flex: 1; overflow: auto; padding: 8px 12px 16px; display: grid; gap: 8px; align-content: start; }
+        .gh-status, .gh-actions, .gh-ask { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .gh-h { margin: 8px 0 0; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; gap: 8px; align-items: baseline; }
+        .gh-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
+        .gh-list li { overflow-wrap: anywhere; }
+        .gh-change { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+        .gh-change.is-on .gh-file { color: var(--accent); }
+        .gh-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+        .gh-badge { font-size: 10.5px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); white-space: nowrap; }
+        .gh-badge.gh-M { color: #e5a050; border-color: #e5a050; }
+        .gh-badge.gh-new, .gh-badge.gh-A { color: var(--accent); border-color: var(--accent); }
+        .gh-badge.gh-D { color: #f47067; border-color: #f47067; }
+        .gh-diff-head { display: flex; justify-content: space-between; font-size: 12px; }
+        .gh-diff { margin: 0; max-height: 320px; overflow: auto; background: var(--bg); border-radius: 6px; padding: 8px; font: 11px/1.5 var(--mono); white-space: pre; }
+        .gh-diff .d-add { color: #7ee787; } .gh-diff .d-del { color: #f47067; } .gh-diff .d-hunk { color: #6cb6ff; }
+        .gh-commit { display: grid; gap: 6px; }
+        .gh-commit textarea { resize: vertical; }
+        .gh-check { font-size: 10.5px; font-weight: 700; }
+        .gh-check.gh-success { color: #7ee787; } .gh-check.gh-failure, .gh-check.gh-error { color: #f47067; } .gh-check.gh-pending, .gh-check.gh-in_progress { color: #e5a050; }
+        .gh-log code { font-family: var(--mono); color: var(--accent); }
+
+        /* 브라우저 */
+        #br-address { flex: 1; min-width: 0; }
+        .br-nav { flex-wrap: wrap; }
+        .br-tabs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+        .br-tab { width: 100%; display: grid; text-align: left; background: transparent; border: 0; border-radius: 6px; padding: 5px 6px; cursor: pointer; }
+        .br-tab:hover { background: var(--panel); }
+        .br-tabs li.is-on .br-tab { background: var(--panel-2); }
+        .br-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+        .br-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+        .br-page { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+        .br-page-head { display: flex; justify-content: space-between; gap: 8px; }
+        .br-text { margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; font: 11.5px/1.5 var(--font); background: var(--bg); padding: 6px 8px; border-radius: 6px; }
+        .br-error { margin: 0; color: #f47067; font-size: 12px; }
+        .br-mcp { display: grid; gap: 6px; font-size: 12px; margin: 0; }
+        .br-mcp p { margin: 0; }
+        .br-mcp.is-on { color: var(--accent); }
+        .br-help { font-size: 12px; color: var(--muted); }
+        .br-help ul { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; }
+
+        /* 첨부 */
+        .hub-attach { display: flex; flex-wrap: wrap; gap: 4px; }
+        .hub-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 4px 1px 8px; font-size: 12px; }
+        .hub-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hub-chip button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 2px; }
+        .hub-drop-target { outline: 2px dashed var(--accent); outline-offset: -4px; }
+        .hub-item.hub-drop-target { background: var(--panel-2); }
+
+        /* 가운데 */
+        .hub-usage { margin-left: auto; display: grid; gap: 3px; min-width: 250px; background: none; border: 1px solid transparent; border-radius: 8px; padding: 3px 6px; cursor: pointer; text-align: left; }
+        .hub-usage:hover { border-color: var(--line); }
+        .u-row { display: grid; grid-template-columns: 30px minmax(70px, 1fr) auto; gap: 6px; align-items: center; font-size: 11px; }
+        .u-label { color: var(--muted); }
+        .u-bar { height: 8px; border-radius: 4px; background: var(--panel-2); overflow: hidden; }
+        .u-fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width .4s; }
+        .u-mid .u-fill { background: #e5a050; } .u-low .u-fill { background: #f47067; }
+        .u-text { font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .u-text b { font-weight: 700; } .u-low .u-text b { color: #f47067; } .u-mid .u-text b { color: #e5a050; }
+        .u-reset { color: var(--muted); }
+        .u-err { font-size: 11px; color: var(--muted); max-width: 260px; }
+        #hub-map-caption { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #hub-mindmap { flex: 1; min-height: 0; }
+        main.col { position: relative; }
+        .hub-toon-panel { position: absolute; z-index: 5; top: 64px; right: 10px; bottom: 10px; width: min(520px, calc(100% - 20px));
+            background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow: auto;
+            box-shadow: 0 14px 36px rgba(0, 0, 0, .45); display: flex; flex-direction: column; gap: 8px; }
+        .hub-toon-panel h3 { margin: 0 24px 0 0; font-size: 15px; }
+        .hub-toon-close { position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+        .hub-muted { color: var(--muted); font-size: 12px; font-weight: 400; }
+        .hub-toon-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+        .hub-toon-tabs button { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; font-size: 12px; }
+        .hub-toon-tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); }
+        .hub-toon-text { margin: 0; flex: 1; background: var(--bg); border-radius: 8px; padding: 10px 12px; font: 12px/1.6 var(--mono);
+            white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+        .hub-toon-text .t-next { color: var(--accent); font-weight: 600; }
+        .hub-toon-text .t-head { color: #e5a050; font-weight: 600; }
+        .hub-toon-text .t-tag { color: #6cb6ff; }
+        .hub-drop-ask { position: absolute; z-index: 6; left: 50%; top: 90px; transform: translateX(-50%); width: min(420px, calc(100% - 24px));
+            background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; box-shadow: 0 14px 36px rgba(0, 0, 0, .5); }
+        .hub-drop-ask h4 { margin: 0; font-size: 14px; }
+        .hub-drop-ask p { margin: 0; }
+        .hub-toon-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+        .hub-toon-next { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-top: 2px; overflow-wrap: anywhere; }
+
+        /* 오른쪽 */
+        #hub-chat-head { gap: 4px; }
+        .hub-chat-title { font-weight: 700; font-size: 14px; overflow-wrap: anywhere; }
+        .hub-chat-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; color: var(--muted); font-size: 12px; }
+        .hub-chat-meta select { max-width: 100%; font-size: 12px; }
+        .hub-pill { padding: 0 8px; border-radius: 999px; border: 1px solid var(--line); }
+        .hub-pill.hub-working { background: var(--accent); color: #0b1512; border-color: var(--accent); }
+        .hub-mono { font-family: var(--mono); font-size: 11px; }
+        .hub-link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; }
+        #hub-messages { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+        .hub-msg { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; max-width: 92%; min-width: 0; }
+        .hub-msg time { color: var(--muted); font-size: 10.5px; }
+        .hub-user { align-self: flex-end; justify-items: end; }
+        .hub-user .hub-bubble { background: var(--user); }
+        .hub-assistant { align-self: flex-start; }
+        .hub-bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px; overflow-wrap: anywhere; }
+        .hub-bubble pre { background: var(--bg); padding: 8px; border-radius: 6px; overflow: auto; margin: 6px 0; }
+        .hub-bubble code { font-family: var(--mono); font-size: 12px; }
+        .hub-tools { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+        .hub-tool-more { font-size: 11px; color: var(--muted); padding: 0 4px; }
+        .hub-tool { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hub-tool b { color: var(--ink); font-weight: 600; }
+        .hub-note, .hub-welcome { color: var(--muted); font-size: 12px; text-align: center; }
+        .hub-welcome code { font-family: var(--mono); }
+        .hub-live { display: flex; flex-direction: column; gap: 10px; border-top: 1px dashed var(--line); padding-top: 10px; }
+        .hub-runstate { color: var(--muted); font-size: 12px; }
+        .hub-runstate.is-running::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: hub-blink 1s infinite; }
+        @keyframes hub-blink { 50% { opacity: .2; } }
+        @media (prefers-reduced-motion: reduce) { .hub-runstate.is-running::before { animation: none; } }
+        .hub-err { background: #2a1d1f; color: #f2a7a7; padding: 8px; border-radius: 6px; white-space: pre-wrap; font-family: var(--mono); font-size: 11px; margin: 0; }
+        .hub-toon-row { display: flex; gap: 6px; margin-top: 4px; }
+        .hub-toon { font-size: 12px; padding: 3px 10px; }
+        .hub-confirm { margin-top: 6px; background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; font-size: 12px; }
+        .hub-confirm p { margin: 0; }
+        .hub-step { font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: .04em; }
+        .composer { border-top: 1px solid var(--line); padding: 10px 12px 12px; display: grid; gap: 8px; }
+        #hub-input { width: 100%; resize: vertical; min-height: 64px; max-height: 40vh; }
+        .composer .row { justify-content: space-between; }
+        .composer label { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+
+        @media (max-width: 1100px) { .hub { grid-template-columns: 220px minmax(0, 1fr) 340px; } }
+        /* 좁은 화면(폰·작은 창): 목록 → 맵 → 대화 순으로 쌓는다 */
+        @media (max-width: 860px) {
+            html, body { height: auto; }
+            .hub { grid-template-columns: minmax(0, 1fr); height: auto; }
+            .col { border-right: 0; border-bottom: 1px solid var(--line); }
+            .col-head { padding-top: 12px; }
+            #hub-list-body { max-height: 32vh; }
+            #hub-mindmap { height: 60vh; flex: none; }
+            #hub-messages { max-height: 65vh; min-height: 30vh; }
+        }
+    </style>
+</head>
+<body>
+    <div class="hub">
+        <!-- 왼쪽: 세션 목록 -->
+        <aside class="col hub-left" aria-label="왼쪽 패널">
+            <div class="hub-tabs" role="tablist" aria-label="왼쪽 패널">
+                <button role="tab" id="tab-sessions" data-tab="sessions" aria-selected="true" aria-controls="panel-sessions">세션</button>
+                <button role="tab" id="tab-finder" data-tab="finder" aria-selected="false" aria-controls="panel-finder">파인더</button>
+                <button role="tab" id="tab-memos" data-tab="memos" aria-selected="false" aria-controls="panel-memos">메모</button>
+                <button role="tab" id="tab-github" data-tab="github" aria-selected="false" aria-controls="panel-github">GitHub</button>
+                <button role="tab" id="tab-browser" data-tab="browser" aria-selected="false" aria-controls="panel-browser">브라우저</button>
+            </div>
+            <div class="hub-panel" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
+            <div class="col-head">
+                <div class="row"><h2>세션</h2><button class="btn" id="hub-refresh" title="세션 기록 다시 읽기">새로고침</button><button class="btn btn-primary" id="hub-new">새 세션</button></div>
+                <input type="search" id="hub-search" placeholder="세션 찾기" aria-label="세션 찾기">
+                <div class="hub-group-toggle" role="group" aria-label="목록 묶기">
+                    <button data-group="recent" aria-pressed="true">최근</button><button data-group="folder" aria-pressed="false">폴더별</button>
+                </div>
+            </div>
+            <div id="hub-list-body"><p class="hub-empty">세션 기록 읽는 중…</p></div>
+            </div>
+
+            <!-- 파인더: 파일을 대화창·세션으로 끌어다 놓으면 첨부 -->
+            <div class="hub-panel" id="panel-finder" role="tabpanel" aria-labelledby="tab-finder" hidden>
+                <div class="col-head">
+                    <div class="row">
+                        <button class="btn" id="finder-up" title="위 폴더">↑</button>
+                        <button class="btn" id="finder-home" title="홈 폴더">홈</button>
+                        <button class="btn" id="finder-session" title="고른 세션의 폴더">세션 폴더</button>
+                    </div>
+                    <div id="finder-path" class="hub-mono hub-muted finder-path"></div>
+                    <div class="row"><input type="search" id="finder-filter" placeholder="이 폴더에서 찾기" aria-label="이 폴더에서 찾기">
+                        <label class="hub-muted finder-hidden"><input type="checkbox" id="finder-hidden"> 숨김</label></div>
+                </div>
+                <div id="finder-body" class="finder-body" tabindex="0"></div>
+                <p class="hub-tip">파일을 대화창이나 세션으로 끌어다 놓으면 첨부돼요. 두 번 누르면 바로 첨부.</p>
+            </div>
+
+            <!-- 메모: 주소·코드·비밀 -->
+            <div class="hub-panel" id="panel-memos" role="tabpanel" aria-labelledby="tab-memos" hidden>
+                <div class="col-head">
+                    <div class="row"><h2>메모</h2><button class="btn btn-primary" id="memo-new">+ 메모</button></div>
+                    <input type="search" id="memo-search" placeholder="메모 찾기" aria-label="메모 찾기">
+                </div>
+                <div id="memo-editor" class="memo-editor" hidden></div>
+                <div id="memo-body" class="memo-body"></div>
+            </div>
+
+            <!-- GitHub: 고른 세션의 저장소 -->
+            <div class="hub-panel" id="panel-github" role="tabpanel" aria-labelledby="tab-github" hidden>
+                <div class="col-head">
+                    <div class="row"><h2 id="gh-repo" class="gh-repo"></h2><button class="btn" id="gh-refresh">새로고침</button></div>
+                </div>
+                <div id="gh-body" class="gh-body"></div>
+            </div>
+
+            <!-- 브라우저: 맥의 진짜 크롬·사파리 -->
+            <div class="hub-panel" id="panel-browser" role="tabpanel" aria-labelledby="tab-browser" hidden>
+                <div class="col-head">
+                    <div class="row">
+                        <select id="br-browser" aria-label="브라우저"><option value="chrome">크롬</option><option value="safari">사파리</option><option value="brave">Brave</option><option value="edge">Edge</option></select>
+                        <select id="br-engine" aria-label="검색 엔진"><option value="google">구글</option><option value="naver">네이버</option></select>
+                    </div>
+                    <div class="row"><input type="search" id="br-address" placeholder="주소나 검색어" aria-label="주소나 검색어"><button class="btn btn-primary" id="br-go">열기</button></div>
+                </div>
+                <div id="br-body" class="gh-body"></div>
+            </div>
+        </aside>
+
+        <!-- 가운데: 마인드맵 -->
+        <main class="col" aria-label="세션 마인드맵">
+            <div class="col-head">
+                <div class="row">
+                    <div class="hub-seg" role="group" aria-label="가운데에 둘 것">
+                        <button data-center="all" aria-pressed="true">전체</button>
+                        <button data-center="project" aria-pressed="false" disabled>폴더 중심</button>
+                        <button data-center="session" aria-pressed="false" disabled>세션 중심</button>
+                    </div>
+                    <span id="hub-map-caption">전체 · 모든 폴더</span>
+                    <button id="hub-usage" class="hub-usage" title="Claude 사용량 · 눌러서 새로고침" aria-label="Claude 사용량"></button>
+                </div>
+            </div>
+            <div id="hub-mindmap"></div>
+            <aside id="hub-toon-panel" class="hub-toon-panel" aria-label="툰 허브" hidden></aside>
+            <div id="hub-drop-ask" class="hub-drop-ask" role="dialog" aria-label="다른 폴더로 복사" hidden></div>
+        </main>
+
+        <!-- 오른쪽: 대화창 -->
+        <section class="col" aria-label="대화">
+            <div class="col-head" id="hub-chat-head"></div>
+            <div id="hub-messages" aria-live="polite"></div>
+            <div class="composer" id="hub-composer">
+                <div id="hub-attach" class="hub-attach" hidden></div>
+                <textarea id="hub-input" rows="3" placeholder="왼쪽에서 세션을 고르세요" disabled></textarea>
+                <div class="row">
+                    <label for="hub-perm">권한
+                        <select id="hub-perm">
+                            <option value="default">기본 (물어볼 도구는 막힘)</option>
+                            <option value="acceptEdits">파일 수정 자동 허용</option>
+                            <option value="plan">계획만</option>
+                        </select>
+                    </label>
+                    <span>
+                        <button class="btn" id="hub-stop" hidden>멈추기</button>
+                        <button class="btn btn-primary" id="hub-send" disabled>보내기</button>
+                    </span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="src/modules/SessionMindMap.js"></script>
+    <script src="src/modules/SessionHub.js"></script>
+    <script src="src/modules/HubPanels.js"></script>
+    <script>
+        // 미리보기 페이지(?preview)는 IPC 없이 window.HUB_PREVIEW_DATA 로 그린다
+        window.sessionHub = new SessionHub(window.HUB_PREVIEW_DATA ? { ipc: null, now: window.HUB_PREVIEW_NOW, transcripts: window.HUB_PREVIEW_TRANSCRIPTS, hubs: window.HUB_PREVIEW_HUBS, previewFs: window.HUB_PREVIEW_FS, previewMemos: window.HUB_PREVIEW_MEMOS, usage: window.HUB_PREVIEW_USAGE } : {});
+        window.sessionHub.start();
+        if (window.HUB_PREVIEW_DATA) window.sessionHub.setData(window.HUB_PREVIEW_DATA);
+    </script>
+</body>
+</html>

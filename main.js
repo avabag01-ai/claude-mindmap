@@ -1,0 +1,308 @@
+/**
+ * 클로드 마인드맵 (claude-mindmap) - Electron 메인 프로세스
+ * =============================================================================
+ * Claude Code 세션을 한눈에: 왼쪽 탭(세션 · 파인더 · 메모 · GitHub · 브라우저) | 마인드맵 | 대화창
+ *
+ * 화면은 index.html (src/modules/*), 일은 여기 IPC 와 src/core/* 가 한다.
+ * flowcode 에서 떼어 낸 독립 앱이다. 설정·메모는 ~/.flowcode/ 를 flowcode 와 같이 쓴다.
+ */
+
+const { app, BrowserWindow, ipcMain } = require('electron');
+const fs = require('fs');
+
+let mainWindow = null;
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1500,
+        height: 950,
+        webPreferences: { contextIsolation: false, nodeIntegration: true },
+        title: '클로드 마인드맵',
+        backgroundColor: '#16191d',
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: 12, y: 12 }
+    });
+    mainWindow.loadFile('index.html');
+    if (process.argv.includes('--dev')) mainWindow.webContents.openDevTools();
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+        if (claudeRunner) claudeRunner.stopAll();
+    });
+}
+
+app.whenReady().then(() => {
+    createWindow();
+    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+});
+
+/**
+ * 세션 허브 IPC
+ *
+ * - 'sessions:index'          ~/.claude/projects 세션 기록 → 프로젝트 → 세션 → 파일
+ * - 'sessions:transcript'     고른 세션의 대화 (기록 파일이 그대로면 unchanged)
+ * - 'sessions:send' / 'sessions:stop'   대화창 메시지를 claude -p (--resume) 로 실행
+ * - 'sessions:pick-folder'    새 세션을 열 폴더 고르기
+ */
+let sessionIndexer = null;
+let claudeRunner = null;
+
+function getSessionIndexer() {
+    if (!sessionIndexer) {
+        const SessionIndexer = require('./src/core/SessionIndexer.js');
+        sessionIndexer = new SessionIndexer();
+    }
+    return sessionIndexer;
+}
+
+ipcMain.on('sessions:index', async (event) => {
+    try {
+        event.reply('sessions:index-result', await getSessionIndexer().index());
+    } catch (error) {
+        console.error('Session index error:', error);
+        event.reply('sessions:index-result', { success: false, error: error.message });
+    }
+});
+
+ipcMain.on('sessions:transcript', async (event, { file, sinceMtime } = {}) => {
+    try {
+        const SessionIndexer = require('./src/core/SessionIndexer.js');
+        const claudeProjects = require('path').join(getSessionIndexer().claudeDir, 'projects');
+        // 세션 기록 폴더 밖의 파일은 읽지 않는다
+        if (!file || !require('path').resolve(file).startsWith(claudeProjects + require('path').sep)) {
+            throw new Error('세션 기록 파일이 아니에요');
+        }
+        if (sinceMtime && fs.statSync(file).mtimeMs === sinceMtime) {
+            event.reply('sessions:transcript-result', { file, unchanged: true });
+            return;
+        }
+        const t = await SessionIndexer.readTranscript(file);
+        event.reply('sessions:transcript-result', { file, ...t });
+    } catch (error) {
+        event.reply('sessions:transcript-result', { file, error: error.message });
+    }
+});
+
+// 툰 허브 전문: 세션 목록에 나온 폴더의 .toon 만 읽는다
+ipcMain.on('sessions:hub', (event, { root, topic } = {}) => {
+    try {
+        const indexer = getSessionIndexer();
+        if (!indexer.lastRoots || !indexer.lastRoots.has(root)) throw new Error('세션 목록에 없는 폴더예요');
+        const SessionIndexer = require('./src/core/SessionIndexer.js');
+        event.reply('sessions:hub-result', SessionIndexer.readHub(root, topic));
+    } catch (error) {
+        event.reply('sessions:hub-result', { root, topic: topic || null, error: error.code === 'ENOENT' ? '이 폴더에는 툰 허브(.toon/HUB.toon)가 없어요' : error.message });
+    }
+});
+
+// 세션 끌어다 놓기: 같은 폴더 세션 아래로 붙이기 / 떼기, 다른 폴더로 복사
+ipcMain.on('sessions:link', (event, { root, id, parentId } = {}) => {
+    try {
+        event.reply('sessions:changed', { ok: true, action: parentId ? 'link' : 'unlink', ...getSessionIndexer().setParent(root, id, parentId || null) });
+    } catch (error) {
+        event.reply('sessions:changed', { ok: false, error: error.message });
+    }
+});
+
+ipcMain.on('sessions:copy', (event, { root, id, toRoot, parentId } = {}) => {
+    try {
+        const indexer = getSessionIndexer();
+        if (!indexer.lastRoots || !indexer.lastRoots.has(toRoot)) throw new Error('세션 목록에 없는 폴더로는 복사하지 않아요');
+        const copied = indexer.copySession(root, id, toRoot);
+        let linked = null;
+        if (parentId) {
+            indexer.lastSessions.set(`${toRoot}::${copied.id}`, { id: copied.id }); // 바로 붙일 수 있게 임시 등록
+            linked = indexer.setParent(toRoot, copied.id, parentId);
+        }
+        event.reply('sessions:changed', { ok: true, action: 'copy', ...copied, parentId: linked ? linked.parentId : null });
+    } catch (error) {
+        event.reply('sessions:changed', { ok: false, error: error.message });
+    }
+});
+
+// ---------------------------------------------------------------------
+// 세션 허브: 파인더 (폴더 목록만 읽는다, 파일 내용은 읽지 않음)
+// ---------------------------------------------------------------------
+ipcMain.on('fs:list', (event, { dir, showHidden } = {}) => {
+    const path = require('path');
+    const os = require('os');
+    const target = path.resolve(dir || os.homedir());
+    try {
+        const items = fs.readdirSync(target, { withFileTypes: true })
+            .filter(d => showHidden || !d.name.startsWith('.'))
+            .slice(0, 3000)
+            .map(d => {
+                const full = path.join(target, d.name);
+                let st = null;
+                try { st = fs.statSync(full); } catch { /* 깨진 링크 등 */ }
+                return { name: d.name, path: full, isDir: st ? st.isDirectory() : d.isDirectory(), size: st ? st.size : 0, mtime: st ? st.mtimeMs : 0 };
+            })
+            .sort((a, b) => (b.isDir - a.isDir) || a.name.localeCompare(b.name, 'ko'));
+        const parent = path.dirname(target);
+        event.reply('fs:list-result', { dir: target, parent: parent !== target ? parent : null, home: os.homedir(), entries: items });
+    } catch (error) {
+        event.reply('fs:list-result', { dir: target, home: os.homedir(), error: error.code === 'EACCES' ? '이 폴더를 열 권한이 없어요' : error.message });
+    }
+});
+
+// ---------------------------------------------------------------------
+// 세션 허브: 메모 (비밀 메모는 safeStorage 로 암호화)
+// ---------------------------------------------------------------------
+let memoStore = null;
+function getMemoStore() {
+    if (!memoStore) {
+        const MemoStore = require('./src/core/MemoStore.js');
+        const { safeStorage } = require('electron');
+        memoStore = new MemoStore({ safeStorage });
+    }
+    return memoStore;
+}
+const memoReply = (event, fn) => {
+    try {
+        const result = fn();
+        event.reply('memos:result', { ok: true, ...result, ...getMemoStore().list() });
+    } catch (error) {
+        event.reply('memos:result', { ok: false, error: error.message, ...getMemoStore().list() });
+    }
+};
+ipcMain.on('memos:list', (event) => memoReply(event, () => ({})));
+ipcMain.on('memos:save', (event, memo = {}) => memoReply(event, () => ({ saved: getMemoStore().save(memo) })));
+ipcMain.on('memos:delete', (event, { id } = {}) => memoReply(event, () => ({ deleted: getMemoStore().remove(id) })));
+ipcMain.on('memos:reveal', (event, { id, purpose } = {}) => {
+    try {
+        event.reply('memos:reveal-result', { ok: true, purpose, ...getMemoStore().reveal(id) });
+    } catch (error) {
+        event.reply('memos:reveal-result', { ok: false, id, purpose, error: error.message });
+    }
+});
+
+// ---------------------------------------------------------------------
+// 세션 허브: GitHub 탭 (git / gh)
+// ---------------------------------------------------------------------
+let gitPanel = null;
+function getGitPanel() {
+    if (!gitPanel) {
+        const GitPanel = require('./src/core/GitPanel.js');
+        gitPanel = new GitPanel();
+    }
+    return gitPanel;
+}
+const gitReply = (event, channel, base, promise) => promise
+    .then(r => event.reply(channel, { ok: true, ...base, ...r }))
+    .catch(error => event.reply(channel, { ok: false, ...base, error: error.message }));
+ipcMain.on('git:info', (event, { cwd } = {}) => gitReply(event, 'git:info-result', { cwd }, getGitPanel().info(cwd)));
+ipcMain.on('git:diff', (event, { root, file } = {}) => gitReply(event, 'git:diff-result', { root, file }, getGitPanel().diff(root, file)));
+ipcMain.on('git:action', (event, req = {}) => gitReply(event, 'git:action-result', { root: req.root, action: req.action }, getGitPanel().action(req.root, req)));
+ipcMain.on('gh:list', (event, { root, what } = {}) => gitReply(event, 'gh:list-result', { root, what }, getGitPanel().ghList(root, what)));
+// 웹 주소는 기본 브라우저로 (http/https 만)
+ipcMain.on('open-external', (event, { url } = {}) => {
+    if (/^https?:\/\//.test(String(url || ''))) require('electron').shell.openExternal(url);
+});
+
+// ---------------------------------------------------------------------
+// 세션 허브: 사용량 (지금 세션 5시간 한도 · 주간 한도)
+// ---------------------------------------------------------------------
+let usageMeter = null;
+ipcMain.on('usage:read', async (event) => {
+    if (!usageMeter) {
+        const UsageMeter = require('./src/core/UsageMeter.js');
+        usageMeter = new UsageMeter();
+    }
+    try {
+        event.reply('usage:result', await usageMeter.read());
+    } catch (error) {
+        event.reply('usage:result', { ok: false, error: error.message, at: Date.now() });
+    }
+});
+
+// ---------------------------------------------------------------------
+// 세션 허브: 브라우저 탭 (맥의 진짜 크롬·사파리를 애플스크립트로 조종)
+// ---------------------------------------------------------------------
+const browserSettingsFile = () => require('path').join(require('os').homedir(), '.flowcode', 'browser.json');
+function readBrowserSettings() {
+    try { return { browser: 'chrome', engine: 'google', ...JSON.parse(fs.readFileSync(browserSettingsFile(), 'utf8')) }; }
+    catch { return { browser: 'chrome', engine: 'google' }; }
+}
+function runQuiet(bin, args, extraEnv) {
+    const { childEnv } = require('./src/core/loginPath.js');
+    return new Promise(resolve => {
+        require('child_process').execFile(bin, args, { env: childEnv(extraEnv), timeout: 30000 }, (err, stdout, stderr) =>
+            resolve({ code: err ? (typeof err.code === 'number' ? err.code : 127) : 0, out: (stdout + stderr).trim() }));
+    });
+}
+ipcMain.on('browser:get', async (event) => {
+    const settings = readBrowserSettings();
+    const r = await runQuiet('claude', ['mcp', 'get', 'flowcode-browser']);
+    event.reply('browser:settings', { ...settings, mcp: r.code === 0, platform: process.platform });
+});
+ipcMain.on('browser:set', (event, next = {}) => {
+    const BrowserBridge = require('./src/core/BrowserBridge.js');
+    const cur = readBrowserSettings();
+    const settings = {
+        browser: BrowserBridge.BROWSERS[next.browser] ? next.browser : cur.browser,
+        engine: next.engine === 'naver' ? 'naver' : next.engine === 'google' ? 'google' : cur.engine
+    };
+    fs.mkdirSync(require('path').dirname(browserSettingsFile()), { recursive: true });
+    fs.writeFileSync(browserSettingsFile(), JSON.stringify(settings, null, 2));
+    event.reply('browser:settings', { ...settings, saved: true });
+});
+ipcMain.on('browser:do', async (event, { op, args = {} } = {}) => {
+    const BrowserBridge = require('./src/core/BrowserBridge.js');
+    const settings = readBrowserSettings();
+    try {
+        const b = new BrowserBridge({ browser: settings.browser });
+        let data;
+        if (op === 'tabs') data = await b.tabs();
+        else if (op === 'open') data = await b.open(args.url, { newTab: args.newTab !== false });
+        else if (op === 'search') data = await b.search(args.query, args.engine || settings.engine);
+        else if (op === 'activate') data = await b.activate(args.window, args.tab);
+        else if (op === 'read') data = await b.read({ maxChars: 20000 });
+        else if (op === 'navigate') data = await b.navigate(args.action);
+        else throw new Error('모르는 작업이에요');
+        event.reply('browser:result', { ok: true, op, data });
+    } catch (error) {
+        event.reply('browser:result', { ok: false, op, error: error.message });
+    }
+});
+// Claude Code 에 MCP 서버로 등록: 등록하면 모든 세션이 browser_* 도구로 이 브라우저를 조종한다
+ipcMain.on('browser:register', async (event) => {
+    const path = require('path');
+    const script = path.join(__dirname, 'scripts', 'flowcode-browser-mcp.js');
+    const node = await runQuiet('which', ['node']);
+    const args = node.code === 0 && node.out
+        ? ['mcp', 'add', '--scope', 'user', 'flowcode-browser', '--', node.out.split('\n')[0], script]
+        : ['mcp', 'add', '--scope', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', 'flowcode-browser', '--', process.execPath, script];
+    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'flowcode-browser']);
+    const r = await runQuiet('claude', args);
+    event.reply('browser:register-result', r.code === 0 ? { ok: true, out: r.out } : { ok: false, error: r.code === 127 ? 'claude 를 찾지 못했어요' : r.out });
+});
+
+ipcMain.on('sessions:send', (event, req = {}) => {
+    const sender = event.sender;
+    const send = (channel, data) => { if (!sender.isDestroyed()) sender.send(channel, data); };
+    try {
+        if (!claudeRunner) {
+            const ClaudeRunner = require('./src/core/ClaudeRunner.js');
+            claudeRunner = new ClaudeRunner();
+        }
+        claudeRunner.run(req,
+            ev => send('sessions:run-event', { runId: req.runId, event: ev }),
+            exit => send('sessions:run-exit', { runId: req.runId, ...exit }));
+    } catch (error) {
+        send('sessions:run-exit', { runId: req.runId, code: null, stopped: false, error: error.message });
+    }
+});
+
+ipcMain.on('sessions:stop', (event, { runId } = {}) => {
+    if (claudeRunner) claudeRunner.stop(runId);
+});
+
+ipcMain.on('sessions:pick-folder', async (event) => {
+    const { dialog } = require('electron');
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: '새 세션을 열 폴더', buttonLabel: '선택' });
+    event.reply('sessions:pick-folder-result', { path: result.canceled ? null : result.filePaths[0] });
+});

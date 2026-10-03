@@ -1,0 +1,17 @@
+{
+  "name": "claude-mindmap",
+  "productName": "클로드 마인드맵",
+  "version": "0.1.0",
+  "description": "클로드 마인드맵 — Claude Code 세션 허브: 세션 목록 · 마인드맵 · 대화창, 파인더 · 메모 · GitHub · 브라우저 탭",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node scripts/test-session-indexer.js && node scripts/test-claude-runner.js && node scripts/test-session-hub.js && node scripts/test-memo-store.js && node scripts/test-git-panel.js && node scripts/test-usage-meter.js && node scripts/test-browser.js"
+  },
+  "author": "김영일",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^40.0.0"
+  }
+}
