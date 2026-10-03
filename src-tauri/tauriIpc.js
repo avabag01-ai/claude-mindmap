@@ -17,4 +17,19 @@
             handlers.get(channel).push(fn);
         }
     };
+
+    // 창 끌기: Tauri 는 CSS -webkit-app-region 을 모른다. 맨 위 머리줄(.col-head·.hub-tabs)의 빈칸을 누르면 창을 옮기고,
+    // 두 번 누르면 크게/원래대로. 버튼·입력칸 위는 그대로 둔다.
+    const NO_DRAG = 'button, input, select, textarea, a, label, [contenteditable], [role=button], .hub-usage';
+    const dragHead = el => {
+        if (!(el instanceof Element) || el.closest(NO_DRAG)) return null;
+        const head = el.closest('.col-head, .hub-tabs');
+        return head && !head.closest('.hub-panel') ? head : null;
+    };
+    document.addEventListener('mousedown', e => {
+        if (e.button !== 0 || !dragHead(e.target)) return;
+        e.preventDefault();
+        const win = T.window.getCurrentWindow();
+        (e.detail === 2 ? win.toggleMaximize() : win.startDragging()).catch(err => console.error('창 끌기', err));
+    });
 })();
