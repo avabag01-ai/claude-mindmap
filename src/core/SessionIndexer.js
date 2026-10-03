@@ -29,6 +29,13 @@ const RECENT_MS = 24 * 60 * 60 * 1000;  // 24시간 안이면 "최근"
 const TS_RE = /"timestamp":"([^"]+)"/;
 const CWD_RE = /"cwd":"((?:[^"\\]|\\.)*)"/;
 const BRANCH_RE = /"gitBranch":"((?:[^"\\]|\\.)*)"/;
+// 답마다 적힌 사용량: 세 값을 더하면 그때 세션 분량(컨텍스트 토큰). 맨 앞(최상위 usage) 값을 쓴다
+const IN_RE = /"input_tokens":(\d+)/;
+const CACHE_NEW_RE = /"cache_creation_input_tokens":(\d+)/;
+const CACHE_READ_RE = /"cache_read_input_tokens":(\d+)/;
+const MODEL_RE = /"model":"([^"]+)"/;
+const TTL_1H_RE = /"ephemeral_1h_input_tokens":([1-9]\d*)/;
+const TTL_5M_RE = /"ephemeral_5m_input_tokens":([1-9]\d*)/;
 
 class SessionIndexer {
     /**
@@ -222,6 +229,7 @@ class SessionIndexer {
             firstAt: 0,
             lastAt: 0,
             costUSD: null,
+            context: null, // { tokens, model, ttl: '1h'|'5m'|null, at } 마지막 답 기준
             files: []
         };
         const edits = new Map(); // 파일 경로 → 수정 횟수
@@ -245,6 +253,16 @@ class SessionIndexer {
             if (!s.gitBranch) {
                 const m = BRANCH_RE.exec(line);
                 if (m) s.gitBranch = JSON.parse(`"${m[1]}"`);
+            }
+
+            // 세션 분량: 하위 에이전트 말고 본 대화의 마지막 답 (JSON 파싱 없이 숫자만)
+            if (line.includes('"usage"') && line.includes('"type":"assistant"') && !line.includes('"isSidechain":true')) {
+                const a = IN_RE.exec(line), b = CACHE_NEW_RE.exec(line), c = CACHE_READ_RE.exec(line);
+                if (a) {
+                    const m = MODEL_RE.exec(line);
+                    const ttl = TTL_1H_RE.test(line) ? '1h' : TTL_5M_RE.test(line) ? '5m' : (s.context && s.context.ttl) || null;
+                    s.context = { tokens: +a[1] + (b ? +b[1] : 0) + (c ? +c[1] : 0), model: m ? m[1] : (s.context && s.context.model) || '', ttl, at: ts ? Date.parse(ts[1]) || 0 : 0 };
+                }
             }
 
             // 필요한 줄만 파싱

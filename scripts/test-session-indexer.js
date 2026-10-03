@@ -21,6 +21,9 @@ const line = o => JSON.stringify(o) + '\n';
 const user = (ts, cwd, text) => line({ type: 'user', timestamp: ts, cwd, gitBranch: 'main', sessionId: 'x', message: { role: 'user', content: text } });
 const edit = (ts, name, p) => line({ type: 'assistant', timestamp: ts, message: { role: 'assistant', content: [{ type: 'tool_use', name, input: { file_path: p } }] } });
 
+// 답의 사용량 (sidechain = 하위 에이전트, 세지 않음)
+const usage = (ts, u, sidechain) => line({ type: 'assistant', timestamp: ts, isSidechain: !!sidechain, message: { model: 'claude-x', role: 'assistant', content: [{ type: 'text', text: '"input_tokens":7' }], usage: u } });
+
 function writeSession(dirName, id, body) {
     const dir = path.join(claudeDir, 'projects', dirName);
     fs.mkdirSync(dir, { recursive: true });
@@ -37,6 +40,9 @@ writeSession('-logic-pro-mcp', 'sess-a',
     edit('2026-10-03T14:40:00Z', 'Read', path.join(sub, 'ignored.py')) +
     line({ type: 'ai-title', aiTitle: 'AMT 반주 최적화', sessionId: 'sess-a' }) +
     line({ type: 'cost-state', totalCostUSD: 3.24 }) +
+    usage('2026-10-03T14:44:00Z', { input_tokens: 5, cache_creation_input_tokens: 1000, cache_read_input_tokens: 50000, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1000 } }) +
+    usage('2026-10-03T14:45:00Z', { input_tokens: 3, cache_creation_input_tokens: 0, cache_read_input_tokens: 90000 }) +
+    usage('2026-10-03T14:46:00Z', { input_tokens: 999999, cache_read_input_tokens: 1 }, true) +
     'not json\n' +
     edit('2026-10-03T14:55:00Z', 'NotebookEdit', path.join(repo, 'nb.ipynb')).replace('file_path', 'notebook_path'));
 
@@ -73,7 +79,11 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
         ['nb.ipynb', 1]
     ], 'Edit/Write/NotebookEdit 만 세고, Read 는 뺀다');
 
+    assert.deepStrictEqual({ ...a.context, at: 0 }, { tokens: 90003, model: 'claude-x', ttl: '1h', at: 0 },
+        '세션 분량 = 마지막 답의 입력 + 캐시 만든 것 + 캐시 읽은 것, 하위 에이전트·글 속 숫자는 무시, 캐시 종류는 앞에서 이어받음');
+
     const b = p.sessions[1];
+    assert.strictEqual(b.context, null, '사용량 없는 기록');
     assert.strictEqual(b.title, '툰 불러와 logic-pro-mcp', '제목이 없으면 첫 프롬프트');
     assert.strictEqual(b.status, 'idle');
     assert.strictEqual(b.files[0].rel, '.local-tools/amt/fast_sample.py');

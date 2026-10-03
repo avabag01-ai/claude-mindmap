@@ -495,16 +495,18 @@ class SessionMindMap {
             const w = Math.max(W(seq + title, 12), W(time, 10.5) * 0.92 + (git ? W(git, 10) + 10 : 0)) + 24, h = 36;
             const x = right ? 11 : -11 - w;
             const badge = count && !open ? `<g class="smm-badge-pill" transform="translate(${right ? x + w : x},${-h / 2})"><rect x="-13" y="-8" width="26" height="16" rx="8" fill="${n.color}"/><text text-anchor="middle" dy="4">+${count}</text></g>` : '';
-            const soon = !s.remote && SessionMindMap.cachePhase(s.lastAt, this.now()).phase === 'soon';
+            const alarm = SessionMindMap.alarm(s, this.now());
+            const ctx = SessionMindMap.contextInfo(s);
             return `<g class="smm-node smm-session smm-${s.status}${n.sub ? ' smm-sub' : ''}${s.remote ? ' smm-remote' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
-                ${soon ? `<rect x="${x - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="13" class="smm-cache-soon"><title>캐시 곧 끝나요 · 툰 할 때</title></rect>` : ''}
+                ${alarm ? `<rect x="${x - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="13" class="smm-alarm"><title>${alarm === 'full' ? '세션이 거의 찼어요' : '큰 세션인데 캐시가 곧 끝나요'} · 툰 할 때</title></rect>` : ''}
                 ${s.status === 'working' ? `<rect x="${x - 3}" y="${-h / 2 - 3}" width="${w + 6}" height="${h + 6}" rx="12" class="smm-pulse"/>` : ''}
                 <circle r="4.5" class="smm-joint" fill="${n.color}"/>
                 <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="${n.sub ? 4 : 10}" class="smm-card smm-${s.status}" style="--c:${n.color}"/>
                 <text class="smm-label"><tspan x="${x + 12}" dy="-2">${n.seq ? `<tspan class="smm-seq">${n.seq}</tspan> ` : ''}${esc(title)}</tspan><tspan x="${x + 12}" dy="14" class="smm-time">${time}</tspan>${git ? `<tspan dx="8" class="smm-git smm-git-${s.git}">${git}</tspan>` : ''}</text>
+                ${ctx ? `<rect x="${x + 6}" y="${h / 2 - 4}" width="${(w - 12).toFixed(1)}" height="2.5" rx="1.2" class="smm-ctx-track"/><rect x="${x + 6}" y="${h / 2 - 4}" width="${((w - 12) * Math.min(1, ctx.pct)).toFixed(1)}" height="2.5" rx="1.2" class="smm-ctx smm-ctx-${ctx.phase}"/>` : ''}
                 ${where ? `<text x="${x + 12}" y="${h / 2 + 11}" class="smm-machine">${esc(where)}</text>` : ''}
                 ${badge}
-                <title>${esc(s.title)}${count ? ` · 고친 파일 ${count}개` : ''}${git ? ` · ${SessionMindMap.GIT_LONG[s.git]}` : ''}${s.remote ? ` · ${esc(s.machine)} 의 세션 (읽기 전용)` : ''}</title></g>`;
+                <title>${esc(s.title)}${ctx ? ` · 세션 분량 ${Math.round(ctx.pct * 100)}% (${SessionMindMap._k(ctx.tokens)} 토큰)` : ''}${count ? ` · 고친 파일 ${count}개` : ''}${git ? ` · ${SessionMindMap.GIT_LONG[s.git]}` : ''}${s.remote ? ` · ${esc(s.machine)} 의 세션 (읽기 전용)` : ''}</title></g>`;
         }
 
         // 파일: 문서 아이콘 + 이름
@@ -1030,10 +1032,46 @@ class SessionMindMap {
      * 55분이 넘으면 'soon' (툰 할 때), 1시간이 넘으면 'over'. 세션 시작이 아니라 마지막 메시지 기준이다.
      * @returns {{ phase: 'ok'|'soon'|'over', left: number }} left = 남은 ms
      */
-    static cachePhase(lastAt, now) {
-        const left = SessionMindMap.CACHE_MS - (now - lastAt);
-        return { left, phase: left <= 0 ? 'over' : left <= SessionMindMap.CACHE_WARN_MS ? 'soon' : 'ok' };
+    static cachePhase(lastAt, now, ttlMs = SessionMindMap.CACHE_MS) {
+        const left = ttlMs - (now - lastAt);
+        const warn = Math.min(SessionMindMap.CACHE_WARN_MS, ttlMs / 5);
+        return { left, phase: left <= 0 ? 'over' : left <= warn ? 'soon' : 'ok' };
     }
+
+    /** 세션의 캐시 유지 시간: 기록에 적힌 캐시 종류(1h/5m), 모르면 1시간 */
+    static cacheMs(s) {
+        return s && s.context && s.context.ttl === '5m' ? 5 * 60e3 : SessionMindMap.CACHE_MS;
+    }
+
+    /**
+     * 세션 분량(컨텍스트 토큰): 마지막 답 기준.
+     * 창 크기는 기록에 안 나와서 20만으로 보고, 20만을 넘었으면 100만 창으로 본다.
+     * @returns {{ tokens, window, pct, phase: 'ok'|'warn'|'full' } | null}
+     */
+    static contextInfo(s) {
+        const c = s && s.context;
+        if (!c || !c.tokens) return null;
+        const window = c.tokens > SessionMindMap.CONTEXT_SMALL ? SessionMindMap.CONTEXT_LARGE : SessionMindMap.CONTEXT_SMALL;
+        const pct = c.tokens / window;
+        return { tokens: c.tokens, window, pct, phase: pct >= SessionMindMap.CONTEXT_FULL ? 'full' : pct >= SessionMindMap.CONTEXT_WARN ? 'warn' : 'ok' };
+    }
+
+    /**
+     * 툰 알람(깜박): 세션 분량 기준.
+     *   - 80% 넘음 → 곧 자동 요약, 툰 할 때
+     *   - 50% 넘은 큰 세션인데 캐시가 곧 끝남 → 다음 메시지가 큰 대화를 비싸게 다시 읽으니 툰 할 때
+     * @returns {'full'|'cache'|null}
+     */
+    static alarm(s, now) {
+        if (!s || s.remote) return null;
+        const ctx = SessionMindMap.contextInfo(s);
+        if (!ctx) return null;
+        if (ctx.phase === 'full') return 'full';
+        if (ctx.pct >= SessionMindMap.CONTEXT_BIG && SessionMindMap.cachePhase(s.lastAt, now, SessionMindMap.cacheMs(s)).phase === 'soon') return 'cache';
+        return null;
+    }
+
+    static _k(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.round(n / 1e3) + 'k'; }
 
     static _ago(ms, now) {
         const s = Math.max(0, (now - ms) / 1000);
@@ -1123,9 +1161,13 @@ class SessionMindMap {
         .smm-pulse { fill:none; stroke:var(--smm-working); stroke-width:2; animation:smm-pulse 1.8s ease-out infinite; transform-box:fill-box; transform-origin:center; }
         @keyframes smm-pulse { from { opacity:.9; transform:scale(1); } to { opacity:0; transform:scale(1.12); } }
         @media (prefers-reduced-motion: reduce) { .smm-pulse { animation:none; opacity:.6; } }
-        .smm-cache-soon { fill:none; stroke:#e0b44c; stroke-width:2.5; animation:smm-blink 1s steps(2, start) infinite; }
+        .smm-alarm { fill:none; stroke:#e0b44c; stroke-width:2.5; animation:smm-blink 1s steps(2, start) infinite; }
         @keyframes smm-blink { to { visibility:hidden; } }
-        @media (prefers-reduced-motion: reduce) { .smm-cache-soon { animation:none; } }
+        @media (prefers-reduced-motion: reduce) { .smm-alarm { animation:none; } }
+        .smm-ctx-track { fill:var(--smm-line); opacity:.6; }
+        .smm-ctx { fill:var(--smm-working); }
+        .smm-ctx-warn { fill:#e0b44c; }
+        .smm-ctx-full { fill:#ef7d6b; }
         .smm-working .smm-session-dot { fill:var(--smm-working); stroke:var(--smm-working); }
         .smm-file-dot { fill:var(--smm-panel); stroke-width:1.5; }
         .smm-file-label { font-size:11px; fill:var(--smm-muted); }
@@ -1177,7 +1219,12 @@ SessionMindMap.PALETTE = ['#e5a050', '#6cb6ff', '#d27ad6', '#7ee787', '#f47067',
 SessionMindMap.STATUS = { working: '작업 중', recent: '최근', idle: '지난 세션' };
 // 세션이 고친 파일의 git 상태 (SessionIndexer.attachGit)
 SessionMindMap.CACHE_MS = 60 * 60e3;      // 캐시 유지 1시간
-SessionMindMap.CACHE_WARN_MS = 5 * 60e3;  // 55분부터 깜박
+SessionMindMap.CACHE_WARN_MS = 5 * 60e3;  // 끝나기 5분 전부터 (5분 캐시면 1분 전)
+SessionMindMap.CONTEXT_SMALL = 200e3;     // 창 크기: 20만, 넘으면 100만 창으로 본다
+SessionMindMap.CONTEXT_LARGE = 1e6;
+SessionMindMap.CONTEXT_WARN = 0.6;        // 노랑
+SessionMindMap.CONTEXT_FULL = 0.8;        // 빨강 + 깜박 (곧 자동 요약)
+SessionMindMap.CONTEXT_BIG = 0.5;         // 이만큼 큰 세션은 캐시가 끝나기 전에도 깜박
 SessionMindMap.GIT = { pushed: 'git', ahead: '푸시 전', dirty: '미커밋' };
 SessionMindMap.GIT_LONG = { pushed: 'GitHub 에 올라감', ahead: '커밋했지만 아직 푸시 전', dirty: '커밋 안 한 수정이 있음' };
 

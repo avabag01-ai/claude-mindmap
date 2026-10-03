@@ -367,11 +367,12 @@ class SessionHub {
 
         const item = ({ p, s, depth }) => {
             const on = this.sel && this.sel.root === p.root && this.sel.id === s.id;
-            const soon = !s.remote && SessionMindMap.cachePhase(s.lastAt, now).phase === 'soon';
-            return `<button class="hub-item${on ? ' is-on' : ''}${soon ? ' is-cache-soon' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
+            const alarm = SessionMindMap.alarm(s, now);
+            const ctx = SessionMindMap.contextInfo(s);
+            return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
                 <span class="hub-item-title">${esc(s.title)}</span>
-                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
+                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
             </button>`;
         };
 
@@ -452,7 +453,7 @@ class SessionHub {
         if (s) {
             const resume = `cd ${SessionMindMap._shellQuote(s.cwd)} && claude --resume ${s.id}`;
             head.innerHTML = `<div class="hub-chat-title">${esc(s.title)}</div>
-              <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>${s.remote ? '' : '<span id="hub-cache" class="hub-cache"></span>'}
+              <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>${SessionMindMap.contextInfo(s) ? `<span class="hub-ctxbar hub-ctx-${SessionMindMap.contextInfo(s).phase}" title="세션 분량 ${SessionMindMap._k(SessionMindMap.contextInfo(s).tokens)} / ${SessionMindMap._k(SessionMindMap.contextInfo(s).window)} 토큰 (마지막 답 기준)"><i style="width:${Math.min(100, SessionMindMap.contextInfo(s).pct * 100).toFixed(0)}%"></i><b>${Math.round(SessionMindMap.contextInfo(s).pct * 100)}%</b></span>` : ''}${s.remote ? '' : '<span id="hub-cache" class="hub-cache"></span>'}
                 <span>${esc(p.name)}</span>${s.gitBranch ? `<span class="hub-mono">${esc(s.gitBranch)}</span>` : ''}
                 ${s.git ? `<span class="smm-git-pill smm-git-${s.git}" title="${SessionMindMap.GIT_LONG[s.git]}">${SessionMindMap.GIT[s.git]}</span>` : ''}
                 ${s.costUSD != null ? `<span>$${s.costUSD.toFixed(2)}</span>` : ''}
@@ -590,18 +591,20 @@ class SessionHub {
         const s = this._selSession();
         const pill = this.el('hub-cache');
         if (pill && s) {
-            const { phase, left } = SessionMindMap.cachePhase(this._lastActivity(s), now);
+            const ttl = SessionMindMap.cacheMs(s);
+            const { phase, left } = SessionMindMap.cachePhase(this._lastActivity(s), now, ttl);
             const min = Math.ceil(left / 60e3);
-            pill.className = `hub-cache hub-cache-${phase}`;
-            pill.textContent = phase === 'over' ? '캐시 지남' : phase === 'soon' ? `툰 할 때 · ${min}분` : `캐시 ${min}분`;
-            pill.title = phase === 'over' ? '마지막 메시지 뒤 1시간이 지나 다음 메시지는 앞 대화를 다시 비싸게 읽어요'
-                : `마지막 메시지 뒤 1시간까지 캐시로 싸게 이어가요 · ${min}분 남음`;
+            const alarm = SessionMindMap.alarm({ ...s, lastAt: this._lastActivity(s) }, now);
+            pill.className = `hub-cache hub-cache-${phase}${alarm ? ' is-alarm' : ''}`;
+            pill.textContent = alarm === 'full' ? '툰 할 때 · 세션 거의 참' : alarm ? `툰 할 때 · 캐시 ${min}분` : phase === 'over' ? '캐시 지남' : `캐시 ${min}분`;
+            pill.title = phase === 'over' ? '캐시가 끝나 다음 메시지는 앞 대화를 다시 비싸게 읽어요'
+                : `마지막 메시지 뒤 ${ttl / 60e3}분까지 캐시로 싸게 이어가요 · ${min}분 남음`;
             const toon = document.querySelector('[data-act="toon-ask"]');
-            if (toon) toon.classList.toggle('is-blink', phase === 'soon');
+            if (toon) toon.classList.toggle('is-blink', !!alarm);
         }
         if (!this.data) return;
         const sig = this.data.projects.flatMap(p => p.sessions)
-            .filter(x => !x.remote && SessionMindMap.cachePhase(x.lastAt, now).phase === 'soon').map(x => x.id).join();
+            .filter(x => SessionMindMap.alarm(x, now)).map(x => x.id).join();
         if (sig !== this._cacheSig) {
             const first = this._cacheSig === undefined;
             this._cacheSig = sig;

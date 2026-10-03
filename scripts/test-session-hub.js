@@ -43,4 +43,17 @@ assert.strictEqual(SMM.cachePhase(T, T + 54 * M).phase, 'ok');
 assert.strictEqual(SMM.cachePhase(T, T + 55 * M).phase, 'soon');
 assert.strictEqual(SMM.cachePhase(T, T + 59.9 * M).phase, 'soon');
 assert.strictEqual(SMM.cachePhase(T, T + 60 * M).phase, 'over');
+// 세션 분량과 툰 알람
+const ses = (tokens, lastAt, ttl) => ({ lastAt, context: tokens ? { tokens, ttl } : null });
+assert.strictEqual(SMM.contextInfo(ses(0, T)), null);
+assert.deepStrictEqual(SMM.contextInfo(ses(100e3, T)), { tokens: 100e3, window: 200e3, pct: 0.5, phase: 'ok' });
+assert.strictEqual(SMM.contextInfo(ses(130e3, T)).phase, 'warn');
+assert.strictEqual(SMM.contextInfo(ses(170e3, T)).phase, 'full');
+assert.strictEqual(SMM.contextInfo(ses(250e3, T)).window, 1e6, '20만을 넘으면 100만 창');
+assert.strictEqual(SMM.alarm(ses(170e3, T), T), 'full', '80% 넘으면 바로 깜박');
+assert.strictEqual(SMM.alarm(ses(110e3, T), T + 56 * M), 'cache', '큰 세션 + 캐시 곧 끝남');
+assert.strictEqual(SMM.alarm(ses(40e3, T), T + 56 * M), null, '작은 세션은 캐시가 끝나도 괜찮다');
+assert.strictEqual(SMM.alarm(ses(110e3, T), T + 30 * M), null);
+assert.strictEqual(SMM.alarm(ses(110e3, T, '5m'), T + 4.5 * M), 'cache', '5분 캐시면 1분 전부터');
+assert.strictEqual(SMM.alarm({ ...ses(170e3, T), remote: true }, T), null, '다른 기기 세션은 알람 없음');
 console.log('SessionHub: 모든 테스트 통과');

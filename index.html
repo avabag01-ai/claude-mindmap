@@ -214,11 +214,18 @@
         @keyframes hub-blink { 50% { opacity: .2; } }
         .hub-cache { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; white-space: nowrap; }
         .hub-cache:empty { display: none; }
-        .hub-cache-soon { background: #e0b44c; color: #1a1406; border-color: #e0b44c; font-weight: 700; animation: hub-blink 1s infinite; }
         .hub-cache-over { opacity: .7; }
+        .hub-cache.is-alarm { background: #e0b44c; color: #1a1406; border-color: #e0b44c; font-weight: 700; animation: hub-blink 1s infinite; }
         .hub-toon.is-blink { border-color: #e0b44c; color: #e0b44c; animation: hub-blink 1s infinite; }
-        .hub-item.is-cache-soon .hub-dot { background: #e0b44c !important; animation: hub-blink 1s infinite; }
-        @media (prefers-reduced-motion: reduce) { .hub-cache-soon, .hub-toon.is-blink, .hub-item.is-cache-soon .hub-dot { animation: none; } }
+        .hub-item.is-alarm .hub-dot { background: #e0b44c !important; animation: hub-blink 1s infinite; }
+        @media (prefers-reduced-motion: reduce) { .hub-cache.is-alarm, .hub-toon.is-blink, .hub-item.is-alarm .hub-dot { animation: none; } }
+        .hub-ctxbar { position: relative; display: inline-flex; align-items: center; width: 64px; height: 14px; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; font-size: 10px; }
+        .hub-ctxbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); opacity: .45; }
+        .hub-ctxbar b { position: relative; width: 100%; text-align: center; color: var(--ink); }
+        .hub-ctxbar.hub-ctx-warn i { background: #e0b44c; }
+        .hub-ctxbar.hub-ctx-full i { background: #ef7d6b; opacity: .7; }
+        b.hub-ctx-warn { color: #e0b44c; }
+        b.hub-ctx-full { color: #ef7d6b; }
         @media (prefers-reduced-motion: reduce) { .hub-runstate.is-running::before { animation: none; } }
         .hub-err { background: #2a1d1f; color: #f2a7a7; padding: 8px; border-radius: 6px; white-space: pre-wrap; font-family: var(--mono); font-size: 11px; margin: 0; }
         .hub-toon-row { display: flex; gap: 6px; margin-top: 4px; }
