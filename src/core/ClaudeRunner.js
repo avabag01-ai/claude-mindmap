@@ -17,6 +17,13 @@ const fs = require('fs');
 
 const PERMISSION_MODES = new Set(['default', 'acceptEdits', 'plan']);
 
+// 답 길이: 대화창의 결과만 / 요약 / 자세히 버튼. --append-system-prompt 로 붙여서 사람이 쓴 메시지는 그대로 남는다.
+const ANSWER_STYLES = {
+    result: '이번 답은 결과만 한두 줄로 쓴다. 과정·설명·다음 제안은 빼고, 사용자가 물으면 그때 말한다. 막힌 것이 있으면 그것만 한 줄로.',
+    summary: '이번 답은 짧게 요약한다. 5줄 안쪽으로 결과와 꼭 알아야 할 것만, 쉬운 말로.',
+    detail: '이번 답은 자세히 쓴다. 무엇을 왜 했는지, 무엇을 확인했는지, 남은 것은 무엇인지 쉬운 말로 충분히 설명한다.'
+};
+
 class ClaudeRunner {
     constructor(options = {}) {
         this.bin = options.bin || process.env.FLOWCODE_CLAUDE_BIN || 'claude';
@@ -30,6 +37,7 @@ class ClaudeRunner {
      * @param {string} req.text           보낼 메시지
      * @param {string} [req.sessionId]    이어갈 세션 (없으면 새 세션)
      * @param {string} [req.permissionMode] default | acceptEdits | plan
+     * @param {string} [req.answerMode]   result | summary | detail (없으면 Claude 기본)
      * @param {(event: object) => void} onEvent   stream-json 이벤트, 또는 { type: 'stderr', text }
      * @param {(result: { code: number|null, signal: string|null, stopped: boolean }) => void} onExit
      */
@@ -42,6 +50,7 @@ class ClaudeRunner {
         if (req.permissionMode && PERMISSION_MODES.has(req.permissionMode) && req.permissionMode !== 'default') {
             args.push('--permission-mode', req.permissionMode);
         }
+        if (ANSWER_STYLES[req.answerMode]) args.push('--append-system-prompt', ANSWER_STYLES[req.answerMode]);
         args.push(req.text);
 
         // 셸을 거치지 않고 바로 실행 (인자 따옴표 문제 없음), PATH 는 로그인 셸 것
@@ -105,4 +114,5 @@ class ClaudeRunner {
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = ClaudeRunner;
+    module.exports.ANSWER_STYLES = ANSWER_STYLES;
 }

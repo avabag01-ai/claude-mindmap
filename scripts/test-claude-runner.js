@@ -31,6 +31,13 @@ const run = req => new Promise(resolve => {
     assert.deepStrictEqual(b.events.find(e => e.subtype === 'init').args, ['-p', '--output-format', 'stream-json', '--verbose', '안녕']);
     assert.strictEqual(b.events.find(e => e.type === 'result').session_id, 'new-session-0001');
 
+    // 답 길이: 시스템 프롬프트로 붙이고 메시지는 그대로, 모르는 값은 무시
+    const d = await run({ runId: 'r4', cwd, sessionId: 's', text: '고쳐', answerMode: 'result' });
+    assert.deepStrictEqual(d.events.find(e => e.subtype === 'init').args,
+        ['-p', '--output-format', 'stream-json', '--verbose', '--resume', 's', '--append-system-prompt', ClaudeRunner.ANSWER_STYLES.result, '고쳐']);
+    const e2 = await run({ runId: 'r5', cwd, text: '안녕', answerMode: 'loud' });
+    assert.ok(!e2.events.find(e => e.subtype === 'init').args.includes('--append-system-prompt'));
+
     // 중지
     const c = run({ runId: 'r3', cwd, text: 'hang' });
     await new Promise(r => setTimeout(r, 300));

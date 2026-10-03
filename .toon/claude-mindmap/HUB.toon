@@ -23,6 +23,9 @@ latest_session: .toon/claude-mindmap/SESSION_20261003.toon
   - 다른 기기 세션: 점선 카드, 끌기·보내기·툰 막음, 대화창에 "그 기기에서 열기" 명령
   - 테스트: scripts/test-machine-sync.js (진짜 git + 빈 원격, 두 기기 공유 폴더) [확인 클라우드]
   - 기기 이름 바꾸기: ~/.flowcode/machine.json {"name":"Mac mini"}, 공유 폴더: FLOWCODE_SYNC_DIR 또는 ~/.flowcode/sync.json
+- [확인 클라우드] 답 길이 버튼: 대화창 결과만/요약/자세히 → claude --append-system-prompt (메시지는 그대로), 기본 요약, localStorage 기억
+  - 답마다 받은 버튼 표시(반전 배지): 보낸 시각·버튼을 localStorage hub.answerLog 에 기억 → 사람 메시지 시각과 맞춤 (터미널에서 보낸 것은 표시 없음)
+  - 마지막 답 아래 "자세히 설명해 줘" = 이번 한 번만 자세히
 - 맥 실측 전: 진짜 claude 보내기·툰 저장·복사한 세션 --resume, 키체인 암호화, 사용량 API, 크롬·사파리 애플스크립트
 - flowcode PR #1(claude/session-mindmap)과 이 앱의 관계: 이 앱이 본체, flowcode 쪽은 정리 필요
 

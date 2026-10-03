@@ -223,6 +223,15 @@
         #hub-input { width: 100%; resize: vertical; min-height: 64px; max-height: 40vh; }
         .composer .row { justify-content: space-between; }
         .composer label { color: var(--muted); font-size: 12px; display: flex; gap: 6px; align-items: center; }
+        .composer .row { flex-wrap: wrap; gap: 6px; }
+        .composer label, #hub-send, #hub-stop { white-space: nowrap; }
+        #hub-perm { max-width: 150px; }
+        .hub-answer { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+        .hub-answer button { white-space: nowrap; background: none; border: 0; color: var(--muted); font-size: 12px; padding: 3px 9px; cursor: pointer; }
+        .hub-answer button + button { border-left: 1px solid var(--line); }
+        .hub-answer button[aria-pressed="true"] { background: var(--accent); color: #0b1512; font-weight: 700; }
+        .hub-more { align-self: flex-start; justify-self: start; font-size: 11px; padding: 2px 9px; }
+        .hub-mode { justify-self: start; background: var(--accent); color: #0b1512; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 0 6px; }
 
         @media (max-width: 1100px) { .hub { grid-template-columns: 220px minmax(0, 1fr) 340px; } }
         /* 좁은 화면(폰·작은 창): 목록 → 맵 → 대화 순으로 쌓는다 */
@@ -332,6 +341,11 @@
                 <div id="hub-attach" class="hub-attach" hidden></div>
                 <textarea id="hub-input" rows="3" placeholder="왼쪽에서 세션을 고르세요" disabled></textarea>
                 <div class="row">
+                    <span class="hub-answer" role="group" aria-label="답 길이">
+                        <button type="button" data-answer="result" aria-pressed="false" title="결과만 한두 줄">결과만</button>
+                        <button type="button" data-answer="summary" aria-pressed="true" title="5줄 안쪽 요약">요약</button>
+                        <button type="button" data-answer="detail" aria-pressed="false" title="무엇을 왜 했는지 자세히">자세히</button>
+                    </span>
                     <label for="hub-perm">권한
                         <select id="hub-perm">
                             <option value="default">기본 (물어볼 도구는 막힘)</option>

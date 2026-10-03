@@ -31,6 +31,7 @@ class SessionHub {
         this.run = null;           // { runId, text, events[], sessionId, root }
         this.newFolder = null;     // 새 세션을 열 폴더
         this.permission = 'default';
+        this.answerMode = SessionHub._loadAnswerMode(); // result | summary | detail
         this.toonStart = true;      // 새 세션: 툰 허브를 읽고 시작
         this.newTopic = '';         // 새 세션: 주제 허브
         this.previewTranscripts = options.transcripts || null; // 미리보기: 세션 id → 메시지 목록
@@ -489,13 +490,18 @@ class SessionHub {
             else if (this.transcript.error) html = `<p class="hub-empty">대화를 읽지 못했어요: ${SessionMindMap._esc(this.transcript.error)}</p>`;
             else {
                 if (this.transcript.truncated) html += '<p class="hub-note">앞부분은 생략했어요 (최근 메시지만 보여요)</p>';
-                html += this.transcript.messages.map(m => this._msgHtml(m)).join('');
+                const modes = SessionHub.answerModes(this.transcript.messages, SessionHub._answerLog()[s.id]);
+                html += this.transcript.messages.map((m, i) => this._msgHtml(m, modes[i])).join('');
             }
         } else if (!this.newFolder) {
             html = `<div class="hub-welcome"><p>세션을 고르면 여기서 대화를 보고 이어서 말할 수 있어요.</p>
               <p>보낸 메시지는 그 세션을 <code>claude --resume</code> 으로 이어서 실행해요.</p></div>`;
         }
         if (this.run && this._runBelongsHere()) html += this._runHtml();
+        // 마지막 답 아래 "자세히": 짧게 받은 답을 다시 풀어 달라고 한다
+        const msgs = this.transcript && s && this.transcript.file === s.file ? this.transcript.messages || [] : [];
+        const lastIsAnswer = this.run && this._runBelongsHere() ? this.run.done && !this.run.stopped : msgs.length && msgs[msgs.length - 1].role === 'assistant';
+        if (s && !s.remote && this.ipc && lastIsAnswer) html += '<button class="btn hub-more" data-act="more" title="방금 답을 자세히 다시 설명해 달라고 보내요">자세히 설명해 줘</button>';
         box.innerHTML = html || '<p class="hub-empty">첫 메시지를 보내면 새 세션이 시작돼요</p>';
         if (scroll) box.scrollTop = box.scrollHeight;
     }
@@ -506,7 +512,7 @@ class SessionHub {
             (this.run.newSessionId && s && this.run.newSessionId === s.id);
     }
 
-    _msgHtml(m) {
+    _msgHtml(m, mode) {
         const esc = SessionMindMap._esc;
         const MAX = 6;
         const shown = (m.tools || []).slice(0, MAX);
@@ -514,7 +520,8 @@ class SessionHub {
         const tools = shown.length
             ? `<div class="hub-tools">${shown.map(t => `<span class="hub-tool" title="${esc(t.target)}"><b>${esc(t.name.replace(/^mcp__[^_]+(?:-[^_]+)*__/, ''))}</b> ${esc(SessionMindMap._base(t.target) || '')}</span>`).join('')}${more > 0 ? `<span class="hub-tool-more">도구 ${more}개 더</span>` : ''}</div>` : '';
         const time = m.at ? `<time>${SessionMindMap._fmt(m.at)}</time>` : '';
-        return `<div class="hub-msg hub-${m.role}">${m.text ? `<div class="hub-bubble">${SessionHub.md(m.text)}</div>` : ''}${tools}${time}</div>`;
+        const tag = mode && m.role === 'assistant' ? `<span class="hub-mode" title="${SessionHub.ANSWER_LABEL[mode]} 버튼으로 받은 답">${SessionHub.ANSWER_LABEL[mode]}</span>` : '';
+        return `<div class="hub-msg hub-${m.role}">${tag}${m.text ? `<div class="hub-bubble">${SessionHub.md(m.text)}</div>` : ''}${tools}${time}</div>`;
     }
 
     _runHtml() {
@@ -533,7 +540,7 @@ class SessionHub {
         const res = r.events.find(e => e.type === 'result');
         let status = r.done ? (r.stopped ? '멈췄어요' : res && res.is_error ? '오류로 끝났어요' : '끝났어요') : '실행 중…';
         if (r.done && !res && !r.stopped) status = '응답 없이 끝났어요';
-        return `<div class="hub-live">${r.label ? `<div class="hub-step">${SessionMindMap._esc(r.label)}</div>` : ''}${this._msgHtml(parts[0])}${a.text || a.tools.length ? this._msgHtml(a) : ''}
+        return `<div class="hub-live">${r.label ? `<div class="hub-step">${SessionMindMap._esc(r.label)}</div>` : ''}${this._msgHtml(parts[0])}${a.text || a.tools.length ? this._msgHtml(a, r.answerMode) : ''}
             <div class="hub-runstate${r.done ? '' : ' is-running'}">${status}${res && res.total_cost_usd != null ? ` · $${res.total_cost_usd.toFixed(2)}` : ''}</div>
             ${err && (r.done || !a.text) ? `<pre class="hub-err">${SessionMindMap._esc(err.slice(-1500))}</pre>` : ''}</div>`;
     }
@@ -565,6 +572,64 @@ class SessionHub {
         this.el('hub-stop').hidden = !running;
     }
 
+    /** 답 길이 버튼: 결과만 / 요약 / 자세히 (기억해 둔다) */
+    setAnswerMode(mode) {
+        this.answerMode = SessionHub.ANSWER_MODES.includes(mode) ? mode : 'summary';
+        document.querySelectorAll('.hub-answer button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.answer === this.answerMode)));
+        try { localStorage.setItem('hub.answerMode', this.answerMode); } catch { /* 저장 못 해도 이번엔 쓴다 */ }
+    }
+
+    static _loadAnswerMode() {
+        try {
+            const m = localStorage.getItem('hub.answerMode');
+            if (SessionHub.ANSWER_MODES.includes(m)) return m;
+        } catch { /* 미리보기·테스트 */ }
+        return 'summary';
+    }
+
+    // 어느 버튼으로 받은 답인지: 기록 파일에는 남지 않으니 보낸 시각과 버튼을 따로 기억한다 (세션 id → [{ at, mode }])
+    static _answerLog() {
+        try { return JSON.parse(localStorage.getItem('hub.answerLog') || '{}') || {}; } catch { return {}; }
+    }
+
+    static _logAnswer(sessionId, at, mode) {
+        try {
+            const log = SessionHub._answerLog();
+            log[sessionId] = [...(log[sessionId] || []), { at, mode }].slice(-100);
+            const ids = Object.keys(log);
+            if (ids.length > 300) ids.slice(0, ids.length - 300).forEach(id => delete log[id]); // 오래된 세션부터 버린다
+            localStorage.setItem('hub.answerLog', JSON.stringify(log));
+        } catch { /* 기억 못 해도 보내기는 된다 */ }
+    }
+
+    /**
+     * 메시지마다 답 길이 표시: 사람 메시지 시각에 가장 가까운 보낸 기록(보낸 뒤 2분 안)을 찾아
+     * 그 뒤에 이어지는 Claude 답에 붙인다. 앱 밖(터미널)에서 보낸 메시지는 표시 없음.
+     */
+    static answerModes(messages, log) {
+        const out = new Array(messages.length).fill(null);
+        if (!log || !log.length) return out;
+        let mode = null;
+        messages.forEach((m, i) => {
+            if (m.role === 'user') {
+                let best = null;
+                for (const r of log) {
+                    const d = m.at - r.at;
+                    if (d >= -5000 && d <= 120000 && (!best || Math.abs(d) < Math.abs(m.at - best.at))) best = r;
+                }
+                mode = best ? best.mode : null;
+            } else out[i] = mode;
+        });
+        return out;
+    }
+
+    /** 마지막 답을 자세히 다시 설명해 달라고 보낸다 (이번 한 번만 자세히) */
+    askDetail() {
+        const s = this._selSession();
+        if (!s || s.remote || !this.ipc || (this.run && !this.run.done)) return;
+        this._startRun({ cwd: s.cwd, sessionId: s.id, root: this.sel.root, text: SessionHub.DETAIL_TEXT, permissionMode: this.permission, answerMode: 'detail' });
+    }
+
     send() {
         const input = this.el('hub-input');
         const typed = input.value.trim();
@@ -584,10 +649,12 @@ class SessionHub {
         this._renderAttachments();
     }
 
-    _startRun({ cwd, sessionId, root, text, permissionMode, label }) {
+    _startRun({ cwd, sessionId, root, text, permissionMode, label, answerMode }) {
         const runId = 'run-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
-        this.run = { runId, text, label, events: [], sessionId, root, done: false };
-        this.ipc.send('sessions:send', { runId, cwd, sessionId, text, permissionMode });
+        const mode = answerMode || this.answerMode;
+        this.run = { runId, text, label, events: [], sessionId, root, done: false, answerMode: mode, sentAt: Date.now() };
+        if (sessionId) SessionHub._logAnswer(sessionId, this.run.sentAt, mode);
+        this.ipc.send('sessions:send', { runId, cwd, sessionId, text, permissionMode, answerMode: mode });
         this._renderMessages(true);
         this._renderComposer();
         return runId;
@@ -776,7 +843,10 @@ class SessionHub {
     _onRunEvent({ runId, event }) {
         if (!this.run || this.run.runId !== runId) return;
         this.run.events.push(event);
-        if (event.session_id && !this.run.sessionId) this.run.newSessionId = event.session_id;
+        if (event.session_id && !this.run.sessionId && !this.run.newSessionId) {
+            this.run.newSessionId = event.session_id;
+            SessionHub._logAnswer(event.session_id, this.run.sentAt, this.run.answerMode); // 새 세션은 id 를 알게 된 뒤 기록
+        }
         const box = this.el('hub-messages');
         const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
         if (this._runBelongsHere()) this._renderMessages(atBottom);
@@ -832,6 +902,9 @@ class SessionHub {
         this.el('hub-send').addEventListener('click', () => this.send());
         this.el('hub-stop').addEventListener('click', () => this.stop());
         this.el('hub-perm').addEventListener('change', e => { this.permission = e.target.value; });
+        document.querySelectorAll('.hub-answer button').forEach(b => b.addEventListener('click', () => this.setAnswerMode(b.dataset.answer)));
+        this.setAnswerMode(this.answerMode);
+        this.el('hub-messages').addEventListener('click', e => { if (e.target.closest('[data-act="more"]')) this.askDetail(); });
         this.el('hub-input').addEventListener('keydown', e => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.send(); }
         });
@@ -917,6 +990,9 @@ class SessionHub {
     }
 }
 
+SessionHub.ANSWER_MODES = ['result', 'summary', 'detail'];
+SessionHub.ANSWER_LABEL = { result: '결과만', summary: '요약', detail: '자세히' };
+SessionHub.DETAIL_TEXT = '방금 답을 자세히 설명해 줘.';
 SessionHub.TOON_SAVE_TEXT = '툰 저장해줘. 저장이 끝나면 새 세션에서 이어갈 시작 메시지를 ```toon-next 코드 블록 하나에만 담아서 답의 맨 끝에 보여줘.';
 
 if (typeof window !== 'undefined') window.SessionHub = SessionHub;

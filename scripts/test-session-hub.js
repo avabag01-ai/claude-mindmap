@@ -24,4 +24,15 @@ const { HubBrowser } = require('../src/modules/HubPanels.js');
 const rp = HubBrowser.readPrompt({ title: '제목', url: 'https://a.b', text: 'x'.repeat(30) }, 10);
 assert.ok(rp.includes('툰 형식') && rp.includes('[페이지] 제목\nhttps://a.b') && rp.includes('xxxxxxxxxx\n…(뒤는 잘렸어요)'));
 assert.ok(HubBrowser.looksLikeUrl('github.com/a') && !HubBrowser.looksLikeUrl('맥미니 램'));
+// 답 길이 표시: 보낸 시각에 가까운 사람 메시지 뒤의 답에 붙는다
+const T = 1e12;
+const msgs = [
+    { role: 'user', at: T + 1000 }, { role: 'assistant', at: T + 5000 }, { role: 'assistant', at: T + 9000 },
+    { role: 'user', at: T + 600000 }, { role: 'assistant', at: T + 601000 },
+    { role: 'user', at: T + 900000 }, { role: 'assistant', at: T + 901000 }
+];
+const log = [{ at: T, mode: 'result' }, { at: T + 599000, mode: 'detail' }];
+assert.deepStrictEqual(SessionHub.answerModes(msgs, log), [null, 'result', 'result', null, 'detail', null, null], '터미널에서 보낸 것(기록 없음)은 표시 없음');
+assert.deepStrictEqual(SessionHub.answerModes(msgs, undefined), msgs.map(() => null));
+assert.deepStrictEqual(SessionHub.ANSWER_MODES, ['result', 'summary', 'detail']);
 console.log('SessionHub: 모든 테스트 통과');
