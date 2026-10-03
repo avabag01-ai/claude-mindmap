@@ -212,6 +212,13 @@
         .hub-runstate { color: var(--muted); font-size: 12px; }
         .hub-runstate.is-running::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: hub-blink 1s infinite; }
         @keyframes hub-blink { 50% { opacity: .2; } }
+        .hub-cache { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; white-space: nowrap; }
+        .hub-cache:empty { display: none; }
+        .hub-cache-soon { background: #e0b44c; color: #1a1406; border-color: #e0b44c; font-weight: 700; animation: hub-blink 1s infinite; }
+        .hub-cache-over { opacity: .7; }
+        .hub-toon.is-blink { border-color: #e0b44c; color: #e0b44c; animation: hub-blink 1s infinite; }
+        .hub-item.is-cache-soon .hub-dot { background: #e0b44c !important; animation: hub-blink 1s infinite; }
+        @media (prefers-reduced-motion: reduce) { .hub-cache-soon, .hub-toon.is-blink, .hub-item.is-cache-soon .hub-dot { animation: none; } }
         @media (prefers-reduced-motion: reduce) { .hub-runstate.is-running::before { animation: none; } }
         .hub-err { background: #2a1d1f; color: #f2a7a7; padding: 8px; border-radius: 6px; white-space: pre-wrap; font-family: var(--mono); font-size: 11px; margin: 0; }
         .hub-toon-row { display: flex; gap: 6px; margin-top: 4px; }

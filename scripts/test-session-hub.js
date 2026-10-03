@@ -35,4 +35,12 @@ const log = [{ at: T, mode: 'result' }, { at: T + 599000, mode: 'detail' }];
 assert.deepStrictEqual(SessionHub.answerModes(msgs, log), [null, 'result', 'result', null, 'detail', null, null], '터미널에서 보낸 것(기록 없음)은 표시 없음');
 assert.deepStrictEqual(SessionHub.answerModes(msgs, undefined), msgs.map(() => null));
 assert.deepStrictEqual(SessionHub.ANSWER_MODES, ['result', 'summary', 'detail']);
+// 캐시 타이머: 마지막 메시지 기준 55분부터 깜박, 1시간 넘으면 지남
+const SMM = require('../src/modules/SessionMindMap.js');
+const M = 60e3;
+assert.deepStrictEqual(SMM.cachePhase(T, T + 30 * M), { phase: 'ok', left: 30 * M });
+assert.strictEqual(SMM.cachePhase(T, T + 54 * M).phase, 'ok');
+assert.strictEqual(SMM.cachePhase(T, T + 55 * M).phase, 'soon');
+assert.strictEqual(SMM.cachePhase(T, T + 59.9 * M).phase, 'soon');
+assert.strictEqual(SMM.cachePhase(T, T + 60 * M).phase, 'over');
 console.log('SessionHub: 모든 테스트 통과');

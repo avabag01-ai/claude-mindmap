@@ -495,7 +495,9 @@ class SessionMindMap {
             const w = Math.max(W(seq + title, 12), W(time, 10.5) * 0.92 + (git ? W(git, 10) + 10 : 0)) + 24, h = 36;
             const x = right ? 11 : -11 - w;
             const badge = count && !open ? `<g class="smm-badge-pill" transform="translate(${right ? x + w : x},${-h / 2})"><rect x="-13" y="-8" width="26" height="16" rx="8" fill="${n.color}"/><text text-anchor="middle" dy="4">+${count}</text></g>` : '';
+            const soon = !s.remote && SessionMindMap.cachePhase(s.lastAt, this.now()).phase === 'soon';
             return `<g class="smm-node smm-session smm-${s.status}${n.sub ? ' smm-sub' : ''}${s.remote ? ' smm-remote' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
+                ${soon ? `<rect x="${x - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="13" class="smm-cache-soon"><title>캐시 곧 끝나요 · 툰 할 때</title></rect>` : ''}
                 ${s.status === 'working' ? `<rect x="${x - 3}" y="${-h / 2 - 3}" width="${w + 6}" height="${h + 6}" rx="12" class="smm-pulse"/>` : ''}
                 <circle r="4.5" class="smm-joint" fill="${n.color}"/>
                 <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="${n.sub ? 4 : 10}" class="smm-card smm-${s.status}" style="--c:${n.color}"/>
@@ -1023,6 +1025,16 @@ class SessionMindMap {
         return a.slice(0, 5) === b.slice(0, 5) ? `${a}~${b.slice(6)}` : `${a}~${b}`;
     }
 
+    /**
+     * 캐시 타이머: 마지막 메시지 뒤 1시간까지는 Claude 가 앞 대화를 캐시로 싸게 다시 읽는다.
+     * 55분이 넘으면 'soon' (툰 할 때), 1시간이 넘으면 'over'. 세션 시작이 아니라 마지막 메시지 기준이다.
+     * @returns {{ phase: 'ok'|'soon'|'over', left: number }} left = 남은 ms
+     */
+    static cachePhase(lastAt, now) {
+        const left = SessionMindMap.CACHE_MS - (now - lastAt);
+        return { left, phase: left <= 0 ? 'over' : left <= SessionMindMap.CACHE_WARN_MS ? 'soon' : 'ok' };
+    }
+
     static _ago(ms, now) {
         const s = Math.max(0, (now - ms) / 1000);
         if (s < 60) return '방금';
@@ -1111,6 +1123,9 @@ class SessionMindMap {
         .smm-pulse { fill:none; stroke:var(--smm-working); stroke-width:2; animation:smm-pulse 1.8s ease-out infinite; transform-box:fill-box; transform-origin:center; }
         @keyframes smm-pulse { from { opacity:.9; transform:scale(1); } to { opacity:0; transform:scale(1.12); } }
         @media (prefers-reduced-motion: reduce) { .smm-pulse { animation:none; opacity:.6; } }
+        .smm-cache-soon { fill:none; stroke:#e0b44c; stroke-width:2.5; animation:smm-blink 1s steps(2, start) infinite; }
+        @keyframes smm-blink { to { visibility:hidden; } }
+        @media (prefers-reduced-motion: reduce) { .smm-cache-soon { animation:none; } }
         .smm-working .smm-session-dot { fill:var(--smm-working); stroke:var(--smm-working); }
         .smm-file-dot { fill:var(--smm-panel); stroke-width:1.5; }
         .smm-file-label { font-size:11px; fill:var(--smm-muted); }
@@ -1161,6 +1176,8 @@ class SessionMindMap {
 SessionMindMap.PALETTE = ['#e5a050', '#6cb6ff', '#d27ad6', '#7ee787', '#f47067', '#dcbdfb', '#f0c674', '#56d4dd'];
 SessionMindMap.STATUS = { working: '작업 중', recent: '최근', idle: '지난 세션' };
 // 세션이 고친 파일의 git 상태 (SessionIndexer.attachGit)
+SessionMindMap.CACHE_MS = 60 * 60e3;      // 캐시 유지 1시간
+SessionMindMap.CACHE_WARN_MS = 5 * 60e3;  // 55분부터 깜박
 SessionMindMap.GIT = { pushed: 'git', ahead: '푸시 전', dirty: '미커밋' };
 SessionMindMap.GIT_LONG = { pushed: 'GitHub 에 올라감', ahead: '커밋했지만 아직 푸시 전', dirty: '커밋 안 한 수정이 있음' };
 

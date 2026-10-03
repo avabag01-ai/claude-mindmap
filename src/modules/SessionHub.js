@@ -194,6 +194,7 @@ class SessionHub {
             this._poll = setInterval(() => this._pollTranscript(), 4000);
             // 사용량: 2분마다, 창으로 돌아올 때, 보내기가 끝날 때
             this.readUsage();
+            this._cachePoll = setInterval(() => this._tickCache(), 15000);
             this._usagePoll = setInterval(() => { if (!document.hidden) this.readUsage(); }, 120000);
             window.addEventListener('focus', () => { if (!this.usage || Date.now() - this.usage.at > 30000) this.readUsage(); });
         }
@@ -366,7 +367,8 @@ class SessionHub {
 
         const item = ({ p, s, depth }) => {
             const on = this.sel && this.sel.root === p.root && this.sel.id === s.id;
-            return `<button class="hub-item${on ? ' is-on' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
+            const soon = !s.remote && SessionMindMap.cachePhase(s.lastAt, now).phase === 'soon';
+            return `<button class="hub-item${on ? ' is-on' : ''}${soon ? ' is-cache-soon' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
                 <span class="hub-item-title">${esc(s.title)}</span>
                 <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
@@ -450,7 +452,7 @@ class SessionHub {
         if (s) {
             const resume = `cd ${SessionMindMap._shellQuote(s.cwd)} && claude --resume ${s.id}`;
             head.innerHTML = `<div class="hub-chat-title">${esc(s.title)}</div>
-              <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>
+              <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>${s.remote ? '' : '<span id="hub-cache" class="hub-cache"></span>'}
                 <span>${esc(p.name)}</span>${s.gitBranch ? `<span class="hub-mono">${esc(s.gitBranch)}</span>` : ''}
                 ${s.git ? `<span class="smm-git-pill smm-git-${s.git}" title="${SessionMindMap.GIT_LONG[s.git]}">${SessionMindMap.GIT[s.git]}</span>` : ''}
                 ${s.costUSD != null ? `<span>$${s.costUSD.toFixed(2)}</span>` : ''}
@@ -475,6 +477,7 @@ class SessionHub {
         }
         this._renderMessages(true);
         this._renderComposer();
+        this._tickCache();
     }
 
     _renderMessages(scroll) {
@@ -570,6 +573,40 @@ class SessionHub {
         this.el('hub-send').hidden = running;
         this.el('hub-send').disabled = !can;
         this.el('hub-stop').hidden = !running;
+    }
+
+    /** 선택한 세션의 마지막 메시지 시각 (보내는 중이면 지금) */
+    _lastActivity(s) {
+        let t = s.lastAt || 0;
+        const msgs = this.transcript && this.transcript.file === s.file ? this.transcript.messages || [] : [];
+        if (msgs.length) t = Math.max(t, msgs[msgs.length - 1].at || 0);
+        if (this.run && this._runBelongsHere()) t = Math.max(t, this.run.done ? this.run.sentAt : this.now());
+        return t;
+    }
+
+    /** 캐시 타이머: 대화창 머리의 남은 시간, 55분부터 깜박 + 툰 버튼 강조. 깜박이는 세션이 바뀌면 목록·맵도 다시 그린다 */
+    _tickCache() {
+        const now = this.now();
+        const s = this._selSession();
+        const pill = this.el('hub-cache');
+        if (pill && s) {
+            const { phase, left } = SessionMindMap.cachePhase(this._lastActivity(s), now);
+            const min = Math.ceil(left / 60e3);
+            pill.className = `hub-cache hub-cache-${phase}`;
+            pill.textContent = phase === 'over' ? '캐시 지남' : phase === 'soon' ? `툰 할 때 · ${min}분` : `캐시 ${min}분`;
+            pill.title = phase === 'over' ? '마지막 메시지 뒤 1시간이 지나 다음 메시지는 앞 대화를 다시 비싸게 읽어요'
+                : `마지막 메시지 뒤 1시간까지 캐시로 싸게 이어가요 · ${min}분 남음`;
+            const toon = document.querySelector('[data-act="toon-ask"]');
+            if (toon) toon.classList.toggle('is-blink', phase === 'soon');
+        }
+        if (!this.data) return;
+        const sig = this.data.projects.flatMap(p => p.sessions)
+            .filter(x => !x.remote && SessionMindMap.cachePhase(x.lastAt, now).phase === 'soon').map(x => x.id).join();
+        if (sig !== this._cacheSig) {
+            const first = this._cacheSig === undefined;
+            this._cacheSig = sig;
+            if (!first) { this._renderList(); this.map.render(); }
+        }
     }
 
     /** 답 길이 버튼: 결과만 / 요약 / 자세히 (기억해 둔다) */
