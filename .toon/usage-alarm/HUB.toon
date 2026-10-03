@@ -1,0 +1,14 @@
+## TOPIC_HUB v3.1
+topic: usage-alarm
+title: 사용량·알람
+parent: claude-mindmap
+files: src/core/UsageMeter.js · src/core/SessionIndexer.js(context) · src/modules/SessionMindMap.js(contextInfo·alarm·cachePhase)
+
+## SCOPE
+- 5시간·주간 사용량 막대, 세션 분량(토큰) 막대, 캐시 타이머, 툰 알람(깜박)
+
+## OPEN
+- [가설] 창 크기 20만/100만 추정, 경고 60%·80%
+
+## NEXT
+- NEXT 000000 맥에서 실제 세션으로 분량 % 가 Claude Code 표시와 맞는지

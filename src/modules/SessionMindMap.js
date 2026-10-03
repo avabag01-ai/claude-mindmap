@@ -226,7 +226,7 @@ class SessionMindMap {
         const color = this._colorOf(p);
         const root = { key: 'root', kind: 'root', label: p.name, color, ref: { kind: 'project', data: p }, children: [] };
         root.children.push(...this._sessionNodes(p, this._filterSessions(p), color));
-        if (this.pendingRoot === p.root) root.children.push(this._pendingNode(p, color));
+        if (this.pendingRoot === p.root && !this._pendingPlaced) root.children.push(this._pendingNode(p, color));
         return root;
     }
 
@@ -268,24 +268,72 @@ class SessionMindMap {
         return m.get(s.id);
     }
 
-    // 폴더 안 세션 노드: 하위 세션(parentId)은 부모 세션 가지 아래로, 파일은 그 뒤에
+    /**
+     * 줄기(툰 이어가기로 이어진 세션)마다 맨 끝(최신) 세션 → 앞 세션들 [오래된 것부터]
+     * 지도에는 맨 끝만 그리고 앞 세션은 "이전 N" 으로 접는다.
+     */
+    static chains(sessions) {
+        const ids = new Set(sessions.map(s => s.id));
+        const hasNext = new Set(sessions.filter(s => s.prevId && ids.has(s.prevId)).map(s => s.prevId));
+        const byId = new Map(sessions.map(s => [s.id, s]));
+        const heads = new Map(); // 맨 끝 id → 앞 세션들
+        const headOf = new Map(); // 세션 id → 맨 끝 id
+        for (const s of sessions) {
+            if (hasNext.has(s.id)) continue;
+            const prev = [];
+            for (let cur = byId.get(s.prevId), guard = 0; cur && guard < 1000; cur = byId.get(cur.prevId), guard++) prev.unshift(cur);
+            heads.set(s.id, prev);
+            headOf.set(s.id, s.id);
+            prev.forEach(x => headOf.set(x.id, s.id));
+        }
+        return { heads, headOf };
+    }
+
+    // 폴더 안 세션 노드: 주제 가지 → 줄기의 최신 세션 → 하위 세션(parentId), 파일은 그 뒤에
     _sessionNodes(p, sessions, color) {
         const q = this.query;
         const nodes = new Map();
+        const { heads, headOf } = SessionMindMap.chains(sessions);
+        this._pendingPlaced = false;
         for (const s of SessionMindMap._chrono(sessions)) {
+            if (!heads.has(s.id)) continue; // 줄기의 앞 세션은 맨 끝 카드에 접는다
             const sKey = this._sessionKey(p, s);
-            const n = { key: sKey, kind: 'session', label: s.title, data: s, project: p, color, seq: this._seq(p, s), children: [] };
+            const n = { key: sKey, kind: 'session', label: s.title, data: s, project: p, color, seq: this._seq(p, s), prev: heads.get(s.id), children: [] };
             const open = this.showAllFiles || this.expanded.has(sKey) || (q && s.files.some(f => (f.rel || f.path).toLowerCase().includes(q)));
             n.files = open ? this._fileNodes(p, s, sKey, color, !this.showAllFiles && !this.expanded.has(sKey)) : [];
             nodes.set(s.id, n);
         }
         const top = [];
         for (const n of nodes.values()) {
-            const parent = n.data.parentId && nodes.get(n.data.parentId);
-            if (parent) { n.sub = true; parent.children.push(n); } else top.push(n);
+            // 하위 세션의 부모가 줄기 앞쪽에 접혀 있으면 그 줄기의 맨 끝 카드 아래로
+            const parent = n.data.parentId && nodes.get(headOf.get(n.data.parentId) || n.data.parentId);
+            if (parent && parent !== n) { n.sub = true; parent.children.push(n); } else top.push(n);
         }
         for (const n of nodes.values()) n.children.push(...n.files);
-        return top;
+
+        // 주제 가지: 툰 주제 허브(빈 가지 포함) + 세션에 적힌 주제. 주제 없는 세션은 폴더 바로 아래
+        const hub = p.hub || { topics: [], titles: {} };
+        const names = [...new Set([...(hub.topics || []), ...top.map(n => n.data.topic).filter(Boolean)])];
+        if (!names.length) { this._placePending(p, color, nodes, new Map(), headOf); return top; }
+        const branches = new Map(names.map(t => [t, {
+            key: `t:${p.root}::${t}`, kind: 'topic', label: (hub.titles || {})[t] || t, topic: t, project: p, color, children: []
+        }]));
+        const loose = [];
+        for (const n of top) (n.data.topic && branches.get(n.data.topic) ? branches.get(n.data.topic).children : loose).push(n);
+        this._placePending(p, color, nodes, branches, headOf);
+        // 검색 중에는 맞는 세션이 있는 가지만
+        const shown = [...branches.values()].filter(b => !q || b.children.length || b.label.toLowerCase().includes(q) || b.topic.toLowerCase().includes(q));
+        return [...shown, ...loose];
+    }
+
+    // 새 세션 자리: 세션 ⊕ 면 그 세션 아래, 가지 ⊕ 면 그 가지 아래 (못 찾으면 폴더 아래 = 호출한 쪽이 붙인다)
+    _placePending(p, color, nodes, branches, headOf) {
+        const m = this.pendingMeta;
+        if (this.pendingRoot !== p.root || !m) return;
+        const target = (m.parentId && nodes.get(headOf.get(m.parentId) || m.parentId)) || (m.topic && branches.get(m.topic));
+        if (!target) return;
+        target.children.push(this._pendingNode(p, color));
+        this._pendingPlaced = true;
     }
 
     _pendingNode(p, color) {
@@ -322,8 +370,9 @@ class SessionMindMap {
             });
             if (!sessions.length && this.pendingRoot !== p.root) return;
             const pNode = { key: `p:${p.root}`, kind: 'project', label: p.name, data: p, color, children: [] };
+            this._pendingPlaced = false;
             if (!this.collapsed.has(p.root)) pNode.children.push(...this._sessionNodes(p, sessions, color));
-            if (this.pendingRoot === p.root) pNode.children.push(this._pendingNode(p, color));
+            if (this.pendingRoot === p.root && !this._pendingPlaced) pNode.children.push(this._pendingNode(p, color));
             root.children.push(pNode);
         });
         return root;
@@ -337,6 +386,7 @@ class SessionMindMap {
             if (!n.children.length) n.w = 1;
             else n.w = n.children.reduce((a, c) => a + weight(c), 0);
             if (n.kind === 'project') n.w += 0.8; // 프로젝트 사이 여백
+            if (n.kind === 'topic' && !n.children.length) n.w = 0.7; // 빈 가지는 좁게
             return n.w;
         };
         weight(root);
@@ -474,6 +524,20 @@ class SessionMindMap {
                 <title>${esc(n.data.root)}</title></g>`;
         }
 
+        if (n.kind === 'topic') {
+            // 주제 가지: 꼬리표 모양 + ⊕ (그 주제로 새 세션)
+            const label = SessionMindMap._clip(n.label, 14);
+            const w = W(label, 12) + 22, h = 24;
+            const x = right ? 8 : -8 - w;
+            const empty = !n.children.length;
+            return `<g class="smm-node smm-topic${empty ? ' smm-topic-empty' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
+                <circle r="4" class="smm-joint" fill="${n.color}"/>
+                <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="12" class="smm-topic-tag" style="--c:${n.color}"/>
+                <text x="${x + w / 2}" dy="4" text-anchor="middle" class="smm-topic-label">${esc(label)}</text>
+                ${this._addButton(right ? x + w + 14 : x - 14, 0, n.project.root, n.color, { topic: n.topic, label: `${n.label} 가지에 새 세션` })}
+                <title>${esc(n.label)} 가지 (.toon/${esc(n.topic)}) · ${empty ? '아직 세션 없음 · ⊕ 로 첫 세션' : `세션 ${n.children.length}개`} · 눌러서 주제 허브 보기</title></g>`;
+        }
+
         if (n.kind === 'pending') {
             const w = 168;
             const x = right ? 10 : -10 - w;
@@ -506,7 +570,9 @@ class SessionMindMap {
                 ${ctx ? `<rect x="${x + 6}" y="${h / 2 - 4}" width="${(w - 12).toFixed(1)}" height="2.5" rx="1.2" class="smm-ctx-track"/><rect x="${x + 6}" y="${h / 2 - 4}" width="${((w - 12) * Math.min(1, ctx.pct)).toFixed(1)}" height="2.5" rx="1.2" class="smm-ctx smm-ctx-${ctx.phase}"/>` : ''}
                 ${where ? `<text x="${x + 12}" y="${h / 2 + 11}" class="smm-machine">${esc(where)}</text>` : ''}
                 ${badge}
-                <title>${esc(s.title)}${ctx ? ` · 세션 분량 ${Math.round(ctx.pct * 100)}% (${SessionMindMap._k(ctx.tokens)} 토큰)` : ''}${count ? ` · 고친 파일 ${count}개` : ''}${git ? ` · ${SessionMindMap.GIT_LONG[s.git]}` : ''}${s.remote ? ` · ${esc(s.machine)} 의 세션 (읽기 전용)` : ''}</title></g>`;
+                ${n.prev && n.prev.length ? `<g class="smm-chain" transform="translate(${right ? x - 2 : x + w + 2},${h / 2})"><rect x="${right ? -30 : 0}" y="-8" width="30" height="16" rx="8"/><text x="${right ? -15 : 15}" text-anchor="middle" dy="4">이전 ${n.prev.length}</text></g>` : ''}
+                ${!s.remote && !n.related ? this._addButton(right ? x + w + 14 : x - 14, 0, n.project.root, n.color, { parentId: s.id, topic: s.topic || '', label: '이 세션의 하위 세션', hover: true }) : ''}
+                <title>${esc(s.title)}${n.prev && n.prev.length ? ` · 툰으로 이어진 이전 세션 ${n.prev.length}개` : ''}${ctx ? ` · 세션 분량 ${Math.round(ctx.pct * 100)}% (${SessionMindMap._k(ctx.tokens)} 토큰)` : ''}${count ? ` · 고친 파일 ${count}개` : ''}${git ? ` · ${SessionMindMap.GIT_LONG[s.git]}` : ''}${s.remote ? ` · ${esc(s.machine)} 의 세션 (읽기 전용)` : ''}</title></g>`;
         }
 
         // 파일: 문서 아이콘 + 이름
@@ -583,10 +649,12 @@ class SessionMindMap {
     // 클릭
     // ---------------------------------------------------------------------
     // 폴더의 + 버튼 (onAddSession 이 있을 때만)
-    _addButton(x, y, root, color) {
+    _addButton(x, y, root, color, meta = {}) {
         if (!this.onAddSession) return '';
-        return `<g class="smm-add" data-add="${SessionMindMap._esc(root)}" transform="translate(${x},${y})" role="button" aria-label="이 폴더에 새 세션">
-            <circle r="10" stroke="${color}"/><path d="M-4.5,0H4.5M0,-4.5V4.5"/><title>이 폴더에 새 세션</title></g>`;
+        const esc = SessionMindMap._esc;
+        const label = meta.label || '이 폴더에 새 세션';
+        return `<g class="smm-add${meta.hover ? ' smm-add-hover' : ''}" data-add="${esc(root)}"${meta.topic ? ` data-topic="${esc(meta.topic)}"` : ''}${meta.parentId ? ` data-parent="${esc(meta.parentId)}"` : ''} transform="translate(${x},${y})" role="button" aria-label="${esc(label)}">
+            <circle r="${meta.hover ? 8 : 10}" stroke="${color}"/><path d="M-4,0H4M0,-4V4"/><title>${esc(label)}</title></g>`;
     }
 
     // ---------------------------------------------------------------------
@@ -656,6 +724,7 @@ class SessionMindMap {
 
     // 놓을 수 있는 곳: 세션(자기 하위 세션 제외), 폴더, 가운데의 폴더·세션
     _dropAllowed(src, t) {
+        if (t.kind === 'topic') return t.project.root === src.project.root && src.data.topic !== t.topic;
         const tSession = t.kind === 'session' ? t.data : t.kind === 'root' && t.ref && t.ref.kind === 'session' ? t.ref.data : null;
         const tProject = t.kind === 'project' ? t.data : t.kind === 'root' && t.ref && t.ref.kind === 'project' ? t.ref.data : null;
         if (tSession && tSession.remote) return false; // 다른 기기 세션 아래로는 못 붙인다
@@ -672,6 +741,7 @@ class SessionMindMap {
     }
 
     _dropHint(src, t) {
+        if (t.kind === 'topic') return `${t.label} 가지로 옮기기`;
         const tp = t.kind === 'session' ? t.project : t.kind === 'project' ? t.data : t.ref.kind === 'project' ? t.ref.data : t.ref.project;
         const same = tp.root === src.project.root;
         const isSession = t.kind === 'session' || (t.ref && t.ref.kind === 'session');
@@ -684,7 +754,7 @@ class SessionMindMap {
         const add = e.target.closest('.smm-add');
         if (add) {
             e.stopPropagation();
-            if (this.onAddSession) this.onAddSession(add.dataset.add);
+            if (this.onAddSession) this.onAddSession(add.dataset.add, { topic: add.dataset.topic || undefined, parentId: add.dataset.parent || undefined });
             return;
         }
         const g = e.target.closest('.smm-node');
@@ -1165,6 +1235,15 @@ class SessionMindMap {
         @keyframes smm-blink { to { visibility:hidden; } }
         @media (prefers-reduced-motion: reduce) { .smm-alarm { animation:none; } }
         .smm-ctx-track { fill:var(--smm-line); opacity:.6; }
+        .smm-topic-tag { fill:color-mix(in srgb, var(--c) 28%, var(--smm-bg)); stroke:var(--c); stroke-width:1.5; }
+        .smm-topic-empty .smm-topic-tag { fill:var(--smm-bg); stroke-dasharray:4 3; }
+        .smm-topic-label { fill:var(--smm-ink); font-size:12px; font-weight:700; }
+        .smm-topic-empty .smm-topic-label { fill:var(--smm-muted); }
+        .smm-topic:hover .smm-topic-tag { filter:brightness(1.2); }
+        .smm-chain rect { fill:var(--smm-panel); stroke:var(--smm-line); }
+        .smm-chain text { fill:var(--smm-muted); font-size:9.5px; font-weight:700; }
+        .smm-add-hover { opacity:0; transition:opacity .15s; }
+        .smm-session:hover .smm-add-hover, .smm-session.smm-on .smm-add-hover, .smm-session:focus-within .smm-add-hover { opacity:1; }
         .smm-ctx { fill:var(--smm-working); }
         .smm-ctx-warn { fill:#e0b44c; }
         .smm-ctx-full { fill:#ef7d6b; }

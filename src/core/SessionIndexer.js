@@ -86,6 +86,12 @@ class SessionIndexer {
                 s.files = s.files.map(f => ({ ...f, rel: this._relative(root, f.path) }));
                 const parent = links.parents[`${root}::${s.id}`];
                 s.parentId = parent && ids.has(parent) && parent !== s.id ? parent : null;
+                // 줄기: 툰 이어가기로 이어진 앞 세션
+                const prev = links.prev[`${root}::${s.id}`];
+                s.prevId = prev && ids.has(prev) && prev !== s.id ? prev : null;
+                // 주제 가지: 정해 둔 것 → 첫 메시지의 "topic: X"
+                const key = `${root}::${s.id}`;
+                s.topic = key in links.topics ? links.topics[key] : SessionIndexer.topicOf(s.firstPrompt);
                 this.lastSessions.set(`${root}::${s.id}`, s);
             }
             projects.push({
@@ -108,9 +114,10 @@ class SessionIndexer {
     _readLinks() {
         try {
             const d = JSON.parse(fs.readFileSync(this.linksFile, 'utf8'));
-            return { version: 1, parents: d && typeof d.parents === 'object' ? d.parents : {} };
+            const obj = k => (d && d[k] && typeof d[k] === 'object' ? d[k] : {});
+            return { version: 1, parents: obj('parents'), prev: obj('prev'), topics: obj('topics') };
         } catch {
-            return { version: 1, parents: {} };
+            return { version: 1, parents: {}, prev: {}, topics: {} };
         }
     }
 
@@ -137,6 +144,30 @@ class SessionIndexer {
         }
         this._writeLinks(links);
         return { root, id, parentId: parentId || null };
+    }
+
+    /**
+     * 새로 만든 세션을 제자리에 붙인다 (한 번에 쓰기): 하위 세션(parentId), 줄기의 앞 세션(prevId), 주제(topic)
+     * 값이 undefined 면 그대로, null 이면 지운다.
+     */
+    setMeta(root, id, { parentId, prevId, topic } = {}) {
+        if (!this.lastSessions.has(`${root}::${id}`)) throw new Error('세션 목록에 없는 세션이에요');
+        if (topic && !/^[\w.-]+$/.test(topic)) throw new Error('주제 이름이 올바르지 않아요');
+        if (parentId !== undefined) this.setParent(root, id, parentId);
+        const links = this._readLinks();
+        const key = `${root}::${id}`;
+        if (prevId !== undefined) {
+            if (prevId && (prevId === id || !this.lastSessions.has(`${root}::${prevId}`))) throw new Error('같은 폴더의 세션만 이을 수 있어요');
+            for (let cur = prevId, guard = 0; cur; cur = links.prev[`${root}::${cur}`], guard++) {
+                if (cur === id || guard > 1000) throw new Error('돌고 도는 줄기는 만들 수 없어요');
+            }
+            if (prevId) links.prev[key] = prevId; else delete links.prev[key];
+        }
+        if (topic !== undefined) {
+            if (topic) links.topics[key] = topic; else links.topics[key] = null; // null = 주제 없음으로 고정
+        }
+        this._writeLinks(links);
+        return { root, id, parentId, prevId, topic };
     }
 
     /**
@@ -368,9 +399,30 @@ class SessionIndexer {
         } catch {
             // 주제 허브 없음
         }
-        return { path: hubPath, next, topics };
+        return { path: hubPath, next, topics, titles: SessionIndexer._topicTitles(root, topics) };
     }
 }
+
+/** 첫 메시지 "툰 불러와 — …, topic: X, …" 의 주제 */
+SessionIndexer.topicOf = function (prompt) {
+    const m = /\btopic:\s*([\w.-]+)/.exec(String(prompt || '').slice(0, 2000));
+    return m ? m[1] : null;
+};
+
+/** 주제 허브의 화면 이름: HUB.toon 앞부분의 "title: …" (없으면 폴더 이름) */
+SessionIndexer._topicTitles = function (root, topics) {
+    const out = {};
+    for (const t of topics) {
+        try {
+            const head = fs.readFileSync(path.join(root, '.toon', t, 'HUB.toon'), 'utf8').slice(0, 2000);
+            const m = /^title:\s*(.+)$/m.exec(head);
+            out[t] = m ? m[1].trim() : t;
+        } catch {
+            out[t] = t;
+        }
+    }
+    return out;
+};
 
 /** Claude Code 가 기록 폴더 이름을 만드는 방식: 영문·숫자 말고는 모두 '-' */
 SessionIndexer.encodeCwd = cwd => String(cwd).replace(/[^a-zA-Z0-9]/g, '-');
@@ -393,7 +445,7 @@ SessionIndexer.readHub = function (root, topic) {
     } catch {
         // 주제 허브 없음
     }
-    return { root, topic: topic || null, path: hubPath, text: fs.readFileSync(hubPath, 'utf8'), mtimeMs: st.mtimeMs, topics };
+    return { root, topic: topic || null, path: hubPath, text: fs.readFileSync(hubPath, 'utf8'), mtimeMs: st.mtimeMs, topics, titles: SessionIndexer._topicTitles(root, topics) };
 };
 
 /**

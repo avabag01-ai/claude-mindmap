@@ -44,7 +44,7 @@ class SessionHub {
             now: this.now,
             infoKinds: ['project', 'file'],
             compact: true,
-            onAddSession: root => this.newSessionIn(root),
+            onAddSession: (root, meta) => this.newSessionIn(root, meta),
             onDropSession: (src, target) => this._onDrop(src, target),
             onSelect: n => this._onMapSelect(n)
         });
@@ -267,7 +267,7 @@ class SessionHub {
         if (this.map.pendingRoot && !(this.run && !this.run.done && !this.run.sessionId)) this.map.pendingRoot = null;
         const changed = !this.sel || this.sel.root !== root || this.sel.id !== id;
         this.sel = { root, id };
-        if (changed) { this.transcript = null; this.newFolder = null; this.toonAsk = false; }
+        if (changed) { this.transcript = null; this.newFolder = null; this.toonAsk = false; this.newMeta = null; }
         if (this.center === 'all') this.center = 'session';
         this._applyCenter(true);
         this._renderList();
@@ -278,6 +278,7 @@ class SessionHub {
 
     selectFolder(root) {
         this.sel = { root };
+        this.newMeta = null;
         this.transcript = null;
         this.newFolder = root;
         this.center = 'project';
@@ -292,12 +293,18 @@ class SessionHub {
         if (root) this.newSessionIn(root);
     }
 
-    // 폴더의 + : 그 폴더에 새 세션 자리를 만들고 입력창으로 간다. 첫 메시지를 보내면 claude 가 세션을 만든다
-    newSessionIn(root) {
+    /**
+     * ⊕ : 새 세션 자리를 만들고 입력창으로 간다. 첫 메시지를 보내면 claude 가 세션을 만든다.
+     * meta = 폴더 ⊕ 는 없음, 주제 가지 ⊕ 는 { topic }, 세션 ⊕ 는 { parentId, topic } (하위 세션)
+     */
+    newSessionIn(root, meta) {
+        this.newMeta = meta && (meta.topic || meta.parentId) ? { ...meta } : null;
+        if (this.newMeta && this.newMeta.topic) { this.newTopic = this.newMeta.topic; this.toonStart = true; }
         this.newFolder = root;
         this.sel = { root };
         this.transcript = null;
         this.map.pendingRoot = root;
+        this.map.pendingMeta = this.newMeta;
         if (this.center === 'session') this.center = 'project';
         this._applyCenter(true);
         this._renderList();
@@ -319,6 +326,10 @@ class SessionHub {
         }
         if (n.kind === 'project' && !n.isRoot) {
             this.selectFolder(n.data.root);
+            return true;
+        }
+        if (n.kind === 'topic') { // 주제 가지: 그 주제 허브 보기
+            this.showHub(n.project.root, n.topic);
             return true;
         }
         return false; // 파일, 가운데 노드는 맵의 정보 패널이 맡는다
@@ -465,13 +476,14 @@ class SessionHub {
         } else if (this.newFolder) {
             const folders = this.data ? this.data.projects.map(x => x.root) : [];
             if (!folders.includes(this.newFolder)) folders.unshift(this.newFolder);
-            head.innerHTML = `<div class="hub-chat-title">새 세션</div>
+            const parent = this.newMeta && this.newMeta.parentId && this._selProject() ? this._selProject().sessions.find(x => x.id === this.newMeta.parentId) : null;
+            head.innerHTML = `<div class="hub-chat-title">${parent ? `하위 세션 <span class="hub-sub-of">⤷ ${esc(parent.title)}</span>` : '새 세션'}</div>
               <div class="hub-chat-meta"><label for="hub-folder">폴더</label>
                 <select id="hub-folder">${folders.map(f => `<option value="${esc(f)}"${f === this.newFolder ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select>
                 ${this.ipc ? '<button class="hub-link" data-act="pick-folder">다른 폴더…</button>' : ''}</div>
               ${this._newHub() ? `<div class="hub-chat-meta">
                 <label><input type="checkbox" id="hub-toonstart"${this.toonStart ? ' checked' : ''}> 툰 허브 읽고 시작</label>
-                ${this._newHub().topics.length ? `<label for="hub-topic">주제</label><select id="hub-topic"><option value="">(프로젝트 허브)</option>${this._newHub().topics.map(t => `<option value="${esc(t)}"${t === this.newTopic ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>` : ''}
+                ${this._newHub().topics.length ? `<label for="hub-topic">주제</label><select id="hub-topic"><option value="">(프로젝트 허브)</option>${this._newHub().topics.map(t => `<option value="${esc(t)}"${t === this.newTopic ? ' selected' : ''}>${esc((this._newHub().titles || {})[t] || t)}</option>`).join('')}</select>` : ''}
               </div>` : ''}`;
         } else {
             head.innerHTML = `<div class="hub-chat-title">대화</div><div class="hub-chat-meta">왼쪽에서 세션을 고르거나 새 세션을 시작하세요</div>`;
@@ -689,10 +701,12 @@ class SessionHub {
         this._renderAttachments();
     }
 
-    _startRun({ cwd, sessionId, root, text, permissionMode, label, answerMode }) {
+    _startRun({ cwd, sessionId, root, text, permissionMode, label, answerMode, meta }) {
         const runId = 'run-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+        // 새 세션이면 끝난 뒤 제자리(하위·줄기·주제)에 붙인다
+        if (!sessionId) meta = meta || this.newMeta || null;
         const mode = answerMode || this.answerMode;
-        this.run = { runId, text, label, events: [], sessionId, root, done: false, answerMode: mode, sentAt: Date.now() };
+        this.run = { runId, text, label, events: [], sessionId, root, done: false, answerMode: mode, sentAt: Date.now(), meta: sessionId ? null : meta };
         if (sessionId) SessionHub._logAnswer(sessionId, this.run.sentAt, mode);
         this.ipc.send('sessions:send', { runId, cwd, sessionId, text, permissionMode, answerMode: mode });
         this._renderMessages(true);
@@ -710,17 +724,35 @@ class SessionHub {
             if (s.parentId) this._link(p.root, s.id, null, `떼어냈어요: ${s.title}`);
             return;
         }
+        if (t.kind === 'topic') { // 주제 가지 위: 그 가지로 옮긴다 (같은 폴더만)
+            if (t.project.root === p.root) this._meta(p.root, s.id, { parentId: null, topic: t.topic }, `${t.label} 가지로 옮겼어요: ${s.title}`);
+            return;
+        }
         const isSession = t.kind === 'session' || (t.kind === 'root' && t.ref.kind === 'session');
         const ts = isSession ? (t.kind === 'session' ? t.data : t.ref.data) : null;
         const tp = t.kind === 'session' ? t.project : t.kind === 'project' ? t.data : t.ref.kind === 'project' ? t.ref.data : t.ref.project;
         if (tp.root === p.root) {
-            if (ts) this._link(p.root, s.id, ts.id, `붙였어요: ${ts.title} 아래에 ${s.title}`);
-            else if (s.parentId) this._link(p.root, s.id, null, `폴더 바로 아래로 옮겼어요: ${s.title}`);
+            // 세션 위 = 그 아래로 (주제도 따라감), 폴더 위 = 가지·부모 없이 폴더 바로 아래로
+            if (ts) this._meta(p.root, s.id, { parentId: ts.id, topic: ts.topic || null }, `붙였어요: ${ts.title} 아래에 ${s.title}`);
+            else if (s.parentId || s.topic) this._meta(p.root, s.id, { parentId: null, topic: null }, `폴더 바로 아래로 옮겼어요: ${s.title}`);
             return;
         }
         // 다른 폴더: 복사는 파일을 새로 쓰니 한 번 묻는다
         this.dropAsk = { src: { root: p.root, id: s.id, title: s.title }, to: { root: tp.root, name: tp.name }, parent: ts ? { id: ts.id, title: ts.title } : null };
         this._renderDropAsk();
+    }
+
+    _meta(root, id, meta, done) {
+        if (!this.ipc) {
+            const p = this.data.projects.find(x => x.root === root);
+            const s = p && p.sessions.find(x => x.id === id);
+            if (s) Object.assign(s, meta);
+            this._onIndex(this.data);
+            this.map._toast(done);
+            return;
+        }
+        this._pendingToast = done;
+        this.ipc.send('sessions:meta', { root, id, ...meta });
     }
 
     _link(root, id, parentId, done) {
@@ -754,8 +786,9 @@ class SessionHub {
     _onChanged(r) {
         if (!r) return;
         if (!r.ok) { this.map._toast(r.error || '바꾸지 못했어요'); return; }
-        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : this._pendingToast || '바꿨어요';
+        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
         this._pendingToast = null;
+        if (r.quiet && !msg) { this.refresh(); return; }
         if (r.action === 'copy') {
             this._afterIndex = () => { if (this.data.projects.some(p => p.root === r.root && p.sessions.some(x => x.id === r.id))) this.selectSession(r.root, r.id); };
         }
@@ -814,7 +847,7 @@ class SessionHub {
         const topics = v.topics || (p && p.hub ? p.hub.topics : []);
         const chips = `<div class="hub-toon-tabs" role="tablist">
             <button role="tab" aria-selected="${!v.topic}" data-act="hub-topic" data-topic="">프로젝트 허브</button>
-            ${topics.map(t => `<button role="tab" aria-selected="${v.topic === t}" data-act="hub-topic" data-topic="${esc(t)}">${esc(t)}</button>`).join('')}</div>`;
+            ${topics.map(t => `<button role="tab" aria-selected="${v.topic === t}" data-act="hub-topic" data-topic="${esc(t)}">${esc((v.titles || {})[t] || t)}</button>`).join('')}</div>`;
         const body = v.loading ? '<p class="hub-muted">불러오는 중…</p>'
             : v.error ? `<p class="hub-muted">${esc(v.error)}</p>`
             : `<pre class="hub-toon-text">${SessionHub.toonHtml(v.text)}</pre>`;
@@ -847,7 +880,7 @@ class SessionHub {
             permissionMode: this.permission === 'default' ? 'acceptEdits' : this.permission,
             label: '1/2 툰 저장'
         });
-        this.toonFlow = { stage: 'save', runId, fromId: s.id, root: this.sel.root, cwd: s.cwd };
+        this.toonFlow = { stage: 'save', runId, fromId: s.id, root: this.sel.root, cwd: s.cwd, topic: s.topic || null };
         this._renderChat();
     }
 
@@ -872,7 +905,9 @@ class SessionHub {
         this.map.pendingRoot = flow.root;
         this._applyCenter(true);
         this._renderList();
-        flow.runId = this._startRun({ cwd: flow.cwd, sessionId: null, root: flow.root, text: prompt, permissionMode: this.permission, label: '2/2 새 세션' });
+        // 새 세션은 원래 세션의 다음 칸(같은 줄기, 같은 주제)
+        flow.runId = this._startRun({ cwd: flow.cwd, sessionId: null, root: flow.root, text: prompt, permissionMode: this.permission, label: '2/2 새 세션',
+            meta: { prevId: flow.fromId, topic: flow.topic || SessionHub.topicOf(prompt) || undefined } });
         this._renderChat();
     }
 
@@ -912,6 +947,8 @@ class SessionHub {
                 const p = this.data.projects.find(x => x.sessions.some(y => y.id === newId));
                 this.map.pendingRoot = null;
                 if (p) this.selectSession(p.root, newId);
+                const m = run.meta;
+                if (p && m && this.ipc) this.ipc.send('sessions:meta', { root: p.root, id: newId, parentId: m.parentId, prevId: m.prevId, topic: m.topic });
             }
         };
         this.refresh();
@@ -979,7 +1016,7 @@ class SessionHub {
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && this.hubView) this.hideHub(); });
         this.el('hub-chat-head').addEventListener('change', e => {
             if (e.target.id === 'hub-toonstart') { this.toonStart = e.target.checked; this._renderComposer(); return; }
-            if (e.target.id === 'hub-topic') { this.newTopic = e.target.value; return; }
+            if (e.target.id === 'hub-topic') { this.newTopic = e.target.value; if (this.newMeta) this.newMeta.topic = e.target.value || undefined; return; }
             if (e.target.id === 'hub-folder') {
                 this.newFolder = e.target.value;
                 this.newTopic = '';
@@ -1031,6 +1068,8 @@ class SessionHub {
 }
 
 SessionHub.ANSWER_MODES = ['result', 'summary', 'detail'];
+/** 시작 메시지의 "topic: X" (SessionIndexer.topicOf 와 같은 규칙) */
+SessionHub.topicOf = prompt => { const m = /\btopic:\s*([\w.-]+)/.exec(String(prompt || '')); return m ? m[1] : null; };
 SessionHub.ANSWER_LABEL = { result: '결과만', summary: '요약', detail: '자세히' };
 SessionHub.DETAIL_TEXT = '방금 답을 자세히 설명해 줘.';
 SessionHub.TOON_SAVE_TEXT = '툰 저장해줘. 저장이 끝나면 새 세션에서 이어갈 시작 메시지를 ```toon-next 코드 블록 하나에만 담아서 답의 맨 끝에 보여줘.';

@@ -1,0 +1,14 @@
+## TOPIC_HUB v3.1
+topic: chat
+title: 대화창
+parent: claude-mindmap
+files: src/modules/SessionHub.js(_renderChat·_renderMessages·send) · src/core/ClaudeRunner.js · index.html(composer)
+
+## SCOPE
+- 대화 읽기·보내기, 답 길이 버튼(결과만·요약·자세히), 첨부, 권한
+
+## OPEN
+- 진짜 claude 의 --append-system-prompt 동작 확인 전
+
+## NEXT
+- NEXT 000000 맥에서 답 길이 버튼 실측

@@ -14,7 +14,14 @@ updated: 2026-10-03
 - 맥 실측 전에는 "확인함"이라고 하지 않는다 (가짜 claude·osascript 로만 확인한 것은 구분)
 
 ## SUBHUBS
-- claude-mindmap: 앱 기능 개발 → .toon/claude-mindmap/HUB.toon
+- claude-mindmap: 전체 (관제) — 여러 가지에 걸친 일, 세션 기록 → .toon/claude-mindmap/HUB.toon
+- session-hub: 세션 허브 (기록 읽기·목록·보내기)
+- mindmap: 마인드맵 (그리기·가지·끌어다 놓기)
+- chat: 대화창 (대화·답 길이·첨부)
+- toon-flow: 툰 흐름 (툰 저장·이어가기·주제 가지·줄기)
+- machine-sync: 기기·git
+- usage-alarm: 사용량·알람 (사용량·세션 분량·캐시)
+- side-tabs: 왼쪽 탭 (파인더·메모·GitHub·브라우저)
 
 ## SESSIONS
 - 2026-10-03 · .toon/claude-mindmap/SESSION_20261003.toon · 관제탑(클라우드) · 세션 허브 처음부터 여기까지

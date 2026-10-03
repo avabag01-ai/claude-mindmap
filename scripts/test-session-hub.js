@@ -56,4 +56,10 @@ assert.strictEqual(SMM.alarm(ses(40e3, T), T + 56 * M), null, '작은 세션은 
 assert.strictEqual(SMM.alarm(ses(110e3, T), T + 30 * M), null);
 assert.strictEqual(SMM.alarm(ses(110e3, T, '5m'), T + 4.5 * M), 'cache', '5분 캐시면 1분 전부터');
 assert.strictEqual(SMM.alarm({ ...ses(170e3, T), remote: true }, T), null, '다른 기기 세션은 알람 없음');
+// 줄기: 툰 이어가기로 이어진 세션은 맨 끝만 그리고 앞은 접는다
+const ch = SMM.chains([{ id: 'a' }, { id: 'b', prevId: 'a' }, { id: 'c', prevId: 'b' }, { id: 'x' }, { id: 'y', prevId: 'gone' }]);
+assert.deepStrictEqual([...ch.heads.keys()].sort(), ['c', 'x', 'y'], '맨 끝 세션만 (지워진 앞 세션은 무시)');
+assert.deepStrictEqual(ch.heads.get('c').map(s => s.id), ['a', 'b'], '앞 세션은 오래된 것부터');
+assert.strictEqual(ch.headOf.get('a'), 'c');
+assert.strictEqual(SessionHub.topicOf('툰 불러와 — root: /a, topic: mindmap, hub_task: x'), 'mindmap');
 console.log('SessionHub: 모든 테스트 통과');

@@ -1,0 +1,11 @@
+## TOPIC_HUB v3.1
+topic: machine-sync
+title: 기기·git
+parent: claude-mindmap
+files: src/core/MachineSync.js · src/core/SessionIndexer.js(attachGit·gitState) · main.js(buildSessionIndex)
+
+## SCOPE
+- 세션 git 상태(미커밋·푸시 전·git), 기기 간 세션 목록 공유(iCloud Drive/FlowCode/machines), 다른 기기 세션 읽기 전용
+
+## NEXT
+- NEXT 000000 맥북·맥미니 둘 다 켜서 iCloud 공유 실측

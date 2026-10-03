@@ -1,0 +1,14 @@
+## TOPIC_HUB v3.1
+topic: mindmap
+title: 마인드맵
+parent: claude-mindmap
+files: src/modules/SessionMindMap.js
+
+## SCOPE
+- 가운데 원/폴더/세션 중심 보기, 폴더 → 주제 가지 → 세션 줄기, 카드 모양·색, 끌어다 놓기, ⊕
+
+## OPEN
+- 세션이 많은 폴더에서 배치가 넓어짐 → 줄기 접기로 줄이는 중
+
+## NEXT
+- NEXT 000000 주제 가지·줄기 접기 화면 다듬기 (맥에서 실제 세션 수로)

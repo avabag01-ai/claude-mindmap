@@ -144,6 +144,27 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     r2 = await ix.index();
     assert.strictEqual(r2.projects.find(x => x.root === repo).sessions.find(x => x.id === 'sess-b').parentId, null, '떼어낼 수 있다');
 
+    // 주제 가지 · 줄기
+    assert.strictEqual(SessionIndexer.topicOf('툰 불러와 — 하위 세션, root: /a, topic: logic-ax, hub_task: x'), 'logic-ax');
+    assert.strictEqual(SessionIndexer.topicOf('그냥 질문'), null);
+    assert.strictEqual(pr.sessions.find(x => x.id === 'sess-b').topic, null, '첫 메시지에 topic 없음');
+    ix.setMeta(repo, 'sess-a', { prevId: 'sess-b', topic: 'logic-ax' });
+    r2 = await ix.index();
+    pr = r2.projects.find(x => x.root === repo);
+    const sa = pr.sessions.find(x => x.id === 'sess-a');
+    assert.strictEqual(sa.prevId, 'sess-b', '툰 이어가기 줄기');
+    assert.strictEqual(sa.topic, 'logic-ax', '정한 주제');
+    assert.deepStrictEqual(pr.hub.titles, { 'logic-ax': 'logic-ax' }, 'title: 이 없으면 폴더 이름');
+    assert.throws(() => ix.setMeta(repo, 'sess-b', { prevId: 'sess-a' }), /돌고 도는/);
+    assert.throws(() => ix.setMeta(repo, 'sess-a', { topic: '눈 귀' }), /주제 이름/);
+    ix.setMeta(repo, 'sess-a', { prevId: null, topic: null });
+    r2 = await ix.index();
+    const sa2 = r2.projects.find(x => x.root === repo).sessions.find(x => x.id === 'sess-a');
+    assert.strictEqual(sa2.prevId, null);
+    assert.strictEqual(sa2.topic, null, 'null 로 정하면 첫 메시지 주제도 안 쓴다');
+    fs.writeFileSync(path.join(repo, '.toon', 'logic-ax', 'HUB.toon'), '## TOPIC_HUB\ntopic: logic-ax\ntitle: 로직 AX\n');
+    assert.deepStrictEqual(SessionIndexer.readHub(repo).titles, { 'logic-ax': '로직 AX' }, '화면 이름은 title:');
+
     const other = path.join(tmp, 'other');
     fs.mkdirSync(other);
     const copied = ix.copySession(repo, 'sess-a', other);
