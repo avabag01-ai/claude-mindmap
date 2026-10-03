@@ -1,3 +1,7 @@
+## DECODER_INSTRUCTION
+압축 세션 기록. DICTIONARY 의 $N 을 먼저 펼쳐 읽는다.
+태그: [확인]=근거 있음, [확인 맥]=맥 미니 실측, [확인 클라우드]=클라우드 xvfb 로만 확인, [가설]=검증 전
+
 ## META
 date: 2026-10-03
 session: 하위 세션 (claude.ai 클라우드) · session_01QPFqyFAULNbisKhPJJHDpn
@@ -6,19 +10,38 @@ topic: claude-mindmap
 prev_session: .toon/claude-mindmap/SESSION_20261003b.toon
 hub_task: NEXT 000000 맥 실측 → 버그 수정 → PR #1 머지
 
+## DICTIONARY
+$1 = 브랜치 claude/epic-clarke-x1kk5z
+$2 = PR avabag01-ai/claude-mindmap#1 (초안, 아직 머지 안 함)
+$3 = 맥 세션 session_019TFMmVP1eJCPQFECsTvuwz (맥 미니, bridge) — 큰 일은 사용자 "해줘" 승인 필요
+
 ## STORY
-1. 맥 세션(session_019TFMmVP1eJCPQFECsTvuwz)은 아직 "해줘" 승인 대기 → 맥 실측 못 함
-2. 클라우드 xvfb 에서 앱 실행, 이번엔 이 컨테이너의 진짜 Claude Code 기록으로 봄
-3. 버그: claude-opus-5-5 세션(약 11.6만 토큰)이 56% 로 나옴. 실제 창은 100만 (맥 세션 context_usage.max_tokens=1000000) [확인]
-4. 고침: SessionMindMap.contextWindow(model, tokens) — [1m] 또는 claude-*-5 계열 = 100만, 아니면 20만 → 12% 로 나옴 [확인 클라우드]
-5. 마인드맵: 처음엔 폴더만(▸ N 으로 펼침) · 가지 접기 · 겹침 풀기(SessionMindMap.spread, _box) · 아무 노드나 끌어 옮기기(보기마다 smm.pins) · 자리 되돌리기 [확인 클라우드: 가짜 폴더 14개·세션 56개, 다 펼쳐도 겹침 0]
-   - 세션을 빈 곳에 놓으면 이제 "떼기"가 아니라 자리 옮기기. 떼기는 폴더 위에 놓기
+1. 클라우드 xvfb 에서 앱 실행 (진짜 Claude Code 기록) → 분량 % 버그: opus-5-5 가 20만 기준 56%. 고침: contextWindow(model) Claude 5·[1m]=100만 → 12% (b55df96)
+2. 사용자 요청: 마인드맵 처음엔 폴더만·잔가지 접기·겹침 없애기·노드 끌어 옮기기 (40474b4)
+   - 전체 보기 폴더만, ▸ N 으로 펼침, 가지 모두 접기/펼치기, spread()+_box() 로 겹침 풀기, 노드 끌기 → smm.pins(보기마다), 자리 되돌리기
+   - 세션을 빈 곳에 놓으면 자리 옮기기 (떼기는 폴더 위에 놓기)
+3. $3 이 실측해서 PR 댓글: 대부분 됨 [확인 맥] (테스트 8개, git·기기 표시, 분량 8%=81k/100만, 가지 8개, 보라 카드, iCloud machines/Mac mini.json, 결과만 배지)
+   - $3 이 고침 e9525d5: loginPath -lc → -ilc (옛 /opt/homebrew claude 2.1.12 가 잡혀 API 400 tool_use ids must be unique)
+4. 사용자: "새로 만든 폴더가 안 보여" → 폴더는 세션 기록에서만 생겨서 빈 새 폴더 없음 + 지도는 7일 밖 폴더 숨김. 고침 (dde7046)
+   - 왼쪽 "+ 폴더"(새 폴더 만들기 가능) → ~/.flowcode/folders.json, SessionIndexer.folders()/addFolder(), 빈 폴더도 목록·지도에 (흐리게)
+   - 같은 답 두 번: SessionHub.runRecorded() 로 기록에 들어오면 실시간 칸 뺌
+   - 입력창 안내에 보낼 세션 이름
+5. 사용자 "너가 맥이야 실행해봐" → 이 세션은 클라우드. $3 에 pull·재실행·확인 요청 보냄 (결과 대기)
 
 ## GOTCHAS
 - [확인] 클라우드 npm install 은 electron 다운로드가 프록시에서 끊김 → npm install --ignore-scripts 후 GitHub 릴리스 zip 을 node_modules/electron/dist 에 풀고 path.txt=electron
-- [가설] Claude 5 계열 중 opus 외(sonnet·fable)도 100만 창이라고 봄
+- [확인] 클라우드 화면 확인: 스크래치에 launch.js (app.on browser-window-created → capturePage, sendInputEvent 로 끌기·클릭) 를 저장소에 .smm-launch.js 로 복사해 실행, 끝나면 지움. 가짜 HOME 으로 폴더 14개 생성
+- [확인 맥] 맥 Node 기본 18, electron-rebuild 는 Node 22+ 필요 (nvm 24 있음)
+- [가설] sonnet·fable 5 도 100만 창
+- [모름] 맥에서 첫 답 뒤 선택 세션이 바뀐 것: 앱 탓인지 클릭인지 못 가림
+- [확인 맥] 자세히 모드도 짧음 — 전역 CLAUDE.md "짧게" 가 이김, 그대로 둠
+
+## VERIFY_ON_LOAD
+- git -C ~/claude-mindmap log --oneline -1 claude/epic-clarke-x1kk5z → dde7046 이후
+- cd ~/claude-mindmap && npm test → 8개 "모든 테스트 통과"
+- grep -c "addFolder" ~/claude-mindmap/src/core/SessionIndexer.js → 1 이상
 
 ## NEXT
-- 맥에서 마인드맵 끌기·접기 손으로 확인 (클라우드는 sendInputEvent 로만 봄)
-- NEXT 000000 맥 세션에서 "해줘" → 진짜 claude 답 길이, 분량 % 가 Claude Code 표시와 맞는지, 툰 → 이어가기 → 줄기, iCloud machines/*.json
-- NEXT 000001 맥 실측 통과 후 PR #1 ready → main 머지
+- NEXT 000000 $3 결과 확인 (PR 댓글): 마인드맵 접기·끌기·겹침, + 폴더, 답 두 번 안 보임. 사용자가 말한 "안 보이는 폴더"가 어떤 폴더였는지
+- NEXT 000001 고칠 것 없으면 $2 ready → main 머지
+- NEXT 000002 (선택) 보내는 중 선택 세션 고정, 자세히 모드 프롬프트 강화
