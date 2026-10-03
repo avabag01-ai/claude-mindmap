@@ -1118,15 +1118,24 @@ class SessionMindMap {
 
     /**
      * 세션 분량(컨텍스트 토큰): 마지막 답 기준.
-     * 창 크기는 기록에 안 나와서 20만으로 보고, 20만을 넘었으면 100만 창으로 본다.
+     * 창 크기는 기록에 안 나와서 모델 이름으로 정한다 (contextWindow).
      * @returns {{ tokens, window, pct, phase: 'ok'|'warn'|'full' } | null}
      */
     static contextInfo(s) {
         const c = s && s.context;
         if (!c || !c.tokens) return null;
-        const window = c.tokens > SessionMindMap.CONTEXT_SMALL ? SessionMindMap.CONTEXT_LARGE : SessionMindMap.CONTEXT_SMALL;
+        const window = SessionMindMap.contextWindow(c.model, c.tokens);
         const pct = c.tokens / window;
         return { tokens: c.tokens, window, pct, phase: pct >= SessionMindMap.CONTEXT_FULL ? 'full' : pct >= SessionMindMap.CONTEXT_WARN ? 'warn' : 'ok' };
+    }
+
+    /**
+     * 창 크기: 이름에 [1m] 이 붙었거나 Claude 5 계열(claude-opus-5-5 등)이면 100만, 아니면 20만.
+     * 20만을 이미 넘었으면 100만 창으로 본다.
+     */
+    static contextWindow(model, tokens) {
+        if (tokens > SessionMindMap.CONTEXT_SMALL) return SessionMindMap.CONTEXT_LARGE;
+        return SessionMindMap.LARGE_MODEL_RE.test(model || '') ? SessionMindMap.CONTEXT_LARGE : SessionMindMap.CONTEXT_SMALL;
     }
 
     /**
@@ -1309,6 +1318,7 @@ SessionMindMap.CACHE_MS = 60 * 60e3;      // 캐시 유지 1시간
 SessionMindMap.CACHE_WARN_MS = 5 * 60e3;  // 끝나기 5분 전부터 (5분 캐시면 1분 전)
 SessionMindMap.CONTEXT_SMALL = 200e3;     // 창 크기: 20만, 넘으면 100만 창으로 본다
 SessionMindMap.CONTEXT_LARGE = 1e6;
+SessionMindMap.LARGE_MODEL_RE = /\[1m\]|^claude-[a-z]+-5(?:-|$)/i; // 100만 창 모델
 SessionMindMap.CONTEXT_WARN = 0.6;        // 노랑
 SessionMindMap.CONTEXT_FULL = 0.8;        // 빨강 + 깜박 (곧 자동 요약)
 SessionMindMap.CONTEXT_BIG = 0.5;         // 이만큼 큰 세션은 캐시가 끝나기 전에도 깜박

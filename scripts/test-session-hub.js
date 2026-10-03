@@ -50,6 +50,17 @@ assert.deepStrictEqual(SMM.contextInfo(ses(100e3, T)), { tokens: 100e3, window: 
 assert.strictEqual(SMM.contextInfo(ses(130e3, T)).phase, 'warn');
 assert.strictEqual(SMM.contextInfo(ses(170e3, T)).phase, 'full');
 assert.strictEqual(SMM.contextInfo(ses(250e3, T)).window, 1e6, '20만을 넘으면 100만 창');
+// 모델 이름으로 창 크기: Claude 5 계열·[1m] 은 100만
+assert.strictEqual(SMM.contextWindow('claude-opus-5-5', 114e3), 1e6);
+assert.strictEqual(SMM.contextWindow('claude-sonnet-5-5', 50e3), 1e6);
+assert.strictEqual(SMM.contextWindow('claude-sonnet-4-5[1m]', 50e3), 1e6);
+assert.strictEqual(SMM.contextWindow('claude-haiku-4-5-20251001', 114e3), 200e3);
+assert.strictEqual(SMM.contextWindow('', 114e3), 200e3);
+{
+    const big = ses(114e3, T);
+    big.context.model = 'claude-opus-5-5';
+    assert.strictEqual(SMM.contextInfo(big).phase, 'ok', '100만 창에서 11만은 여유');
+}
 assert.strictEqual(SMM.alarm(ses(170e3, T), T), 'full', '80% 넘으면 바로 깜박');
 assert.strictEqual(SMM.alarm(ses(110e3, T), T + 56 * M), 'cache', '큰 세션 + 캐시 곧 끝남');
 assert.strictEqual(SMM.alarm(ses(40e3, T), T + 56 * M), null, '작은 세션은 캐시가 끝나도 괜찮다');

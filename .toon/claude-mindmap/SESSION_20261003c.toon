@@ -1,0 +1,21 @@
+## META
+date: 2026-10-03
+session: 하위 세션 (claude.ai 클라우드) · session_01QPFqyFAULNbisKhPJJHDpn
+root: ~/claude-mindmap
+topic: claude-mindmap
+prev_session: .toon/claude-mindmap/SESSION_20261003b.toon
+hub_task: NEXT 000000 맥 실측 → 버그 수정 → PR #1 머지
+
+## STORY
+1. 맥 세션(session_019TFMmVP1eJCPQFECsTvuwz)은 아직 "해줘" 승인 대기 → 맥 실측 못 함
+2. 클라우드 xvfb 에서 앱 실행, 이번엔 이 컨테이너의 진짜 Claude Code 기록으로 봄
+3. 버그: claude-opus-5-5 세션(약 11.6만 토큰)이 56% 로 나옴. 실제 창은 100만 (맥 세션 context_usage.max_tokens=1000000) [확인]
+4. 고침: SessionMindMap.contextWindow(model, tokens) — [1m] 또는 claude-*-5 계열 = 100만, 아니면 20만 → 12% 로 나옴 [확인 클라우드]
+
+## GOTCHAS
+- [확인] 클라우드 npm install 은 electron 다운로드가 프록시에서 끊김 → npm install --ignore-scripts 후 GitHub 릴리스 zip 을 node_modules/electron/dist 에 풀고 path.txt=electron
+- [가설] Claude 5 계열 중 opus 외(sonnet·fable)도 100만 창이라고 봄
+
+## NEXT
+- NEXT 000000 맥 세션에서 "해줘" → 진짜 claude 답 길이, 분량 % 가 Claude Code 표시와 맞는지, 툰 → 이어가기 → 줄기, iCloud machines/*.json
+- NEXT 000001 맥 실측 통과 후 PR #1 ready → main 머지
