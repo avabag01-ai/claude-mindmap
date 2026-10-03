@@ -4,11 +4,11 @@
  * 맥의 진짜 브라우저(크롬·사파리·Brave·Edge)를 애플스크립트로 조종한다.
  * 앱 안에 따로 띄우는 브라우저가 아니라, 평소 쓰는 브라우저를 로그인 상태 그대로 쓴다.
  *
- * - 세션 허브의 브라우저 탭과 MCP 서버(scripts/flowcode-browser-mcp.js)가 같이 쓴다.
+ * - 세션 허브의 브라우저 탭과 MCP 서버(scripts/mindmap-browser-mcp.js)가 같이 쓴다.
  * - 페이지 읽기·클릭·입력은 브라우저 안에서 자바스크립트를 실행한다. 그래서 한 번 켜 줘야 한다:
  *     크롬·Brave·Edge: 보기 > 개발자 정보 > Apple Events의 자바스크립트 허용
  *     사파리: 설정 > 고급 > "메뉴 막대에서 개발자용 메뉴 보기" → 개발자용 > Apple Events의 JavaScript 허용
- * - 처음 실행할 때 맥이 "FlowCode 가 Chrome 을 제어하려고 합니다"를 묻는다 → 허용.
+ * - 처음 실행할 때 맥이 "클로드 마인드맵(Electron)이 Chrome 을 제어하려고 합니다"를 묻는다 → 허용.
  */
 
 const { execFile } = require('child_process');
@@ -31,7 +31,7 @@ class BrowserBridge {
      */
     constructor(options = {}) {
         this.setBrowser(options.browser || 'chrome');
-        this.osascript = options.osascript || process.env.FLOWCODE_OSASCRIPT || 'osascript';
+        this.osascript = options.osascript || process.env.MINDMAP_OSASCRIPT || 'osascript';
         this.runScript = options.run || (script => this._osascript(script));
     }
 
@@ -62,7 +62,7 @@ class BrowserBridge {
                 : `${b.app} 에서 보기 > 개발자 정보 > "Apple Events의 자바스크립트 허용"을 켜 주세요`;
         }
         if (/-1743|Not authorized|not allowed to send Apple events|권한/i.test(m)) {
-            return `맥 설정 > 개인정보 보호 및 보안 > 자동화에서 FlowCode(또는 터미널)가 ${b.app} 를 제어하도록 허용해 주세요`;
+            return `맥 설정 > 개인정보 보호 및 보안 > 자동화에서 클로드 마인드맵(Electron, 또는 터미널)가 ${b.app} 를 제어하도록 허용해 주세요`;
         }
         if (/-600|isn.t running|application isn.t running/i.test(m)) return `${b.app} 가 켜져 있지 않아요`;
         if (/-1728|Can.t get window/i.test(m)) return `${b.app} 에 열린 창이 없어요`;
@@ -178,7 +178,7 @@ for (var i = 0; i < els.length && items.length < ${+maxItems}; i++) {
   var e = els[i], r = e.getBoundingClientRect();
   if (!r.width || !r.height) continue;
   var st = getComputedStyle(e); if (st.visibility === 'hidden' || st.display === 'none') continue;
-  n++; e.setAttribute('data-flowcode-id', String(n));
+  n++; e.setAttribute('data-mindmap-id', String(n));
   var label = (e.innerText || e.value || e.getAttribute('aria-label') || e.getAttribute('placeholder') || e.getAttribute('title') || e.name || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
   items.push({ id: n, tag: e.tagName.toLowerCase(), type: e.type || undefined, text: label, href: e.href || undefined });
 }
@@ -232,10 +232,10 @@ return { ok: true };`);
     }
 }
 
-// 번호(data-flowcode-id) · CSS 선택자 · 보이는 글자 순서로 찾는다
+// 번호(data-mindmap-id) · CSS 선택자 · 보이는 글자 순서로 찾는다
 BrowserBridge.FIND = `
 function find(t) {
-  if (/^\\d+$/.test(t)) { var byId = document.querySelector('[data-flowcode-id="' + t + '"]'); if (byId) return byId; }
+  if (/^\\d+$/.test(t)) { var byId = document.querySelector('[data-mindmap-id="' + t + '"]'); if (byId) return byId; }
   try { var bySel = document.querySelector(t); if (bySel) return bySel; } catch (x) {}
   var all = document.querySelectorAll('a, button, input, textarea, select, [role=button], [role=link], label, summary');
   var low = t.toLowerCase();

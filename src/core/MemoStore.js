@@ -3,7 +3,7 @@
  * =============================================================================
  * 세션 허브 메모 저장소 (메인 프로세스 전용)
  *
- * - 저장 위치: ~/.flowcode/memos.json (파일 권한 600)
+ * - 저장 위치: ~/.claude-mindmap/memos.json (파일 권한 600)
  * - 종류: memo(메모) · code(코드 조각) · secret(비밀: 주소·API 키·비밀번호)
  * - 비밀 메모는 본문을 암호화해서 저장한다. Electron safeStorage(맥은 키체인)를 넘겨받아 쓰고,
  *   이 컴퓨터에서 암호화를 못 하면 평문으로 저장하되 enc:false 로 표시해 화면에 알린다.
@@ -13,6 +13,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { settingsFile } = require('./appDir.js');
 const crypto = require('crypto');
 
 const KINDS = new Set(['memo', 'code', 'secret']);
@@ -24,7 +25,7 @@ class MemoStore {
      * @param {{ isEncryptionAvailable(): boolean, encryptString(s: string): Buffer, decryptString(b: Buffer): string }} [options.safeStorage]
      */
     constructor(options = {}) {
-        this.file = options.file || path.join(os.homedir(), '.flowcode', 'memos.json');
+        this.file = options.file || settingsFile('memos.json');
         this.safeStorage = options.safeStorage || null;
     }
 

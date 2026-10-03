@@ -115,7 +115,7 @@ class SessionHub {
     // 파인더 항목 또는 맥 Finder 의 파일을 끌어다 놓기: 대화창 = 첨부, 세션(목록·맵) = 그 세션을 고르고 첨부
     _bindFiles() {
         const pathsOf = dt => {
-            const raw = dt.getData(typeof FLOWCODE_PATHS !== 'undefined' ? FLOWCODE_PATHS : 'application/x-flowcode-paths');
+            const raw = dt.getData(typeof MINDMAP_PATHS !== 'undefined' ? MINDMAP_PATHS : 'application/x-mindmap-paths');
             if (raw) { try { return JSON.parse(raw); } catch { return []; } }
             const out = [];
             let webUtils = null;
@@ -126,7 +126,7 @@ class SessionHub {
             }
             return out;
         };
-        const isFileDrag = dt => dt && [...(dt.types || [])].some(t => t === 'Files' || t === 'application/x-flowcode-paths');
+        const isFileDrag = dt => dt && [...(dt.types || [])].some(t => t === 'Files' || t === 'application/x-mindmap-paths');
         const targetOf = e => {
             const el = e.target.closest ? e.target : e.target.parentElement;
             if (!el) return null;

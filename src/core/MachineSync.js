@@ -3,9 +3,9 @@
  * =============================================================================
  * 세션이 맥북·맥미니 여러 대에 흩어져 있을 때, 서로의 세션 목록을 보게 한다 (메인 프로세스 전용)
  *
- * - 이 기기 이름: ~/.flowcode/machine.json 의 { "name": "Mac mini" } → 없으면 맥 모델 이름
+ * - 이 기기 이름: ~/.claude-mindmap/machine.json 의 { "name": "Mac mini" } → 없으면 맥 모델 이름
  *   (system_profiler 의 Model Name: MacBook Pro → "MacBook", Mac mini → "Mac mini") → 없으면 호스트 이름
- * - 공유 폴더: FLOWCODE_SYNC_DIR → ~/.flowcode/sync.json 의 { "dir": … } → iCloud Drive/FlowCode (있으면)
+ * - 공유 폴더: MINDMAP_SYNC_DIR → ~/.claude-mindmap/sync.json 의 { "dir": … } → iCloud Drive/ClaudeMindmap (있으면)
  *   각 기기가 machines/<기기>.json 에 자기 세션 목록을 쓴다. 대화 내용은 넣지 않는다 (제목·폴더·시각·고친 파일·git 상태만).
  * - 다른 기기 세션은 읽기 전용으로 섞는다 (remote: true, machine: "MacBook"). 대화는 그 기기에서 연다.
  */
@@ -13,6 +13,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { settingsDir } = require('./appDir.js');
 const { execFileSync } = require('child_process');
 
 const FRESH_MS = 30 * 864e5; // 30일 넘게 소식 없는 기기는 빼기
@@ -20,7 +21,7 @@ const FRESH_MS = 30 * 864e5; // 30일 넘게 소식 없는 기기는 빼기
 class MachineSync {
     constructor(options = {}) {
         this.home = options.home || os.homedir();
-        this.settingsDir = options.settingsDir || path.join(this.home, '.flowcode');
+        this.settingsDir = options.settingsDir || settingsDir(this.home);
         this.platform = options.platform || process.platform;
         this.now = options.now || (() => Date.now());
         this._name = options.name || null;
@@ -57,13 +58,13 @@ class MachineSync {
 
     dir() {
         if (this._dir !== undefined) return this._dir;
-        if (process.env.FLOWCODE_SYNC_DIR) return (this._dir = process.env.FLOWCODE_SYNC_DIR);
+        if (process.env.MINDMAP_SYNC_DIR) return (this._dir = process.env.MINDMAP_SYNC_DIR);
         try {
             const d = JSON.parse(fs.readFileSync(path.join(this.settingsDir, 'sync.json'), 'utf8'));
             if (d.dir) return (this._dir = d.dir);
         } catch { /* 설정 없음 */ }
         const icloud = path.join(this.home, 'Library', 'Mobile Documents', 'com~apple~CloudDocs');
-        return (this._dir = fs.existsSync(icloud) ? path.join(icloud, 'FlowCode') : null);
+        return (this._dir = fs.existsSync(icloud) ? path.join(icloud, 'ClaudeMindmap') : null);
     }
 
     static fileName(machine) {

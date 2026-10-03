@@ -9,7 +9,7 @@
  *     맥: 키체인 "Claude Code-credentials"   ·   그 밖: ~/.claude/.credentials.json
  *   토큰은 이 프로세스 밖(화면 쪽)으로 보내지 않고, api.anthropic.com 에만 보낸다.
  *   토큰이 만료됐으면 새로 받지 않는다 (Claude Code 의 로그인 갱신과 엉키지 않게) → Claude Code 를 한 번 쓰면 다시 보인다.
- * - FLOWCODE_USAGE_FILE 에 JSON 파일을 주면 그걸 읽는다 (테스트·미리보기).
+ * - MINDMAP_USAGE_FILE 에 JSON 파일을 주면 그걸 읽는다 (테스트·미리보기).
  */
 
 const fs = require('fs');
@@ -24,7 +24,7 @@ class UsageMeter {
         this.fetch = options.fetch || globalThis.fetch;
         this.readKeychain = options.readKeychain || UsageMeter._keychain;
         this.credFile = options.credFile || path.join(os.homedir(), '.claude', '.credentials.json');
-        this.file = options.file || process.env.FLOWCODE_USAGE_FILE || null;
+        this.file = options.file || process.env.MINDMAP_USAGE_FILE || null;
         this.platform = options.platform || process.platform;
         this.now = options.now || (() => Date.now());
     }

@@ -56,7 +56,7 @@ const lastScript = () => fs.readFileSync(log, 'utf8').split('\n=====\n').filter(
     delete process.env.FAKE_OSA_FAIL;
 
     // MCP 서버: initialize → tools/list → tools/call
-    const mcp = spawn(process.execPath, [path.join(__dirname, 'flowcode-browser-mcp.js')], { env: { ...process.env, FLOWCODE_OSASCRIPT: fake, FLOWCODE_BROWSER: 'chrome' } });
+    const mcp = spawn(process.execPath, [path.join(__dirname, 'mindmap-browser-mcp.js')], { env: { ...process.env, MINDMAP_OSASCRIPT: fake, MINDMAP_BROWSER: 'chrome' } });
     const replies = [];
     let buf = '';
     mcp.stdout.on('data', d => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { replies.push(JSON.parse(buf.slice(0, i))); buf = buf.slice(i + 1); } });
@@ -71,7 +71,7 @@ const lastScript = () => fs.readFileSync(log, 'utf8').split('\n=====\n').filter(
     await new Promise(r => setTimeout(r, 1500));
     mcp.kill();
     const byId = id => replies.find(x => x.id === id);
-    assert.strictEqual(byId(1).result.serverInfo.name, 'flowcode-browser');
+    assert.strictEqual(byId(1).result.serverInfo.name, 'mindmap-browser');
     assert.ok(byId(2).result.tools.some(t => t.name === 'browser_click'));
     assert.ok(byId(3).result.content[0].text.includes('▶ [1:2]'));
     assert.ok(byId(4).result.content[0].text.includes('[1] a 로그인'));

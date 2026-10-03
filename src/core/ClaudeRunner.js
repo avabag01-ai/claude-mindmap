@@ -7,7 +7,7 @@
  *   새 세션: claude -p --output-format stream-json --verbose "<메시지>"   (cwd = 고른 폴더)
  *
  * - 맥 앱을 Finder 에서 켜면 PATH 가 짧아서 claude 를 못 찾는다. 그래서 로그인 셸의 PATH 를 읽어 와 그걸로 실행한다.
- * - FLOWCODE_CLAUDE_BIN 환경 변수로 실행 파일을 바꿀 수 있다 (테스트용 가짜 claude 등).
+ * - MINDMAP_CLAUDE_BIN 환경 변수로 실행 파일을 바꿀 수 있다 (테스트용 가짜 claude 등).
  * - stdout 의 stream-json 한 줄 = 이벤트 하나. onEvent 로 그대로 넘긴다.
  */
 
@@ -26,7 +26,7 @@ const ANSWER_STYLES = {
 
 class ClaudeRunner {
     constructor(options = {}) {
-        this.bin = options.bin || process.env.FLOWCODE_CLAUDE_BIN || 'claude';
+        this.bin = options.bin || process.env.MINDMAP_CLAUDE_BIN || 'claude';
         this.runs = new Map(); // runId → child
     }
 
@@ -82,7 +82,7 @@ class ClaudeRunner {
         child.stderr.on('data', text => onEvent({ type: 'stderr', text }));
         let exited = false;
         child.on('error', err => {
-            onEvent({ type: 'stderr', text: err.code === 'ENOENT' ? `claude 를 찾지 못했어요 (${this.bin}). 터미널에서 which claude 로 위치를 확인하고 FLOWCODE_CLAUDE_BIN 으로 알려 주세요.` : `실행 실패: ${err.message}` });
+            onEvent({ type: 'stderr', text: err.code === 'ENOENT' ? `claude 를 찾지 못했어요 (${this.bin}). 터미널에서 which claude 로 위치를 확인하고 MINDMAP_CLAUDE_BIN 으로 알려 주세요.` : `실행 실패: ${err.message}` });
             if (!exited) { exited = true; this.runs.delete(req.runId); onExit({ code: null, signal: null, stopped: false }); }
         });
         child.on('close', (code, signal) => {

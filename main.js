@@ -4,7 +4,7 @@
  * Claude Code 세션을 한눈에: 왼쪽 탭(세션 · 파인더 · 메모 · GitHub · 브라우저) | 마인드맵 | 대화창
  *
  * 화면은 index.html (src/modules/*), 일은 여기 IPC 와 src/core/* 가 한다.
- * flowcode 에서 떼어 낸 독립 앱이다. 설정·메모는 ~/.flowcode/ 를 flowcode 와 같이 쓴다.
+ * flowcode 에서 떼어 낸 독립 앱이다. 설정·메모는 ~/.claude-mindmap/ (처음에 ~/.flowcode 에서 복사).
  */
 
 const { app, BrowserWindow, ipcMain } = require('electron');
@@ -261,7 +261,7 @@ ipcMain.on('usage:read', async (event) => {
 // ---------------------------------------------------------------------
 // 세션 허브: 브라우저 탭 (맥의 진짜 크롬·사파리를 애플스크립트로 조종)
 // ---------------------------------------------------------------------
-const browserSettingsFile = () => require('path').join(require('os').homedir(), '.flowcode', 'browser.json');
+const browserSettingsFile = () => require('./src/core/appDir.js').settingsFile('browser.json');
 function readBrowserSettings() {
     try { return { browser: 'chrome', engine: 'google', ...JSON.parse(fs.readFileSync(browserSettingsFile(), 'utf8')) }; }
     catch { return { browser: 'chrome', engine: 'google' }; }
@@ -275,7 +275,7 @@ function runQuiet(bin, args, extraEnv) {
 }
 ipcMain.on('browser:get', async (event) => {
     const settings = readBrowserSettings();
-    const r = await runQuiet('claude', ['mcp', 'get', 'flowcode-browser']);
+    const r = await runQuiet('claude', ['mcp', 'get', 'mindmap-browser']);
     event.reply('browser:settings', { ...settings, mcp: r.code === 0, platform: process.platform });
 });
 ipcMain.on('browser:set', (event, next = {}) => {
@@ -310,12 +310,13 @@ ipcMain.on('browser:do', async (event, { op, args = {} } = {}) => {
 // Claude Code 에 MCP 서버로 등록: 등록하면 모든 세션이 browser_* 도구로 이 브라우저를 조종한다
 ipcMain.on('browser:register', async (event) => {
     const path = require('path');
-    const script = path.join(__dirname, 'scripts', 'flowcode-browser-mcp.js');
+    const script = path.join(__dirname, 'scripts', 'mindmap-browser-mcp.js');
     const node = await runQuiet('which', ['node']);
     const args = node.code === 0 && node.out
-        ? ['mcp', 'add', '--scope', 'user', 'flowcode-browser', '--', node.out.split('\n')[0], script]
-        : ['mcp', 'add', '--scope', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', 'flowcode-browser', '--', process.execPath, script];
-    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'flowcode-browser']);
+        ? ['mcp', 'add', '--scope', 'user', 'mindmap-browser', '--', node.out.split('\n')[0], script]
+        : ['mcp', 'add', '--scope', 'user', '-e', 'ELECTRON_RUN_AS_NODE=1', 'mindmap-browser', '--', process.execPath, script];
+    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'mindmap-browser']);
+    await runQuiet('claude', ['mcp', 'remove', '--scope', 'user', 'flowcode-browser']); // 예전 이름 (flowcode 와 같이 쓰던 때)
     const r = await runQuiet('claude', args);
     event.reply('browser:register-result', r.code === 0 ? { ok: true, out: r.out } : { ok: false, error: r.code === 127 ? 'claude 를 찾지 못했어요' : r.out });
 });

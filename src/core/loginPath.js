@@ -17,8 +17,8 @@ function loginPath(shell) {
     const sh = shell || [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].find(p => p && fs.existsSync(p));
     let found = '';
     try {
-        const out = execFileSync(sh, ['-ilc', 'printf "\\n__FLOWCODE_PATH__%s__END__" "$PATH"'], { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
-        const m = /__FLOWCODE_PATH__(.*?)__END__/s.exec(out);
+        const out = execFileSync(sh, ['-ilc', 'printf "\\n__MINDMAP_PATH__%s__END__" "$PATH"'], { encoding: 'utf8', timeout: 10000, stdio: ['ignore', 'pipe', 'ignore'] });
+        const m = /__MINDMAP_PATH__(.*?)__END__/s.exec(out);
         if (m) found = m[1].trim();
     } catch {
         // 셸을 못 띄우면 아래 기본값

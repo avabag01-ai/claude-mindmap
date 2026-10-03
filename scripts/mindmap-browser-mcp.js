@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * flowcode-browser-mcp.js
+ * mindmap-browser-mcp.js
  * =============================================================================
  * Claude Code 가 맥의 진짜 브라우저(크롬·사파리·Brave·Edge)를 조종하게 해 주는 MCP 서버 (stdio)
  *
  * 등록 (세션 허브 브라우저 탭의 "Claude 에 연결" 버튼이 대신 해 준다):
- *   claude mcp add --scope user flowcode-browser -- node /경로/flowcode/scripts/flowcode-browser-mcp.js
+ *   claude mcp add --scope user mindmap-browser -- node /경로/claude-mindmap/scripts/mindmap-browser-mcp.js
  *
- * 쓸 브라우저: ~/.flowcode/browser.json 의 { "browser": "chrome" } (브라우저 탭에서 고른 것)
- *             또는 FLOWCODE_BROWSER 환경 변수, 또는 도구마다 browser 인자.
+ * 쓸 브라우저: ~/.claude-mindmap/browser.json 의 { "browser": "chrome" } (브라우저 탭에서 고른 것)
+ *             또는 MINDMAP_BROWSER 환경 변수, 또는 도구마다 browser 인자.
  *
  * 의존성 없음: MCP 는 줄 단위 JSON-RPC 2.0 이라 직접 처리한다.
  */
@@ -20,11 +20,11 @@ const readline = require('readline');
 const BrowserBridge = require('../src/core/BrowserBridge.js');
 
 const VERSION = '1.0.0';
-const SETTINGS = path.join(os.homedir(), '.flowcode', 'browser.json');
+const SETTINGS = require('../src/core/appDir.js').settingsFile('browser.json');
 
 function pickBrowser(arg) {
     if (arg) return arg;
-    if (process.env.FLOWCODE_BROWSER) return process.env.FLOWCODE_BROWSER;
+    if (process.env.MINDMAP_BROWSER) return process.env.MINDMAP_BROWSER;
     try { return JSON.parse(fs.readFileSync(SETTINGS, 'utf8')).browser || 'chrome'; } catch { return 'chrome'; }
 }
 
@@ -58,7 +58,7 @@ function send(msg) {
 async function handle(msg) {
     const { id, method, params } = msg;
     if (method === 'initialize') {
-        return send({ jsonrpc: '2.0', id, result: { protocolVersion: (params && params.protocolVersion) || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'flowcode-browser', version: VERSION } } });
+        return send({ jsonrpc: '2.0', id, result: { protocolVersion: (params && params.protocolVersion) || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'mindmap-browser', version: VERSION } } });
     }
     if (method === 'ping') return send({ jsonrpc: '2.0', id, result: {} });
     if (method === 'tools/list') {

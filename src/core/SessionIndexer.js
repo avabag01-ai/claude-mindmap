@@ -21,6 +21,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const readline = require('readline');
+const { settingsFile } = require('./appDir.js');
 
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const WORKING_MS = 10 * 60 * 1000;      // 마지막 기록이 10분 안이면 "작업 중"
@@ -51,10 +52,10 @@ class SessionIndexer {
         this.maxFilesPerSession = options.maxFilesPerSession || 60;
         this.now = options.now || (() => Date.now());
         this.cache = new Map(); // 기록 파일 경로 → { key, session }
-        // 세션 묶기(하위 세션) 정보: Claude Code 에는 없는 개념이라 FlowCode 가 따로 저장한다
-        this.linksFile = options.linksFile || path.join(os.homedir(), '.flowcode', 'session-links.json');
+        // 세션 묶기(하위 세션) 정보: Claude Code 에는 없는 개념이라 이 앱이 따로 저장한다
+        this.linksFile = options.linksFile || settingsFile('session-links.json');
         // 사용자가 더한 폴더: 아직 세션이 없어도 목록·지도에 보인다
-        this.foldersFile = options.foldersFile || path.join(os.homedir(), '.flowcode', 'folders.json');
+        this.foldersFile = options.foldersFile || settingsFile('folders.json');
         this.lastSessions = new Map(); // "root::id" → session (마지막 index 결과)
     }
 

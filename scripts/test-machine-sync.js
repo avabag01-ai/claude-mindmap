@@ -97,7 +97,7 @@ const sess = (id, root, files, extra = {}) => ({
     assert.strictEqual(MachineSync.shortModel('Mac mini'), 'Mac mini');
     assert.strictEqual(MachineSync.shortModel('Mac Studio'), 'Mac Studio');
     assert.strictEqual(MachineSync.shortModel(''), '');
-    const settingsDir = path.join(tmp, 'flowcode');
+    const settingsDir = path.join(tmp, 'settings');
     fs.mkdirSync(settingsDir);
     fs.writeFileSync(path.join(settingsDir, 'machine.json'), JSON.stringify({ name: 'Mac mini' }));
     assert.strictEqual(new MachineSync({ settingsDir, platform: 'linux' }).name(), 'Mac mini', 'machine.json 이 먼저');
@@ -109,7 +109,7 @@ const sess = (id, root, files, extra = {}) => ({
     assert.deepStrictEqual(noDir.readOthers(), []);
 
     // --- 두 기기가 같은 공유 폴더에 ---
-    const dir = path.join(tmp, 'icloud', 'FlowCode');
+    const dir = path.join(tmp, 'icloud', 'ClaudeMindmap');
     const mini = new MachineSync({ name: 'Mac mini', dir, now: () => NOW });
     const book = new MachineSync({ name: 'MacBook', dir, now: () => NOW });
     assert.ok(mini.publish(index).ok);
@@ -157,6 +157,21 @@ const sess = (id, root, files, extra = {}) => ({
     mini.publish(merged);
     const again = JSON.parse(fs.readFileSync(path.join(dir, 'machines', 'Mac mini.json'), 'utf8'));
     assert.ok(!again.projects.some(p => p.sessions.some(s => s.id === 's-book' || s.id === 's-far')), '남의 세션은 다시 쓰지 않는다');
+
+    // --- 설정 폴더: ~/.flowcode 에서 없는 파일만 복사 ---
+    const { migrate } = require('../src/core/appDir.js');
+    const oldDir = path.join(tmp, 'old'), newDir = path.join(tmp, 'new');
+    fs.mkdirSync(oldDir);
+    fs.writeFileSync(path.join(oldDir, 'memos.json'), '{"old":1}', { mode: 0o600 });
+    fs.writeFileSync(path.join(oldDir, 'folders.json'), '{"old":1}');
+    fs.writeFileSync(path.join(oldDir, 'other.txt'), 'x');
+    fs.mkdirSync(newDir);
+    fs.writeFileSync(path.join(newDir, 'folders.json'), '{"new":1}');
+    assert.deepStrictEqual(migrate(oldDir, newDir), ['memos.json'], '있는 파일은 덮어쓰지 않고, 모르는 파일은 안 가져온다');
+    assert.strictEqual(fs.readFileSync(path.join(newDir, 'folders.json'), 'utf8'), '{"new":1}');
+    assert.strictEqual(fs.statSync(path.join(newDir, 'memos.json')).mode & 0o777, 0o600, '권한도 그대로');
+    assert.ok(fs.existsSync(path.join(oldDir, 'memos.json')), '옛 파일은 남긴다 (flowcode 가 계속 씀)');
+    assert.deepStrictEqual(migrate(oldDir, newDir), [], '두 번째는 할 일 없음');
 
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('MachineSync: 모든 테스트 통과');
