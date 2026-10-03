@@ -571,6 +571,16 @@ impl SessionIndexer {
         self.last_sessions.contains_key(&format!("{}::{}", root, id))
     }
 
+    /// 복사·이동 직후 바로 붙일 수 있게 임시 등록 (main.js 의 lastSessions.set)
+    pub fn remember_session(&mut self, root: &str, id: &str) {
+        self.last_sessions.entry(format!("{}::{}", root, id)).or_insert(Last { file: String::new(), cwd: root.to_string() });
+    }
+
+    /// 지난 index 에 나온 폴더인가
+    pub fn has_root(&self, root: &str) -> bool {
+        self.last_roots.contains(root)
+    }
+
     /// 세션을 같은 폴더의 다른 세션 아래에 붙인다 (parent_id 가 None 이면 떼어낸다)
     pub fn set_parent(&self, root: &str, id: &str, parent_id: Option<&str>) -> Result<Value> {
         let parent_id = parent_id.filter(|p| !p.is_empty());
