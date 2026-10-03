@@ -59,7 +59,7 @@ writeSession('-empty', 'sess-empty', '');
 writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
 
 (async () => {
-    const indexer = new SessionIndexer({ claudeDir, now: () => NOW });
+    const indexer = new SessionIndexer({ claudeDir, linksFile: path.join(tmp, 'links0.json'), foldersFile: path.join(tmp, 'folders0.json'), now: () => NOW });
     const r = await indexer.index();
 
     assert.strictEqual(r.projects.length, 2, '프로젝트 2개 (git 루트로 묶임 + git 아닌 폴더)');
@@ -189,7 +189,7 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     assert.strictEqual(SessionIndexer.encodeCwd('/home/user/a.b_c'), '-home-user-a-b-c');
 
     // ~/.claude 가 없어도 빈 결과
-    const none = await new SessionIndexer({ claudeDir: path.join(tmp, 'nope') }).index();
+    const none = await new SessionIndexer({ claudeDir: path.join(tmp, 'nope'), linksFile: path.join(tmp, 'links0.json'), foldersFile: path.join(tmp, 'folders0.json') }).index();
     assert.deepStrictEqual(none.projects, []);
 
     // 더한 폴더: 세션이 없어도 빈 폴더로 나온다. 이미 세션이 있는 폴더는 한 번만, 없어진 폴더는 뺀다
