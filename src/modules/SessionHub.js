@@ -487,7 +487,7 @@ class SessionHub {
                 <button class="hub-link" data-copy="${esc(resume)}" title="${esc(resume)}">${s.remote ? `${esc(s.machine)} 에서 열기 (명령 복사)` : '터미널 명령 복사'}</button></div>
               ${this.ipc && !s.remote ? `<div class="hub-toon-row"><button class="btn hub-toon" data-act="toon-ask"${this.run && !this.run.done ? ' disabled' : ''} title="툰 저장 후 새 세션에서 이어가기">툰 → 이어가기</button></div>` : ''}
               ${this.toonAsk ? `<div class="hub-confirm" role="group" aria-label="툰 저장 후 이어가기 확인">
-                <p>이 세션에 <b>툰 저장</b>을 시키고, 저장 결과의 시작 메시지로 <b>같은 폴더에 새 세션</b>을 열어 이어가요. 툰 저장은 파일을 써야 해서 최소 "파일 수정 자동 허용"으로 실행해요.</p>
+                <p>이 세션에 <b>툰 저장</b>을 시키고, 저장 결과의 시작 메시지로 <b>같은 폴더에 새 세션</b>을 열어 이어가요. 툰 저장은 파일을 써야 해서 최소 "편집 자동 수락"으로 실행해요.</p>
                 <div class="row"><button class="btn btn-primary" data-act="toon-go">시작</button><button class="btn" data-act="toon-cancel">취소</button></div></div>` : ''}`;
         } else if (this.newFolder) {
             const folders = this.data ? this.data.projects.map(x => x.root) : [];
@@ -609,8 +609,8 @@ class SessionHub {
         this.el('hub-input').disabled = !can || running;
         this.el('hub-input').placeholder = !this.ipc ? '미리보기에서는 보낼 수 없어요'
             : s && s.remote ? `${s.machine} 의 세션은 그 기기에서 이어서 말할 수 있어요`
-            : s ? `"${SessionMindMap._clip(s.title, 24)}" 에 이어서 말하기 (⌘↩ 보내기)` // 어느 세션으로 가는지 보이게
-            : this.newFolder ? (this._newHub() && this.toonStart ? '세션 제목이나 할 일만 쓰세요 · 툰 허브를 읽고 시작해요 (⌘↩)' : '새 세션 첫 메시지 (⌘↩ 보내기)')
+            : s ? `"${SessionMindMap._clip(s.title, 24)}" 에 이어서 말하기 (↩↩ 보내기)` // 어느 세션으로 가는지 보이게
+            : this.newFolder ? (this._newHub() && this.toonStart ? '세션 제목이나 할 일만 쓰세요 · 툰 허브를 읽고 시작해요 (↩↩)' : '새 세션 첫 메시지 (↩↩ 보내기)')
             : '왼쪽에서 세션을 고르세요';
         this.el('hub-send').hidden = running;
         this.el('hub-send').disabled = !can;
@@ -900,7 +900,7 @@ class SessionHub {
     _onChanged(r) {
         if (!r) return;
         if (!r.ok) { this.map._toast(r.error || '바꾸지 못했어요'); return; }
-        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : r.action === 'move' ? '옮겼어요' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
+        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : r.action === 'move' ? '옮겼어요' : r.action === 'trash' ? '지웠어요 (앱 휴지통에 보관)' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
         this._pendingToast = null;
         if (r.quiet && !msg) { this.refresh(); return; }
         if (r.action === 'copy' || r.action === 'move') {
@@ -990,7 +990,7 @@ class SessionHub {
         this.toonAsk = false;
         const runId = this._startRun({
             cwd: s.cwd, sessionId: s.id, root: this.sel.root, text: SessionHub.TOON_SAVE_TEXT,
-            // 툰 저장은 파일을 써야 하므로 최소 "파일 수정 자동 허용"
+            // 툰 저장은 파일을 써야 하므로 최소 "편집 자동 수락"
             permissionMode: this.permission === 'default' ? 'acceptEdits' : this.permission,
             label: '1/2 툰 저장'
         });
@@ -1110,8 +1110,23 @@ class SessionHub {
         document.querySelectorAll('.hub-answer button').forEach(b => b.addEventListener('click', () => this.setAnswerMode(b.dataset.answer)));
         this.setAnswerMode(this.answerMode);
         this.el('hub-messages').addEventListener('click', e => { if (e.target.closest('[data-act="more"]')) this.askDetail(); });
+        // 보내기: ⌘/Ctrl+엔터, 또는 엔터 두 번(0.7초 안). 첫 엔터가 넣은 줄바꿈은 지운다. 한글 조합 중 엔터도 첫 번으로 센다
+        let lastEnter = 0;
         this.el('hub-input').addEventListener('keydown', e => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.send(); }
+            if (e.key !== 'Enter' || e.shiftKey) return;
+            if (e.metaKey || e.ctrlKey) { e.preventDefault(); this.send(); return; }
+            const now = Date.now();
+            const twice = now - lastEnter < 700;
+            lastEnter = now;
+            if (e.isComposing || e.keyCode === 229 || !twice) return;
+            e.preventDefault();
+            lastEnter = 0;
+            const t = e.target, at = t.selectionStart;
+            if (at === t.selectionEnd && at > 0 && t.value[at - 1] === '\n') {
+                t.value = t.value.slice(0, at - 1) + t.value.slice(at);
+                t.selectionStart = t.selectionEnd = at - 1;
+            }
+            this.send();
         });
         this.el('hub-chat-head').addEventListener('click', e => {
             const c = e.target.closest('[data-copy]');

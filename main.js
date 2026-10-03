@@ -179,6 +179,25 @@ ipcMain.on('sessions:move', (event, { root, id, toRoot, parentId } = {}) => {
     }
 });
 
+// 허용 묻기: 대화창에서 보낸 claude 가 물을 도구를 쓰려 할 때 (scripts/mindmap-approve-mcp.js)
+ipcMain.on('approval:list', event => event.reply('approval:list-result', { items: require('./src/core/Approvals.js').list() }));
+ipcMain.on('approval:answer', (event, { id, allow, always } = {}) => {
+    try {
+        event.reply('approval:answer-result', require('./src/core/Approvals.js').answer(id, !!allow, !!always));
+    } catch (error) {
+        event.reply('approval:answer-result', { error: error.message });
+    }
+});
+
+// 세션 지우기 = 앱 휴지통(~/.claude-mindmap/trash)으로 옮기기
+ipcMain.on('sessions:trash', (event, { root, id } = {}) => {
+    try {
+        event.reply('sessions:changed', { ok: true, action: 'trash', ...getSessionIndexer().trashSession(root, id) });
+    } catch (error) {
+        event.reply('sessions:changed', { ok: false, error: error.message });
+    }
+});
+
 // ---------------------------------------------------------------------
 // 세션 허브: 파인더 (폴더 목록만 읽는다, 파일 내용은 읽지 않음)
 // ---------------------------------------------------------------------
@@ -345,6 +364,8 @@ ipcMain.on('sessions:send', (event, req = {}) => {
             const ClaudeRunner = require('./src/core/ClaudeRunner.js');
             claudeRunner = new ClaudeRunner();
         }
+        // 물을 도구는 막지 않고 화면에 묻는다 (클로드 앱처럼). 스크립트 경로는 화면 값을 믿지 않고 여기서 정한다
+        req = { ...req, approveScript: require('path').join(__dirname, 'scripts', 'mindmap-approve-mcp.js') };
         claudeRunner.run(req,
             ev => send('sessions:run-event', { runId: req.runId, event: ev }),
             exit => send('sessions:run-exit', { runId: req.runId, ...exit }));

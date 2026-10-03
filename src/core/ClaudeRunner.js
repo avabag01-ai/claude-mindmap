@@ -38,6 +38,7 @@ class ClaudeRunner {
      * @param {string} [req.sessionId]    이어갈 세션 (없으면 새 세션)
      * @param {string} [req.permissionMode] default | acceptEdits | plan
      * @param {string} [req.answerMode]   result | summary | detail (없으면 Claude 기본)
+     * @param {string} [req.approveScript] scripts/mindmap-approve-mcp.js — 있으면 물을 도구를 막지 않고 화면에 묻는다 (main.js 가 채움)
      * @param {(event: object) => void} onEvent   stream-json 이벤트, 또는 { type: 'stderr', text }
      * @param {(result: { code: number|null, signal: string|null, stopped: boolean }) => void} onExit
      */
@@ -50,6 +51,7 @@ class ClaudeRunner {
         if (req.permissionMode && PERMISSION_MODES.has(req.permissionMode) && req.permissionMode !== 'default') {
             args.push('--permission-mode', req.permissionMode);
         }
+        if (req.approveScript && req.permissionMode !== 'plan') args.push(...ClaudeRunner.approveArgs(req.approveScript, req.runId));
         if (ANSWER_STYLES[req.answerMode]) args.push('--append-system-prompt', ANSWER_STYLES[req.answerMode]);
         args.push(req.text);
 
@@ -111,6 +113,12 @@ class ClaudeRunner {
         for (const id of [...this.runs.keys()]) this.stop(id);
     }
 }
+
+/** 허용 묻기: claude 가 물을 도구를 쓰려 하면 이 MCP 도구가 화면(허용 / 거절)에 묻는다 */
+ClaudeRunner.approveArgs = function (script, runId) {
+    const cfg = { mcpServers: { 'mindmap-approve': { command: 'node', args: [script], env: { MINDMAP_RUN_ID: runId || '' } } } };
+    return ['--mcp-config', JSON.stringify(cfg), '--permission-prompt-tool', 'mcp__mindmap-approve__approve'];
+};
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = ClaudeRunner;

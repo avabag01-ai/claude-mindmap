@@ -7,7 +7,7 @@ use crate::machine_sync::MachineSync;
 use crate::memo_store::MemoStore;
 use crate::session_indexer::{self as si, MetaPatch, SessionIndexer};
 use crate::usage_meter::UsageMeter;
-use crate::{app_dir, browser_bridge, claude_runner, login_path};
+use crate::{app_dir, approvals, browser_bridge, claude_runner, login_path};
 use once_cell::sync::Lazy;
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
@@ -127,11 +127,20 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
             .unwrap_or_else(|e| json!({ "ok": false, "error": e.to_string() }));
             ctx.emit("sessions:changed", r);
         }
+        "sessions:trash" => {
+            let r = INDEXER.lock().unwrap().trash_session(s(&p, "root").unwrap_or(""), s(&p, "id").unwrap_or(""));
+            ctx.emit("sessions:changed", match r {
+                Ok(v) => spread(json!({ "ok": true, "action": "trash" }), v),
+                Err(e) => json!({ "ok": false, "error": e.to_string() }),
+            });
+        }
         "sessions:send" => {
             let run_id = s(&p, "runId").unwrap_or("").to_string();
             let req: Result<claude_runner::RunRequest, _> = serde_json::from_value(p.clone());
             let (c1, c2, r1, r2) = (ctx.clone(), ctx.clone(), run_id.clone(), run_id.clone());
-            let started = req.map_err(anyhow::Error::from).and_then(|req| {
+            let started = req.map_err(anyhow::Error::from).and_then(|mut req| {
+                // 물을 도구는 막지 않고 화면에 묻는다 (클로드 앱처럼)
+                req.approve_script = Some(app_root().join("scripts").join("mindmap-approve-mcp.js").to_string_lossy().into_owned());
                 claude_runner::run(
                     &req,
                     move |ev| c1.emit("sessions:run-event", json!({ "runId": r1, "event": ev })),
@@ -141,6 +150,17 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
             if let Err(e) = started {
                 ctx.emit("sessions:run-exit", json!({ "runId": run_id, "code": null, "stopped": false, "error": e.to_string() }));
             }
+        }
+        // --- 허용 묻기 (scripts/mindmap-approve-mcp.js) ---
+        "approval:list" => ctx.emit("approval:list-result", json!({ "items": approvals::list_in(&approvals::dir()) })),
+        "approval:answer" => {
+            let r = approvals::answer_in(
+                &approvals::dir(),
+                s(&p, "id").unwrap_or(""),
+                p.get("allow").and_then(Value::as_bool).unwrap_or(false),
+                p.get("always").and_then(Value::as_bool).unwrap_or(false),
+            );
+            ctx.emit("approval:answer-result", r.unwrap_or_else(|e| json!({ "error": e.to_string() })));
         }
         "sessions:stop" => {
             claude_runner::stop(s(&p, "runId").unwrap_or(""));

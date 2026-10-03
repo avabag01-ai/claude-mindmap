@@ -377,9 +377,9 @@
                     </span>
                     <label for="hub-perm">권한
                         <select id="hub-perm">
-                            <option value="default">기본 (물어볼 도구는 막힘)</option>
-                            <option value="acceptEdits">파일 수정 자동 허용</option>
-                            <option value="plan">계획만</option>
+                            <option value="default">권한 묻기</option>
+                            <option value="acceptEdits">편집 자동 수락</option>
+                            <option value="plan">계획 모드</option>
                         </select>
                     </label>
                     <span>
@@ -392,13 +392,17 @@
     </div>
 
     <script src="src/modules/SessionMindMap.js"></script>
+    <script src="src/modules/MindMapRecent.js"></script>
+    <script src="src/modules/MindMapTools.js"></script>
     <script src="src/modules/SessionHub.js"></script>
     <script src="src/modules/HubPanels.js"></script>
+    <script src="src/modules/HubApprovals.js"></script>
     <script>
         // 미리보기 페이지(?preview)는 IPC 없이 window.HUB_PREVIEW_DATA 로 그린다
         window.sessionHub = new SessionHub(window.HUB_PREVIEW_DATA ? { ipc: null, now: window.HUB_PREVIEW_NOW, transcripts: window.HUB_PREVIEW_TRANSCRIPTS, hubs: window.HUB_PREVIEW_HUBS, previewFs: window.HUB_PREVIEW_FS, previewMemos: window.HUB_PREVIEW_MEMOS, usage: window.HUB_PREVIEW_USAGE } : {});
         window.sessionHub.start();
         if (window.HUB_PREVIEW_DATA) window.sessionHub.setData(window.HUB_PREVIEW_DATA);
+        new HubApprovals(window.sessionHub);
     </script>
 </body>
 </html>

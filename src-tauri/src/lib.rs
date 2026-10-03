@@ -4,6 +4,7 @@
 //! 'ipc_send' 명령으로 보낸다. 일은 handlers::dispatch 가 하고, 답은 같은 이름의 이벤트로 보낸다.
 
 pub mod app_dir;
+pub mod approvals;
 pub mod browser_bridge;
 pub mod claude_runner;
 pub mod git_panel;

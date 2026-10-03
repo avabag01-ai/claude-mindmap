@@ -27,6 +27,15 @@ pub struct RunRequest {
     pub session_id: Option<String>,
     pub permission_mode: Option<String>,
     pub answer_mode: Option<String>,
+    /// 허용 묻기 MCP 스크립트(scripts/mindmap-approve-mcp.js). 있으면 막지 않고 화면에 묻는다. 화면이 아니라 handlers 가 채운다
+    #[serde(skip)]
+    pub approve_script: Option<String>,
+}
+
+/// 허용 묻기: claude 가 물을 도구를 쓰려 하면 이 MCP 도구가 화면(허용 / 거절)에 묻는다
+pub fn approve_args(script: &str, run_id: &str) -> Vec<String> {
+    let cfg = json!({ "mcpServers": { "mindmap-approve": { "command": "node", "args": [script], "env": { "MINDMAP_RUN_ID": run_id } } } });
+    vec!["--mcp-config".into(), cfg.to_string(), "--permission-prompt-tool".into(), "mcp__mindmap-approve__approve".into()]
 }
 
 /// 답 길이: --append-system-prompt 로 붙여서 사람이 쓴 메시지는 그대로 남는다.
@@ -127,6 +136,9 @@ pub fn run_with_bin(
             args.push("--permission-mode".into());
             args.push(m.into());
         }
+    }
+    if let Some(script) = req.approve_script.as_deref().filter(|_| req.permission_mode.as_deref() != Some("plan")) {
+        args.extend(approve_args(script, &req.run_id));
     }
     if let Some(style) = req.answer_mode.as_deref().and_then(answer_style) {
         args.push("--append-system-prompt".into());
@@ -324,6 +336,25 @@ mod tests {
         want.push("안녕".into());
         assert_eq!(init_args(&ev), want);
         assert_eq!(ev.iter().find(|e| e["type"] == "result").unwrap()["session_id"], "new-session-0001");
+    }
+
+    #[test]
+    fn approve_prompt_tool() {
+        let mut r = req("r6", "고쳐");
+        r.permission_mode = Some("acceptEdits".into());
+        r.approve_script = Some("/x/mindmap-approve-mcp.js".into());
+        let (ev, _) = go(&fake(), r.clone());
+        let mut want = base();
+        want.extend(["--permission-mode", "acceptEdits"].map(String::from));
+        want.extend(approve_args("/x/mindmap-approve-mcp.js", "r6"));
+        want.push("고쳐".into());
+        assert_eq!(init_args(&ev), want);
+        let cfg: Value = serde_json::from_str(&want[7]).unwrap();
+        assert_eq!(cfg["mcpServers"]["mindmap-approve"]["env"]["MINDMAP_RUN_ID"], "r6");
+        // 계획 모드는 실행을 안 하니 묻지 않는다
+        r.permission_mode = Some("plan".into());
+        let (ev, _) = go(&fake(), r);
+        assert!(!init_args(&ev).contains(&"--permission-prompt-tool".to_string()));
     }
 
     #[test]
