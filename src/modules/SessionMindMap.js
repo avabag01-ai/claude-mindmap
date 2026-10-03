@@ -30,7 +30,8 @@ class SessionMindMap {
         this.query = '';
         this.showAllFiles = false;
         this.expanded = new Set();   // 파일이 펼쳐진 세션 키
-        this.collapsed = new Set();  // 세션이 접힌 프로젝트 루트
+        this.fold = new Map();       // 노드 키 → 펼침(true)/접힘(false). 없으면 기본값 (_isOpen)
+        this.pins = SessionMindMap._loadPins(); // 끌어다 놓은 자리: 보기 → { 노드 키: [x, y] }
         this.selected = null;        // { kind, key }
         this.view = { x: 0, y: 0, k: 1 };
         this.nodes = [];
@@ -132,6 +133,8 @@ class SessionMindMap {
               </select>
               <label class="smm-check"><input type="checkbox" class="smm-allfiles"> 파일 모두</label>
               <button class="smm-btn smm-fit" title="전체 보기 (빈 곳 더블클릭)">전체 보기</button>
+              <button class="smm-btn smm-foldall" hidden>가지 모두 접기</button>
+              <button class="smm-btn smm-reset" title="끌어다 놓은 자리를 처음 배치로" hidden>자리 되돌리기</button>
               <button class="smm-btn smm-refresh">새로고침</button>
               <span class="smm-status"></span>
             </div>
@@ -169,6 +172,15 @@ class SessionMindMap {
         q('.smm-period').addEventListener('change', e => { this.period = e.target.value; this._fitPending = true; this.render(); });
         q('.smm-allfiles').addEventListener('change', e => { this.showAllFiles = e.target.checked; this._fitPending = true; this.render(); });
         q('.smm-fit').addEventListener('click', () => this._fit(true));
+        this.foldBtn = q('.smm-foldall');
+        this.resetBtn = q('.smm-reset');
+        this.foldBtn.addEventListener('click', () => this._foldAll());
+        this.resetBtn.addEventListener('click', () => {
+            delete this.pins[this._viewKey()];
+            this._savePins();
+            this._fitPending = true;
+            this.render();
+        });
         q('.smm-refresh').addEventListener('click', () => this.refresh());
 
         this._bindPanZoom();
@@ -322,8 +334,15 @@ class SessionMindMap {
         const loose = [];
         for (const n of top) (n.data.topic && branches.get(n.data.topic) ? branches.get(n.data.topic).children : loose).push(n);
         this._placePending(p, color, nodes, branches, headOf);
+        // 잔가지 접기: 전체 보기에서는 가지를 접어 두고, 폴더 중심에서는 펼쳐 둔다
+        const pend = this.pendingRoot === p.root && this.pendingMeta && this.pendingMeta.topic;
+        for (const b of branches.values()) {
+            if (!b.children.length || b.topic === pend || this._isOpen(b.key, this.focus.mode !== 'all')) continue;
+            b.hidden = b.children.length;
+            b.children = [];
+        }
         // 검색 중에는 맞는 세션이 있는 가지만
-        const shown = [...branches.values()].filter(b => !q || b.children.length || b.label.toLowerCase().includes(q) || b.topic.toLowerCase().includes(q));
+        const shown = [...branches.values()].filter(b => !q || b.children.length || b.hidden || b.label.toLowerCase().includes(q) || b.topic.toLowerCase().includes(q));
         return [...shown, ...loose];
     }
 
@@ -354,6 +373,34 @@ class SessionMindMap {
         });
     }
 
+    /** 접기·펼치기: 사용자가 정한 게 있으면 그것, 검색 중이면 펼침, 아니면 기본값 */
+    _isOpen(key, def) {
+        if (this.query) return true;
+        const v = this.fold.get(key);
+        return v === undefined ? def : v;
+    }
+
+    _toggleFold(key) {
+        const n = this.byKey.get(key);
+        const open = !!(n && n.children.length);
+        this.fold.set(key, !open);
+        this.render();
+    }
+
+    /** 끌어다 놓은 자리는 보기(전체·폴더 중심·세션 중심)마다 따로 기억한다 */
+    _viewKey() {
+        const f = this.focus;
+        return f.mode === 'all' ? 'all' : `${f.mode}:${f.root}${f.mode === 'session' ? '::' + f.id : ''}`;
+    }
+
+    static _loadPins() {
+        try { return JSON.parse(localStorage.getItem('smm.pins') || '{}') || {}; } catch { return {}; }
+    }
+
+    _savePins() {
+        try { localStorage.setItem('smm.pins', JSON.stringify(this.pins)); } catch { /* 저장 못 해도 이번 창에서는 유지 */ }
+    }
+
     _allTree() {
         const limit = { '24h': 864e5, '7d': 7 * 864e5, '30d': 30 * 864e5, all: Infinity }[this.period];
         const now = this.now();
@@ -370,9 +417,11 @@ class SessionMindMap {
                     p.name.toLowerCase().includes(q);
             });
             if (!sessions.length && this.pendingRoot !== p.root) return;
-            const pNode = { key: `p:${p.root}`, kind: 'project', label: p.name, data: p, color, children: [] };
+            const pNode = { key: `p:${p.root}`, kind: 'project', label: p.name, data: p, color, total: sessions.length, children: [] };
             this._pendingPlaced = false;
-            if (!this.collapsed.has(p.root)) pNode.children.push(...this._sessionNodes(p, sessions, color));
+            // 처음에는 폴더만: 폴더 아래(가지·세션)는 접어 두고 ▸ 로 펼친다. 새 세션 자리가 있으면 펼친다
+            if (this._isOpen(pNode.key, false) || this.pendingRoot === p.root) pNode.children.push(...this._sessionNodes(p, sessions, color));
+            else pNode.hidden = sessions.length;
             if (this.pendingRoot === p.root && !this._pendingPlaced) pNode.children.push(this._pendingNode(p, color));
             root.children.push(pNode);
         });
@@ -387,14 +436,15 @@ class SessionMindMap {
             if (!n.children.length) n.w = 1;
             else n.w = n.children.reduce((a, c) => a + weight(c), 0);
             if (n.kind === 'project') n.w += 0.8; // 프로젝트 사이 여백
-            if (n.kind === 'topic' && !n.children.length) n.w = 0.7; // 빈 가지는 좁게
+            if (n.kind === 'topic' && !n.children.length && !n.hidden) n.w = 0.7; // 빈 가지는 좁게
             return n.w;
         };
         weight(root);
 
         const all = [];
-        const assign = (n, a0, a1, depth) => {
+        const assign = (n, a0, a1, depth, parent) => {
             n.depth = depth;
+            n.parent = parent || null;
             n.angle = (a0 + a1) / 2;
             all.push(n);
             if (!n.children.length) return;
@@ -403,7 +453,7 @@ class SessionMindMap {
             const sum = n.children.reduce((a, c) => a + c.w, 0);
             for (const c of n.children) {
                 const span = inner * c.w / sum;
-                assign(c, cursor, cursor + span, depth + 1);
+                assign(c, cursor, cursor + span, depth + 1, n);
                 cursor += span;
             }
         };
@@ -421,7 +471,8 @@ class SessionMindMap {
         const leaves = all.filter(n => !n.children.length && n.depth > 0);
         const outer = leaves.length ? Math.max(...leaves.map(n => n.depth)) : 0;
         const cardLeaves = leaves.filter(isCard).length;
-        const need = (cardLeaves * 46 + (leaves.length - cardLeaves) * 18) / (2 * Math.PI);
+        const boxLeaves = leaves.filter(n => n.kind === 'project' || n.kind === 'topic').length; // 폴더·가지 꼬리표는 넓다
+        const need = (cardLeaves * 46 + boxLeaves * 64 + (leaves.length - cardLeaves - boxLeaves) * 18) / (2 * Math.PI);
         const scale = outer ? Math.max(1, need / rings[outer]) : 1;
         const radius = d => rings[d] * scale;
         for (const n of all) {
@@ -431,7 +482,95 @@ class SessionMindMap {
         }
         this.rings = [];
         for (let d = 1; d <= maxDepth; d++) this.rings.push(radius(d));
+        this._applyPins(all);
+        SessionMindMap.spread(all.map(n => ({ n, box: this._box(n) })));
         return all;
+    }
+
+    /**
+     * 끌어다 놓은 자리: 놓은 노드는 그 자리에, 그 아래 노드들은 같이 따라간다.
+     * all 은 부모가 먼저 나오는 순서라 부모가 옮겨진 만큼을 아래로 물려준다.
+     */
+    _applyPins(all) {
+        const pins = this.pins[this._viewKey()] || {};
+        for (const n of all) {
+            const pin = n.depth > 0 && pins[n.key];
+            const pd = n.parent ? n.parent.delta : [0, 0];
+            n.delta = pin ? [pin[0] - n.x, pin[1] - n.y] : pd;
+            n.fixed = !!pin || n.depth === 0;
+            n.x += n.delta[0];
+            n.y += n.delta[1];
+            n.moved = !!pin || !!(n.parent && n.parent.moved);
+            // 카드·꼬리표를 어느 쪽으로 펼칠지: 옮긴 노드는 부모와의 위치로, 나머지는 각도로
+            n.right = n.moved && n.parent ? n.x >= n.parent.x : Math.cos(n.angle) >= -1e-6;
+        }
+    }
+
+    /**
+     * 노드가 차지하는 네모 (노드 점 기준). 카드·꼬리표는 점 옆으로 붙어 그려지므로 그 쪽으로 넓다.
+     * _nodeSvg 의 크기 계산과 맞춰 둔다.
+     */
+    _box(n) {
+        const W = SessionMindMap._textWidth;
+        const side = (w, before, after, y0, y1) => n.right ? [-before, w + after, y0, y1] : [-(w + after), before, y0, y1];
+        if (n.kind === 'root') {
+            if (!n.ref) return [-48, 48, -48, 48];
+            const w = n.ref.kind === 'project' ? Math.max(120, W(SessionMindMap._clip(n.label, 18), 15) + 44) : Math.max(160, W(SessionMindMap._clip(n.label, 22), 14) + 36);
+            return [-w / 2 - 4, w / 2 + 4, -34, 50];
+        }
+        if (n.kind === 'project') {
+            const w = Math.max(84, W(SessionMindMap._clip(n.label, 20), 13) + 30);
+            return [-w / 2 - 4, w / 2 + 30, -21, n.hidden || n.children.length ? 32 : 18];
+        }
+        if (n.kind === 'topic') {
+            const w = W(SessionMindMap._clip(n.label, 14), 12) + 22;
+            return side(w, 6, 8 + 26 + (n.hidden || n.children.length ? 34 : 0), -14, 14);
+        }
+        if (n.kind === 'pending') return side(168, 6, 12, -19, 19);
+        if (n.kind === 'session') {
+            const s = n.data;
+            const git = SessionMindMap.GIT[s.git];
+            const w = Math.max(W((n.seq ? `${n.seq} ` : '') + SessionMindMap._clip(n.label, 20), 12), W(SessionMindMap._span(s.firstAt, s.lastAt), 10.5) * 0.92 + (git ? W(git, 10) + 10 : 0)) + 24;
+            return side(w, 6 + (n.prev && n.prev.length ? 32 : 0), 11 + 24, -23, this._machineOf(s) ? 32 : 23);
+        }
+        const lw = W(SessionMindMap._clip(n.label, 28), 11);
+        return side(lw, 7, 12, -9, 9);
+    }
+
+    /**
+     * 겹침 풀기: 네모가 겹치는 두 노드를 덜 겹친 쪽(가로·세로)으로 밀어낸다.
+     * 고정 노드(가운데, 끌어다 놓은 노드)는 안 움직이고 상대만 민다. 겹침이 없어질 때까지 (최대 120번)
+     * @param {{n:{x,y,fixed}, box:[x0,x1,y0,y1]}[]} items
+     * @returns {number} 남은 겹침 수
+     */
+    static spread(items, gap = 6) {
+        let left = 0;
+        for (let it = 0; it < 120; it++) {
+            left = 0;
+            for (let i = 0; i < items.length; i++) {
+                const a = items[i];
+                for (let j = i + 1; j < items.length; j++) {
+                    const b = items[j];
+                    if (a.n.fixed && b.n.fixed) continue;
+                    const ox = Math.min(a.n.x + a.box[1], b.n.x + b.box[1]) - Math.max(a.n.x + a.box[0], b.n.x + b.box[0]) + gap;
+                    if (ox <= 0) continue;
+                    const oy = Math.min(a.n.y + a.box[3], b.n.y + b.box[3]) - Math.max(a.n.y + a.box[2], b.n.y + b.box[2]) + gap;
+                    if (oy <= 0) continue;
+                    left++;
+                    const wa = a.n.fixed ? 0 : b.n.fixed ? 1 : 0.5, wb = 1 - wa;
+                    if (ox < oy) {
+                        // 가운데끼리 비교해 바깥쪽으로
+                        const dir = (a.n.x + (a.box[0] + a.box[1]) / 2) <= (b.n.x + (b.box[0] + b.box[1]) / 2) ? -1 : 1;
+                        a.n.x += dir * ox * wa; b.n.x -= dir * ox * wb;
+                    } else {
+                        const dir = (a.n.y + (a.box[2] + a.box[3]) / 2) <= (b.n.y + (b.box[2] + b.box[3]) / 2) ? -1 : 1;
+                        a.n.y += dir * oy * wa; b.n.y -= dir * oy * wb;
+                    }
+                }
+            }
+            if (!left) break;
+        }
+        return left;
     }
 
     // ---------------------------------------------------------------------
@@ -450,22 +589,24 @@ class SessionMindMap {
         this.nodes = this._layout(tree);
         this.byKey = new Map(this.nodes.map(n => [n.key, n]));
 
-        const sessionCount = new Set(this.nodes.filter(n => n.kind === 'session').map(n => n.related || n.key)).size;
+        // 전체 보기는 접힌 폴더의 세션까지 센다
+        const sessionCount = tree.ref ? new Set(this.nodes.filter(n => n.kind === 'session').map(n => n.related || n.key)).size
+            : this.nodes.reduce((a, n) => a + (n.total || 0), 0);
         const projectCount = this.focus.mode === 'all' || !tree.ref ? this.nodes.filter(n => n.kind === 'project').length
             : new Set([tree.ref.project ? tree.ref.project.root : tree.ref.data.root, ...this.nodes.filter(n => n.kind === 'session').map(n => n.project.root)]).size;
         this._setStatus(`프로젝트 ${projectCount} · 세션 ${sessionCount} · ${SessionMindMap._ago(this.data.generatedAt, this.now())} 기준`);
 
         this.gRings.innerHTML = this.rings.map(r => `<circle r="${r.toFixed(1)}" class="smm-ring"/>`).join('');
 
-        const links = [];
-        const walk = n => {
-            for (const c of n.children) {
-                links.push(`<path class="smm-link smm-link-${c.kind}" stroke="${c.kind === 'project' ? c.color : c.color}" d="${SessionMindMap._radialLink(n, c)}"/>`);
-                walk(c);
-            }
-        };
-        walk(tree);
-        this.gLinks.innerHTML = links.join('');
+        this._tree = tree;
+        this._drawLinks();
+        const pins = this.pins[this._viewKey()];
+        if (this.resetBtn) this.resetBtn.hidden = !pins || !Object.keys(pins).length;
+        if (this.foldBtn) {
+            const foldable = this.nodes.filter(n => n.kind === 'project' || n.kind === 'topic');
+            this.foldBtn.hidden = !foldable.some(n => n.hidden || n.children.length);
+            this.foldBtn.textContent = foldable.some(n => n.children.length && n.depth > 0) ? '가지 모두 접기' : '가지 모두 펼치기';
+        }
 
         this.gNodes.innerHTML = this.nodes.map(n => this._nodeSvg(n)).join('');
         this._drawSelection();
@@ -474,11 +615,35 @@ class SessionMindMap {
         else this._applyView();
     }
 
+    _drawLinks() {
+        const links = [];
+        const walk = n => {
+            for (const c of n.children) {
+                links.push(`<path class="smm-link smm-link-${c.kind}" stroke="${c.color}" d="${SessionMindMap._link(n, c)}"/>`);
+                walk(c);
+            }
+        };
+        walk(this._tree);
+        this.gLinks.innerHTML = links.join('');
+    }
+
+    /** 가지 모두 접기 / 펼치기 (폴더·주제 가지) */
+    _foldAll() {
+        const foldable = this.nodes.filter(n => (n.kind === 'project' || n.kind === 'topic') && (n.hidden || n.children.length));
+        const open = !foldable.some(n => n.children.length && n.depth > 0);
+        // 펼칠 때는 지금 숨은 것까지 펼치려고 두 번 그린다 (폴더를 펼쳐야 그 안 가지가 나온다)
+        for (let pass = 0; pass < (open ? 2 : 1); pass++) {
+            for (const n of this.nodes) if (n.kind === 'project' || n.kind === 'topic') this.fold.set(n.key, open);
+            this._fitPending = true;
+            this.render();
+        }
+    }
+
     // 단계마다 다른 도형: 가운데(큰 원 / 큰 폴더 / 큰 카드) · 폴더(폴더 모양) · 세션(카드) · 파일(문서 아이콘)
     _nodeSvg(n) {
         const esc = SessionMindMap._esc;
         const W = SessionMindMap._textWidth;
-        const right = Math.cos(n.angle) >= -1e-6;
+        const right = n.right !== undefined ? n.right : Math.cos(n.angle) >= -1e-6;
         const tx = right ? 1 : -1;
         const at = `transform="translate(${(n.x || 0).toFixed(1)},${(n.y || 0).toFixed(1)})"`;
 
@@ -522,6 +687,7 @@ class SessionMindMap {
                 ${SessionMindMap._folderShape(w, h, n.color)}
                 <text class="smm-folder-label" text-anchor="middle" dy="7">${esc(label)}</text>
                 ${this._addButton(w / 2 + 16, 2, n.data.root, n.color)}
+                ${this._foldChip(0, h / 2 + 9, n, '세션')}
                 <title>${esc(n.data.root)}</title></g>`;
         }
 
@@ -530,13 +696,14 @@ class SessionMindMap {
             const label = SessionMindMap._clip(n.label, 14);
             const w = W(label, 12) + 22, h = 24;
             const x = right ? 8 : -8 - w;
-            const empty = !n.children.length;
+            const empty = !n.children.length && !n.hidden;
             return `<g class="smm-node smm-topic${empty ? ' smm-topic-empty' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
                 <circle r="4" class="smm-joint" fill="${n.color}"/>
                 <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="12" class="smm-topic-tag" style="--c:${n.color}"/>
                 <text x="${x + w / 2}" dy="4" text-anchor="middle" class="smm-topic-label">${esc(label)}</text>
                 ${this._addButton(right ? x + w + 14 : x - 14, 0, n.project.root, n.color, { topic: n.topic, label: `${n.label} 가지에 새 세션` })}
-                <title>${esc(n.label)} 가지 (.toon/${esc(n.topic)}) · ${empty ? '아직 세션 없음 · ⊕ 로 첫 세션' : `세션 ${n.children.length}개`} · 눌러서 주제 허브 보기</title></g>`;
+                ${this._foldChip(right ? x + w + 44 : x - 44, 0, n, '세션')}
+                <title>${esc(n.label)} 가지 (.toon/${esc(n.topic)}) · ${empty ? '아직 세션 없음 · ⊕ 로 첫 세션' : `세션 ${n.hidden || n.children.length}개`} · 눌러서 주제 허브 보기</title></g>`;
         }
 
         if (n.kind === 'pending') {
@@ -652,6 +819,16 @@ class SessionMindMap {
     // 클릭
     // ---------------------------------------------------------------------
     // 폴더의 + 버튼 (onAddSession 이 있을 때만)
+    /** 접기·펼치기 단추: 접혀 있으면 "▸ 숨은 수", 펼쳐 있으면 "▾" */
+    _foldChip(x, y, n, what) {
+        if (!n.hidden && !n.children.length) return '';
+        const esc = SessionMindMap._esc;
+        const text = n.hidden ? `▸ ${n.hidden}` : '▾';
+        const w = n.hidden ? SessionMindMap._textWidth(text, 10.5) + 12 : 20;
+        return `<g class="smm-fold${n.hidden ? ' smm-folded' : ''}" data-fold="${esc(n.key)}" transform="translate(${x},${y})" role="button" aria-label="${n.hidden ? `${what} ${n.hidden}개 펼치기` : '접기'}">
+            <rect x="${-w / 2}" y="-8" width="${w}" height="16" rx="8" stroke="${n.color}"/><text text-anchor="middle" dy="3.5">${text}</text><title>${n.hidden ? `${what} ${n.hidden}개 펼치기` : '접기'}</title></g>`;
+    }
+
     _addButton(x, y, root, color, meta = {}) {
         if (!this.onAddSession) return '';
         const esc = SessionMindMap._esc;
@@ -661,10 +838,10 @@ class SessionMindMap {
     }
 
     // ---------------------------------------------------------------------
-    // 세션 끌어다 놓기: 다른 세션 위 = 그 아래로 붙이기, 폴더 위 = 그 폴더로 (다른 폴더면 복사), 빈 곳 = 떼기
+    // 노드 끌기: 아무 노드나 끌어서 원하는 자리에 둔다 (그 아래 노드도 같이 따라온다, 보기마다 기억)
+    // 세션은 다른 세션 위 = 그 아래로 붙이기, 가지 위 = 그 가지로, 폴더 위 = 폴더 바로 아래로 (다른 폴더면 복사)
     // ---------------------------------------------------------------------
     _bindDrag() {
-        if (!this.onDropSession) return;
         const ghost = document.createElement('div');
         ghost.className = 'smm-ghost';
         ghost.hidden = true;
@@ -676,37 +853,50 @@ class SessionMindMap {
             return g && this.byKey.get(g.dataset.key) || null;
         };
         const clear = () => this.gNodes.querySelectorAll('.smm-drop-ok, .smm-drop-no').forEach(el => el.classList.remove('smm-drop-ok', 'smm-drop-no'));
+        const subtree = n => { const out = [n]; for (let i = 0; i < out.length; i++) out.push(...out[i].children); return out; };
 
         this.svg.addEventListener('pointerdown', e => {
-            if (e.button !== 0 || e.target.closest('.smm-add')) return;
-            const g = e.target.closest('.smm-session');
-            if (!g) return;
+            if (e.button !== 0 || e.target.closest('.smm-add, .smm-fold')) return;
+            const g = e.target.closest('.smm-node');
+            if (!g || g.dataset.key === 'root') return;
             const n = this.byKey.get(g.dataset.key);
-            if (!n || n.related || n.data.remote) return; // "같은 파일을 고친 세션"·다른 기기 세션은 끌지 않는다
-            d = { n, x: e.clientX, y: e.clientY, started: false, id: e.pointerId };
+            if (!n) return;
+            // 붙이기는 이 기기의 진짜 세션만 ("같은 파일을 고친 세션"·다른 기기 세션은 자리만 옮긴다)
+            const linkable = !!this.onDropSession && n.kind === 'session' && !n.related && !n.data.remote;
+            d = { n, linkable, x: e.clientX, y: e.clientY, started: false, id: e.pointerId };
         });
         window.addEventListener('pointermove', e => {
             if (!d || e.pointerId !== d.id) return;
             if (!d.started) {
                 if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 7) return;
                 d.started = true;
-                ghost.textContent = d.n.label;
-                ghost.hidden = false;
+                d.moving = subtree(d.n).map(m => ({ m, x: m.x, y: m.y, g: this.gNodes.querySelector(`[data-key="${CSS.escape(m.key)}"]`) }));
+                d.moving.forEach(o => o.g && o.g.classList.add('smm-moving'));
                 this.svg.classList.add('smm-dragging');
+                if (this.info) this.info.hidden = true;
             }
-            const rect = this.container.getBoundingClientRect();
-            ghost.style.left = (e.clientX - rect.left + 12) + 'px';
-            ghost.style.top = (e.clientY - rect.top + 10) + 'px';
+            // 화면에서 움직인 만큼 지도 좌표로 옮긴다
+            const dx = (e.clientX - d.x) / this.view.k, dy = (e.clientY - d.y) / this.view.k;
+            for (const o of d.moving) {
+                o.m.x = o.x + dx; o.m.y = o.y + dy; o.m.moved = true;
+                if (o.g) o.g.setAttribute('transform', `translate(${o.m.x.toFixed(1)},${o.m.y.toFixed(1)})`);
+            }
+            this._drawLinks();
+            this.gX.innerHTML = '';
+
             clear();
-            const t = targetAt(e.clientX, e.clientY);
-            d.target = t;
-            if (t && t !== d.n) {
+            const t = d.linkable ? targetAt(e.clientX, e.clientY) : null;
+            d.target = t && t !== d.n && this._dropAllowed(d.n, t) ? t : null;
+            if (d.target) {
                 const g = this.gNodes.querySelector(`[data-key="${CSS.escape(t.key)}"]`);
-                const ok = this._dropAllowed(d.n, t);
-                if (g) g.classList.add(ok ? 'smm-drop-ok' : 'smm-drop-no');
-                ghost.dataset.hint = ok ? this._dropHint(d.n, t) : '여기에는 놓을 수 없어요';
+                if (g) g.classList.add('smm-drop-ok');
+                const rect = this.container.getBoundingClientRect();
+                ghost.textContent = this._dropHint(d.n, t);
+                ghost.style.left = (e.clientX - rect.left + 14) + 'px';
+                ghost.style.top = (e.clientY - rect.top + 12) + 'px';
+                ghost.hidden = false;
             } else {
-                ghost.dataset.hint = d.n.data.parentId ? '빈 곳에 놓으면 떼어내요' : '';
+                ghost.hidden = true;
             }
         });
         window.addEventListener('pointerup', e => {
@@ -719,9 +909,33 @@ class SessionMindMap {
             clear();
             this._suppressClick = true;
             setTimeout(() => { this._suppressClick = false; }, 0);
-            const t = drag.target && drag.target !== drag.n ? drag.target : null;
-            if (t && !this._dropAllowed(drag.n, t)) return;
-            this.onDropSession(drag.n, t);
+            if (drag.target) {
+                // 붙이기: 자리는 그대로 두고 (다시 그리면 원래 자리) 허브에 맡긴다
+                this.render();
+                this.onDropSession(drag.n, drag.target);
+                return;
+            }
+            // 자리 옮기기: 놓은 노드를 그 자리에 고정. 그 아래에 고정해 둔 노드도 같이 옮긴다
+            const vk = this._viewKey();
+            const pins = this.pins[vk] || (this.pins[vk] = {});
+            const ddx = drag.n.x - drag.moving[0].x, ddy = drag.n.y - drag.moving[0].y;
+            for (const o of drag.moving.slice(1)) {
+                const p = pins[o.m.key];
+                if (p) pins[o.m.key] = [p[0] + ddx, p[1] + ddy];
+            }
+            pins[drag.n.key] = [Math.round(drag.n.x), Math.round(drag.n.y)];
+            this._savePins();
+            this.render();
+            this._drawSelection();
+        });
+        window.addEventListener('pointercancel', e => {
+            if (!d || e.pointerId !== d.id) return;
+            const started = d.started;
+            d = null;
+            ghost.hidden = true;
+            this.svg.classList.remove('smm-dragging');
+            clear();
+            if (started) this.render();
         });
     }
 
@@ -754,6 +968,12 @@ class SessionMindMap {
 
     _onNodeClick(e) {
         if (this._suppressClick) return;
+        const fold = e.target.closest('.smm-fold');
+        if (fold) {
+            e.stopPropagation();
+            this._toggleFold(fold.dataset.fold);
+            return;
+        }
         const add = e.target.closest('.smm-add');
         if (add) {
             e.stopPropagation();
@@ -814,7 +1034,7 @@ class SessionMindMap {
             html = `<h4><i class="smm-swatch" style="background:${n.color}"></i>${esc(p.name)}</h4>
                 <dl><dt>폴더</dt><dd class="smm-mono">${esc(p.root)}</dd>
                 <dt>세션</dt><dd>${p.sessions.length}개 · 마지막 ${SessionMindMap._ago(p.lastAt, now)}</dd>${next}${topics}</dl>
-                <div class="smm-actions"><button class="smm-btn" data-act="toggle-project">${this.collapsed.has(p.root) ? '세션 펼치기' : '세션 접기'}</button></div>`;
+                <div class="smm-actions"><button class="smm-btn" data-act="toggle-project">${n.hidden ? '세션 펼치기' : '세션 접기'}</button></div>`;
         } else if (n.kind === 'session') {
             const s = n.data;
             const files = s.files.map(f => `<li><button class="smm-link-btn" data-act="select-file" data-path="${esc(f.path)}">${esc(f.rel || f.path)}</button><span class="smm-muted"> ${f.edits}</span></li>`).join('');
@@ -869,8 +1089,7 @@ class SessionMindMap {
         if (act === 'toggle-project') {
             const sel = this.byKey.get(this.selected.key);
             const root = sel.data.root;
-            if (this.collapsed.has(root)) this.collapsed.delete(root); else this.collapsed.add(root);
-            this._fitPending = true;
+            this.fold.set(`p:${root}`, !!sel.hidden);
             this.render();
             this._showInfo(this.byKey.get(`p:${root}`));
         }
@@ -992,11 +1211,11 @@ class SessionMindMap {
         const rect = this.svg.getBoundingClientRect();
         if (!rect.width || !rect.height || !this.nodes.length) return;
         this._fitPending = false;
-        const pad = 150; // 라벨 자리
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
         for (const n of this.nodes) {
-            x0 = Math.min(x0, n.x - pad); x1 = Math.max(x1, n.x + pad);
-            y0 = Math.min(y0, n.y - 30); y1 = Math.max(y1, n.y + 30);
+            const b = this._box(n); // 카드·꼬리표까지 다 들어오게
+            x0 = Math.min(x0, n.x + b[0] - 16); x1 = Math.max(x1, n.x + b[1] + 16);
+            y0 = Math.min(y0, n.y + b[2] - 12); y1 = Math.max(y1, n.y + b[3] + 12);
         }
         const top = this._toolbarBottom(), bottom = 36; // 도구 막대, 범례
         const h = rect.height - top - bottom;
@@ -1065,6 +1284,14 @@ class SessionMindMap {
     // ---------------------------------------------------------------------
     // 도우미
     // ---------------------------------------------------------------------
+    // 자리를 옮긴 노드는 부드러운 S 곡선, 나머지는 방사형 곡선
+    static _link(a, b) {
+        if (!b.moved) return SessionMindMap._radialLink(a, b);
+        const ax = a.depth === 0 ? 0 : a.x, ay = a.depth === 0 ? 0 : a.y;
+        const mx = (ax + b.x) / 2;
+        return `M${ax.toFixed(1)},${ay.toFixed(1)}C${mx.toFixed(1)},${ay.toFixed(1)} ${mx.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+    }
+
     static _radialLink(a, b) {
         const mid = (a.r + b.r) / 2;
         const c1x = mid * Math.cos(a.angle), c1y = mid * Math.sin(a.angle);
@@ -1224,7 +1451,14 @@ class SessionMindMap {
           padding:5px 10px; font-size:12px; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; box-shadow:0 8px 20px rgba(0,0,0,.4); }
         .smm-ghost[data-hint]:not([data-hint=""])::after { content:attr(data-hint); display:block; color:var(--smm-accent); font-size:11px; margin-top:2px; }
         .smm-dragging { cursor:grabbing; }
-        .smm-dragging .smm-session:not(.smm-drop-ok) { opacity:.75; }
+        .smm-dragging .smm-node:not(.smm-drop-ok):not(.smm-moving) { opacity:.75; }
+        .smm-node:not(.smm-root-node) { cursor:grab; }
+        .smm-moving { pointer-events:none; opacity:.9; }
+        .smm-fold { cursor:pointer; }
+        .smm-fold rect { fill:var(--smm-panel); stroke-width:1.2; }
+        .smm-fold text { fill:var(--smm-ink); font-size:10.5px; font-weight:600; }
+        .smm-fold:hover rect { fill:var(--smm-accent); stroke:var(--smm-accent); }
+        .smm-fold:hover text { fill:#0b1512; }
         .smm-drop-ok .smm-card, .smm-drop-ok .smm-folder, .smm-drop-ok .smm-core { stroke:var(--smm-working) !important; stroke-width:3 !important; stroke-dasharray:none !important; filter:drop-shadow(0 0 6px var(--smm-working)); }
         .smm-drop-no { opacity:.4; }
         .smm-session { cursor:grab; }

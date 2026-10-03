@@ -11,11 +11,14 @@ hub_task: NEXT 000000 맥 실측 → 버그 수정 → PR #1 머지
 2. 클라우드 xvfb 에서 앱 실행, 이번엔 이 컨테이너의 진짜 Claude Code 기록으로 봄
 3. 버그: claude-opus-5-5 세션(약 11.6만 토큰)이 56% 로 나옴. 실제 창은 100만 (맥 세션 context_usage.max_tokens=1000000) [확인]
 4. 고침: SessionMindMap.contextWindow(model, tokens) — [1m] 또는 claude-*-5 계열 = 100만, 아니면 20만 → 12% 로 나옴 [확인 클라우드]
+5. 마인드맵: 처음엔 폴더만(▸ N 으로 펼침) · 가지 접기 · 겹침 풀기(SessionMindMap.spread, _box) · 아무 노드나 끌어 옮기기(보기마다 smm.pins) · 자리 되돌리기 [확인 클라우드: 가짜 폴더 14개·세션 56개, 다 펼쳐도 겹침 0]
+   - 세션을 빈 곳에 놓으면 이제 "떼기"가 아니라 자리 옮기기. 떼기는 폴더 위에 놓기
 
 ## GOTCHAS
 - [확인] 클라우드 npm install 은 electron 다운로드가 프록시에서 끊김 → npm install --ignore-scripts 후 GitHub 릴리스 zip 을 node_modules/electron/dist 에 풀고 path.txt=electron
 - [가설] Claude 5 계열 중 opus 외(sonnet·fable)도 100만 창이라고 봄
 
 ## NEXT
+- 맥에서 마인드맵 끌기·접기 손으로 확인 (클라우드는 sendInputEvent 로만 봄)
 - NEXT 000000 맥 세션에서 "해줘" → 진짜 claude 답 길이, 분량 % 가 Claude Code 표시와 맞는지, 툰 → 이어가기 → 줄기, iCloud machines/*.json
 - NEXT 000001 맥 실측 통과 후 PR #1 ready → main 머지

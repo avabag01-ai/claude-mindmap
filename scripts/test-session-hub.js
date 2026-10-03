@@ -91,4 +91,17 @@ assert.deepStrictEqual(lt.loose.map(r => r.s.id), ['loose']);
 lt = SessionHub.listTree(lp, lsess, new Set(['/r::e3']), true);
 assert.deepStrictEqual(lt.branches.find(b => b.topic === 'eye').rows.map(r => [r.s.id, r.isPrev]), [['e3', false], ['e2', true], ['e1', true], ['k', false]], '펼치면 최근 앞 세션부터');
 assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
+// 겹침 풀기: 겹친 두 노드는 떨어지고, 고정 노드(가운데·끌어다 놓은 노드)는 안 움직인다
+{
+    const box = [-50, 50, -15, 15];
+    const fixed = { x: 0, y: 0, fixed: true }, a = { x: 10, y: 5 }, b = { x: 20, y: 8 };
+    const left = SMM.spread([{ n: fixed, box }, { n: a, box }, { n: b, box }]);
+    assert.strictEqual(left, 0, '겹침이 다 풀림');
+    assert.deepStrictEqual([fixed.x, fixed.y], [0, 0], '고정 노드는 그대로');
+    const apart = (p, q) => Math.abs(p.x - q.x) >= 100 || Math.abs(p.y - q.y) >= 30;
+    assert.ok(apart(fixed, a) && apart(fixed, b) && apart(a, b));
+    const far = { x: 500, y: 0 };
+    SMM.spread([{ n: { x: 0, y: 0 }, box }, { n: far, box }]);
+    assert.deepStrictEqual([far.x, far.y], [500, 0], '안 겹치면 안 움직임');
+}
 console.log('SessionHub: 모든 테스트 통과');
