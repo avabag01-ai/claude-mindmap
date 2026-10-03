@@ -1,7 +1,8 @@
 ## TOPIC_HUB v3.1
 topic: claude-mindmap
 title: 전체 (관제)
-latest_session: .toon/claude-mindmap/SESSION_20261003b.toon
+latest_session: .toon/claude-mindmap/SESSION_20261004.toon
+updated: 2026-10-04
 
 ## DECISIONS
 - [확인] 가로 세 칸: 왼쪽 탭 | 마인드맵 | 대화창. 보내기 = claude -p --resume <id> --output-format stream-json
@@ -13,7 +14,11 @@ latest_session: .toon/claude-mindmap/SESSION_20261003b.toon
 - [확인] 사용량 막대: api.anthropic.com/api/oauth/usage (키체인 Claude Code 로그인, 비공개 API → 바뀌면 "알 수 없음")
 - [확인] 브라우저 읽기 = 전문(최대 2만 자) 한 번 보내고 세션이 툰 요약
 - [확인] gh 목록은 REST(gh api) — GraphQL 막힌 곳에서도 동작
-- [가설] 기기 간 세션 공유 = iCloud Drive/FlowCode/machines/<기기>.json (대화 내용 없이 목록만)
+- [확인 10-03 맥] 기기 간 세션 공유 = iCloud Drive/ClaudeMindmap/machines/<기기>.json (10-04 FlowCode 에서 이름 바꿈)
+- 2026-10-04 [확인] 본판 = Tauri v2 + Rust(src-tauri, src/core 1:1 이식, main.js → handlers.rs). 화면 코드는 그대로. Electron(npm start) 도 남김. /Applications 에 Tauri 판 6 MB (SESSION_20261004)
+- 2026-10-04 [확인] flowcode 에서 독립: 설정 ~/.claude-mindmap, MINDMAP_* 환경변수, MCP mindmap-browser, flowcode PR #1 닫음
+- 2026-10-04 [확인] 다른 폴더로 = 이동(id 그대로, 작업 중 10분 거절) 또는 복사. 왼쪽 목록에서도 끌기
+- 2026-10-04 사이드바 그룹 → 폴더 보이기는 안 함(사용자가 실제 폴더 쓰기로)
 
 ## OPEN
 - 기기·git 표시: [연결됨 10-03] 맥·iCloud 실측 전
@@ -33,11 +38,13 @@ latest_session: .toon/claude-mindmap/SESSION_20261003b.toon
   - 캐시 종류도 기록에 있음 (cache_creation.ephemeral_1h / 5m) → 세션마다 진짜 캐시 시간으로 타이머
   - 깜박 조건: 80% 넘음, 또는 50% 넘은 큰 세션 + 캐시 끝나기 5분 전(5분 캐시면 1분 전). 작은 세션은 안 깜박
   - 표시: 카드 아래 막대, 목록 %, 대화창 막대 + "툰 할 때 · …"
-- 맥 실측 전: 진짜 claude 보내기·툰 저장·복사한 세션 --resume, 키체인 암호화, 사용량 API, 크롬·사파리 애플스크립트
-- flowcode PR #1(claude/session-mindmap)과 이 앱의 관계: 이 앱이 본체, flowcode 쪽은 정리 필요
+- Tauri 판 손 시험 전: 보내기(claude), 툰 이어가기, 비밀 메모(키체인 허용 창), 브라우저 탭, 끌기·이동. Finder 파일 첨부는 Tauri 에서 아직 안 됨
 
 ## NEXT
-- NEXT 000000 맥 실측: 브랜치 claude/epic-clarke-x1kk5z 로 npm install && npm start — 답 길이·분량 %·툰 줄기·iCloud machines (맥 세션 session_019TFMmVP1eJCPQFECsTvuwz 에 전달함, 승인 대기)
-- NEXT 000001 실측 버그 수정 후 PR #1 ready → main 머지
-- [완료 10-03] MachineSync 연결 (attachGit → publish/readOthers/merge → 카드 표시 → 테스트)
+- NEXT 000003 MCP: Claude 가 앱을 도구로 조종(세션 목록·보내기·이동) — 완료 = claude mcp 등록 후 도구 호출로 목록 받기
+- NEXT 000004 Tauri 판 손 시험(보내기·툰 이어가기·메모·브라우저·이동) + Finder 파일 끌어다 첨부
 - NEXT 000002 SNS 홍보 스킬 (초안까지 자동, 게시는 사람이 확인)
+- [완료 10-04] PR #1 머지 c38f1f9, flowcode 독립 735ca69, 목록 끌기·이동 49b2ac3, Tauri 이식 + 아이콘 6e78270 (약 19분, 소넷 4개 병렬)
+
+## SESSIONS
+- .toon/claude-mindmap/SESSION_20261004.toon | 2026-10-04 | 맥 하위: NEXT 000000 | 머지·독립·이동·Tauri 이식·/Applications 교체, 메모리 165→115 MB | 6e78270

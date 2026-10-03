@@ -1,0 +1,80 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: claude-mindmap
+session: 맥 하위 세션 — PR #1 머지, flowcode 독립, 목록 끌기·세션 이동, Tauri(Rust) 이식 + /Applications 교체
+hub_task: NEXT 000000 맥 세션 재확인 → PR #1 머지
+prev_session: .toon/claude-mindmap/SESSION_20261003c.toon
+head: 6e78270   dirty: no (package-lock.json 미추적만)
+compression: ~85%
+
+## DICTIONARY
+$A=/Applications/클로드 마인드맵.app
+$T=src-tauri/
+$S=src/modules/SessionHub.js
+$I=src/core/SessionIndexer.js
+
+## STANDING_CONSTRAINTS
+- see HUB
+
+## STATE
+### goal
+앱을 flowcode 에서 떼어 독립시키고, 가볍게(Tauri/Rust) 만들어 /Applications 에 설치.
+
+### architecture
+- [변경][확인] 본판 = Tauri v2 + Rust ($T). 화면(index.html, src/modules/*)은 그대로, scripts/web-sync.js 가 $T/web-dist 로 복사하며 tauriIpc.js 를 끼움(window.ipcRenderer = invoke('ipc_send') + 같은 이름 이벤트).
+- [확인] Rust 모듈 = src/core/*.js 1:1 ($T/src: session_indexer·machine_sync·usage_meter·git_panel·memo_store·claude_runner·browser_bridge·app_dir·login_path), main.js IPC = handlers.rs dispatch.
+- [확인] Electron 판(npm start)도 그대로 돌아감. 브라우저 MCP 는 Node 스크립트 scripts/mindmap-browser-mcp.js (mindmap-browser 로 등록됨).
+- [변경][확인] 설정 ~/.claude-mindmap (처음에 ~/.flowcode 에서 없는 파일만 복사), iCloud Drive/ClaudeMindmap/machines, 환경변수 MINDMAP_*.
+- [확인] 비밀 메모 키 = 키체인 "클로드 마인드맵 Safe Storage"/"클로드 마인드맵 Key" (Electron safeStorage v10 호환, Rust 는 security 로 읽기만).
+- [확인] 세션 다른 폴더로: 이동(id 그대로 기록 파일 옮김, 10분 안 기록이면 거절) / 복사(새 id). Claude 데스크톱 앱은 처음 연 폴더를 기억해서 이동 후엔 새 폴더에서 다시 열어야 함.
+
+### changes_this_session
+- PR #1 ready → 머지 c38f1f9 (맥 재확인 결과는 PR 댓글, loginPath -ilc e9525d5)
+- 735ca69 독립: appDir.js, iCloud ClaudeMindmap, FLOWCODE_*→MINDMAP_*, MCP mindmap-browser. flowcode PR #1 은 사용자가 닫음
+- f4c27e0 왼쪽 목록 끌기(세션·가지·폴더 위, 다른 폴더면 묻기) / be07965 테스트가 실제 folders.json 안 읽게
+- 49b2ac3 세션 이동(moveSession, sessions:move, 확인창 이동·복사·취소)
+- a0c1ac3..d1755e5 Tauri 뼈대 + 소넷 4개 병렬 이식(rs-a..d) + handlers.rs, 6e78270 아이콘($T/icon.svg: 주황 햇살 + 8가지)
+- $A 를 Electron 링크판 → Tauri 빌드로 교체 (6.2 MB)
+
+### results
+- [확인] npm test 8개 통과(Electron 판), cargo test --lib 28개 통과
+- [확인] 실제 세션 38폴더 index: JS vs Rust diff = costUSD 소수 끝자리 10곳만(더하는 순서)
+- [확인] 시간: 뼈대 07:46–07:50, 소넷 4개 07:50–08:00(B·C·D 5분, A 10분), 합치기·빌드 ~08:05 → 약 19분
+- [확인] 메모리(새로 띄우고 25초, footprint 합): Electron ~165 MB / Tauri ~115 MB. RSS 합 545 / 416 MB. 앱 260 MB / 6 MB
+- [확인] index 시간: Node 3.4 s, Rust release 2.4–3.2 s (debug 14 s)
+- [확인] Tauri 앱 화면에 세션 목록·마인드맵·사용량 막대 나옴(스크린샷)
+
+### rejected
+- 사이드바 그룹(데스크톱 앱 claude_desktop_config.json dframe-group-scopes)을 폴더처럼 보이기 — 사용자가 실제 폴더 쓰기로 함. 초안은 커밋 안 함
+- Tauri 껍데기 + Node 뒷단(웹소켓) — 사용자가 Rust 전부 이식(1번) 선택, 에이전트 중단
+
+### open_issues
+- [가설] Tauri 판에서 안 눌러 본 것: 메시지 보내기(claude 실행), 비밀 메모(키체인 허용 창 뜰 수 있음), 브라우저 탭, 끌어 옮기기·이동
+- [확인] Tauri 판은 Finder 파일 끌어다 첨부 안 됨 (dragDropEnabled false, webUtils 없음)
+- [확인] Rust 날짜 파싱은 오프셋 없는 문자열을 UTC 로 봄(JS 는 로컬) — Claude 기록은 항상 Z
+- 자세히 모드도 답이 짧음 — 전역 CLAUDE.md "짧게" 가 이기는 듯 [가설]
+
+### next_action
+1. MCP: 앱을 Claude 가 도구로 조종(세션 목록·보내기·이동 등) — 새 세션에서. 완료 = claude mcp 등록 후 도구 호출로 목록 받기
+2. Tauri 판 손 시험: 보내기·툰 이어가기·메모·브라우저·이동 — 각각 화면에서 한 번
+3. Finder 파일 끌어다 첨부를 Tauri 드래그 이벤트로
+
+## ARTIFACTS
+- $T/examples/dispatch_dump.rs — 핸들러 하나 불러 답 출력 — 실행: cd $T && cargo run --release --example dispatch_dump -- sessions:index null
+- $T/examples/{index_dump,parity_b,parity,run_claude,browser_dump}.rs — 모듈별 JS 대조
+- 빌드·설치: npm run tauri:build -- --bundles app → rm -rf "$A" && cp -R $T/target/release/bundle/macos/클로드\ 마인드맵.app /Applications/
+
+## VERIFY_ON_LOAD
+- `git -C ~/claude-mindmap log --oneline -1` → 6e78270 (또는 그 뒤)
+- `ls "/Applications/클로드 마인드맵.app/Contents/MacOS/"` → claude-mindmap (Tauri 판)
+- `cd ~/claude-mindmap/src-tauri && cargo test --lib 2>&1 | grep "test result"` → 28 passed
+- `claude mcp get mindmap-browser | grep Args` → .../claude-mindmap/scripts/mindmap-browser-mcp.js
