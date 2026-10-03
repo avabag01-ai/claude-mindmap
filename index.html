@@ -49,6 +49,20 @@
         .hub-dot.hub-recent { background: var(--c); }
         .hub-dot.hub-working { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(78, 201, 176, .25); }
         .hub-group { margin-bottom: 8px; position: relative; }
+        .hub-branch { margin: 2px 0 4px; }
+        .hub-topic-row { display: flex; align-items: center; gap: 4px; padding-left: 10px; }
+        .hub-topic { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; background: transparent; border: 0; padding: 4px 6px; border-radius: 6px; cursor: pointer;
+          color: var(--ink); font-size: 12px; font-weight: 700; text-align: left; }
+        .hub-topic::before { content: ""; width: 8px; height: 8px; border-radius: 4px; border: 2px solid var(--accent); }
+        .hub-topic:hover, .hub-topic.is-on { background: var(--panel); }
+        .hub-topic-add { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; margin-right: 34px; }
+        .hub-topic-add:hover { background: var(--accent); color: #0b1512; border-color: var(--accent); }
+        .hub-loose { color: var(--muted); font-size: 11px; padding: 6px 16px 2px; }
+        .hub-empty-branches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--muted); font-size: 11px; padding: 6px 10px 2px 16px; }
+        .hub-chip-btn { width: auto; height: auto; margin: 0; border-radius: 999px; border-style: dashed; padding: 1px 8px; font-size: 11px; }
+        .hub-chain-toggle { margin-right: 6px; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; font-weight: 600; white-space: nowrap; }
+        .hub-chain-toggle:hover { color: var(--ink); border-color: var(--muted); }
+        .hub-item.is-prev { opacity: .75; }
         .hub-add { position: absolute; top: 5px; right: 34px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line);
             background: var(--panel-2); cursor: pointer; line-height: 1; font-size: 16px; padding: 0; }
         .hub-add:hover { background: var(--accent); color: #0b1512; border-color: var(--accent); }
@@ -277,7 +291,7 @@
                 <div class="row"><h2>세션</h2><button class="btn" id="hub-refresh" title="세션 기록 다시 읽기">새로고침</button><button class="btn btn-primary" id="hub-new">새 세션</button></div>
                 <input type="search" id="hub-search" placeholder="세션 찾기" aria-label="세션 찾기">
                 <div class="hub-group-toggle" role="group" aria-label="목록 묶기">
-                    <button data-group="recent" aria-pressed="true">최근</button><button data-group="folder" aria-pressed="false">폴더별</button>
+                    <button data-group="folder" aria-pressed="true">폴더·가지</button><button data-group="recent" aria-pressed="false">최근</button>
                 </div>
             </div>
             <div id="hub-list-body"><p class="hub-empty">세션 기록 읽는 중…</p></div>

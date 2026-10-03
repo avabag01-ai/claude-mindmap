@@ -62,4 +62,22 @@ assert.deepStrictEqual([...ch.heads.keys()].sort(), ['c', 'x', 'y'], '맨 끝 �
 assert.deepStrictEqual(ch.heads.get('c').map(s => s.id), ['a', 'b'], '앞 세션은 오래된 것부터');
 assert.strictEqual(ch.headOf.get('a'), 'c');
 assert.strictEqual(SessionHub.topicOf('툰 불러와 — root: /a, topic: mindmap, hub_task: x'), 'mindmap');
+// 왼쪽 목록 묶기: 가지 → 줄기 맨 끝(이전 N) → 하위 세션, 빈 가지는 따로
+global.SessionMindMap.chains = SMM.chains;
+const ss = (id, lastAt, extra = {}) => ({ id, lastAt, ...extra });
+const lp = { root: '/r', hub: { topics: ['eye', 'ear'], titles: { eye: '눈', ear: '귀' } } };
+const lsess = [
+    ss('e1', 1, { topic: 'eye' }), ss('e2', 2, { topic: 'eye', prevId: 'e1' }), ss('e3', 3, { topic: 'eye', prevId: 'e2' }),
+    ss('k', 4, { topic: 'eye', parentId: 'e1' }), ss('loose', 5), ss('other', 6, { topic: 'hand' })
+];
+let lt = SessionHub.listTree(lp, lsess);
+assert.deepStrictEqual(lt.branches.map(b => [b.topic, b.title, b.rows.map(r => [r.s.id, r.depth, r.prevCount, r.isPrev])]), [
+    ['hand', 'hand', [['other', 1, 0, false]]],
+    ['eye', '눈', [['e3', 1, 2, false], ['k', 2, 0, false]]]
+], '줄기 앞 세션은 접고, 접힌 세션의 하위 세션은 맨 끝 아래로, 최근 가지 먼저');
+assert.deepStrictEqual(lt.empty, [{ topic: 'ear', title: '귀' }]);
+assert.deepStrictEqual(lt.loose.map(r => r.s.id), ['loose']);
+lt = SessionHub.listTree(lp, lsess, new Set(['/r::e3']), true);
+assert.deepStrictEqual(lt.branches.find(b => b.topic === 'eye').rows.map(r => [r.s.id, r.isPrev]), [['e3', false], ['e2', true], ['e1', true], ['k', false]], '펼치면 최근 앞 세션부터');
+assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
 console.log('SessionHub: 모든 테스트 통과');

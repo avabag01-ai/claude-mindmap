@@ -23,7 +23,8 @@ class SessionHub {
         this.el = id => document.getElementById(id);
 
         this.data = null;
-        this.group = 'recent';     // recent | folder
+        this.group = 'folder';     // folder(가지·줄기로 묶음) | recent — 고른 것은 기억
+        try { if (localStorage.getItem('hub.group') === 'recent') this.group = 'recent'; } catch { /* 미리보기 */ }
         this.listQuery = '';
         this.center = 'all';       // all | project | session
         this.sel = null;           // { root, id? }
@@ -32,6 +33,7 @@ class SessionHub {
         this.newFolder = null;     // 새 세션을 열 폴더
         this.permission = 'default';
         this.answerMode = SessionHub._loadAnswerMode(); // result | summary | detail
+        this.openChains = new Set();  // 왼쪽 목록에서 "이전 N" 을 펼친 줄기 ("root::맨 끝 id")
         this.toonStart = true;      // 새 세션: 툰 허브를 읽고 시작
         this.newTopic = '';         // 새 세션: 주제 허브
         this.previewTranscripts = options.transcripts || null; // 미리보기: 세션 id → 메시지 목록
@@ -376,14 +378,16 @@ class SessionHub {
         }
         if (!rows.length) { body.innerHTML = `<p class="hub-empty">${q ? '찾는 세션이 없어요' : '아직 세션 기록이 없어요'}</p>`; return; }
 
-        const item = ({ p, s, depth }) => {
+        const item = ({ p, s, depth, prevCount, isPrev }) => {
             const on = this.sel && this.sel.root === p.root && this.sel.id === s.id;
+            const chainKey = `${p.root}::${s.id}`;
+            const chain = prevCount ? `<span class="hub-chain-toggle" role="button" tabindex="0" data-chain="${esc(chainKey)}" title="툰으로 이어진 이전 세션">${this.openChains.has(chainKey) ? '▾' : '▸'} 이전 ${prevCount}</span>` : '';
             const alarm = SessionMindMap.alarm(s, now);
             const ctx = SessionMindMap.contextInfo(s);
-            return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
+            return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}${isPrev ? ' is-prev' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
-                <span class="hub-item-title">${esc(s.title)}</span>
-                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
+                <span class="hub-item-title">${isPrev ? '↑ ' : ''}${esc(s.title)}</span>
+                <span class="hub-item-sub">${chain}${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
             </button>`;
         };
 
@@ -392,22 +396,23 @@ class SessionHub {
             const byRoot = new Map();
             rows.forEach(r => { if (!byRoot.has(r.p)) byRoot.set(r.p, []); byRoot.get(r.p).push(r); });
             for (const [p, flat] of byRoot) {
-                // 하위 세션은 부모 바로 아래, 들여쓰기
-                const ids = new Set(flat.map(r => r.s.id));
-                const kids = new Map();
-                const roots = [];
-                flat.forEach(r => {
-                    const pid = r.s.parentId && ids.has(r.s.parentId) ? r.s.parentId : null;
-                    if (pid) { if (!kids.has(pid)) kids.set(pid, []); kids.get(pid).push(r); } else roots.push(r);
-                });
-                const list = [];
-                const walk = (r, depth) => { list.push({ ...r, depth }); (kids.get(r.s.id) || []).forEach(k => walk(k, depth + 1)); };
-                roots.forEach(r => walk(r, 0));
                 const on = this.sel && this.sel.root === p.root && !this.sel.id;
+                const { branches, loose, empty, count } = SessionHub.listTree(p, flat.map(r => r.s), this.openChains, !!q);
+                const rowsHtml = list => list.map(x => item({ p, ...x })).join('');
+                let body = '';
+                for (const b of branches) {
+                    const tOn = this.hubView && this.hubView.root === p.root && this.hubView.topic === b.topic;
+                    body += `<div class="hub-branch">
+                        <div class="hub-topic-row"><button class="hub-topic${tOn ? ' is-on' : ''}" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 주제 허브 보기">${esc(b.title)}<span class="hub-count">${b.count}</span></button>
+                        <button class="hub-topic-add" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 가지에 새 세션" aria-label="${esc(b.title)} 가지에 새 세션">+</button></div>
+                        ${rowsHtml(b.rows)}</div>`;
+                }
+                if (loose.length) body += `${branches.length ? '<div class="hub-loose">가지 없음</div>' : ''}${rowsHtml(loose)}`;
+                if (empty.length) body += `<div class="hub-empty-branches">빈 가지 ${empty.map(b => `<button class="hub-topic-add hub-chip-btn" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 가지에 첫 세션">${esc(b.title)} +</button>`).join('')}</div>`;
                 html += `<div class="hub-group">
                     <button class="hub-folder${on ? ' is-on' : ''}" data-folder="${esc(p.root)}" title="${esc(p.root)}">
-                      <i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${list.length}</span>
-                    </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${list.map(item).join('')}</div>`;
+                      <i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${count}</span>
+                    </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${body}</div>`;
             }
         } else {
             const day = 864e5;
@@ -623,6 +628,44 @@ class SessionHub {
             this._cacheSig = sig;
             if (!first) { this._renderList(); this.map.render(); }
         }
+    }
+
+    /**
+     * 왼쪽 목록(폴더별): 가지 → 줄기 맨 끝 세션(이전 N, 펼치면 앞 세션) → 하위 세션
+     * @returns {{ branches: [{topic, title, count, rows}], loose: rows, empty: [{topic, title}], count }}
+     *   rows = [{ s, depth, prevCount, isPrev }]
+     */
+    static listTree(p, sessions, openChains = new Set(), searching = false) {
+        const { heads, headOf } = SessionMindMap.chains(sessions);
+        const byTime = list => [...list].sort((a, b) => b.lastAt - a.lastAt);
+        const headIds = new Set(heads.keys());
+        const kids = new Map();
+        const top = [];
+        for (const s of byTime(sessions.filter(x => headIds.has(x.id)))) {
+            const pid = s.parentId && (headOf.get(s.parentId) || s.parentId);
+            if (pid && pid !== s.id && headIds.has(pid)) { if (!kids.has(pid)) kids.set(pid, []); kids.get(pid).push(s); } else top.push(s);
+        }
+        const walk = (s, depth, out) => {
+            const prev = heads.get(s.id) || [];
+            out.push({ s, depth, prevCount: prev.length, isPrev: false });
+            if (prev.length && openChains.has(`${p.root}::${s.id}`)) [...prev].reverse().forEach(x => out.push({ s: x, depth: depth + 1, prevCount: 0, isPrev: true }));
+            (kids.get(s.id) || []).forEach(k => walk(k, depth + 1, out));
+            return out;
+        };
+        const hub = p.hub || { topics: [], titles: {} };
+        const names = [...new Set([...(hub.topics || []), ...top.map(s => s.topic).filter(Boolean)])];
+        const title = t => (hub.titles || {})[t] || t;
+        const branches = [], empty = [], loose = [];
+        for (const t of names) {
+            const mine = top.filter(s => s.topic === t);
+            if (!mine.length) { if (!searching) empty.push({ topic: t, title: title(t) }); continue; }
+            const rows = [];
+            mine.forEach(s => walk(s, 1, rows));
+            branches.push({ topic: t, title: title(t), count: rows.filter(r => !r.isPrev).length, rows, lastAt: mine[0].lastAt });
+        }
+        branches.sort((a, b) => b.lastAt - a.lastAt);
+        top.filter(s => !s.topic || !names.includes(s.topic)).forEach(s => walk(s, 0, loose));
+        return { branches, loose, empty, count: sessions.length };
     }
 
     /** 답 길이 버튼: 결과만 / 요약 / 자세히 (기억해 둔다) */
@@ -962,14 +1005,26 @@ class SessionHub {
         this.el('hub-list-body').addEventListener('click', e => {
             const add = e.target.closest('.hub-add');
             if (add) return this.newSessionIn(add.dataset.add);
+            const chain = e.target.closest('.hub-chain-toggle');
+            if (chain) {
+                e.stopPropagation();
+                if (this.openChains.has(chain.dataset.chain)) this.openChains.delete(chain.dataset.chain); else this.openChains.add(chain.dataset.chain);
+                return this._renderList();
+            }
+            const tAdd = e.target.closest('.hub-topic-add');
+            if (tAdd) return this.newSessionIn(tAdd.dataset.root, { topic: tAdd.dataset.topic });
+            const topic = e.target.closest('.hub-topic');
+            if (topic) return this.showHub(topic.dataset.root, topic.dataset.topic);
             const it = e.target.closest('.hub-item');
             if (it) return this.selectSession(it.dataset.root, it.dataset.id);
             const f = e.target.closest('.hub-folder');
             if (f) this.selectFolder(f.dataset.folder);
         });
         this.el('hub-search').addEventListener('input', e => { this.listQuery = e.target.value.trim().toLowerCase(); this._renderList(); });
+        document.querySelectorAll('.hub-group-toggle button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.group === this.group)));
         document.querySelectorAll('.hub-group-toggle button').forEach(b => b.addEventListener('click', () => {
             this.group = b.dataset.group;
+            try { localStorage.setItem('hub.group', this.group); } catch { /* 미리보기 */ }
             document.querySelectorAll('.hub-group-toggle button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
             this._renderList();
         }));

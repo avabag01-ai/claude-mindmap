@@ -21,4 +21,4 @@ files: src/modules/SessionHub.js(toonAndContinue·_toonNext·toonStartPrompt) ·
 
 ## NEXT
 - NEXT 000000 맥에서 툰 → 이어가기 → 줄기 연결 실측 (가짜 claude 는 기록 파일을 안 써서 끝까지는 못 봄)
-- NEXT 000001 왼쪽 목록도 가지·줄기로 묶기 (지금은 지도만)
+- [완료 10-03] 왼쪽 목록도 가지·줄기로 묶기 (폴더·가지 보기가 기본, 고른 보기는 기억)
