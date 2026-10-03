@@ -191,7 +191,13 @@ class SessionHub {
             this.ipc.on('sessions:hub-result', (e, r) => this._onHub(r));
             this.ipc.on('sessions:changed', (e, r) => this._onChanged(r));
             this.ipc.on('usage:result', (e, r) => { this.usage = r; this._renderUsage(); });
-            this.ipc.on('sessions:pick-folder-result', (e, r) => { if (r && r.path) { this.newFolder = r.path; this._renderChat(); } });
+            // 고른(또는 새로 만든) 폴더: 목록을 다시 읽어 폴더가 보이게 하고 그 폴더에 새 세션 자리를 연다
+            this.ipc.on('sessions:pick-folder-result', (e, r) => {
+                if (!r || !r.path) return;
+                this.newFolder = r.path;
+                this._afterIndex = () => this.newSessionIn(r.path);
+                this.refresh();
+            });
             this.refresh();
             this._poll = setInterval(() => this._pollTranscript(), 4000);
             // 사용량: 2분마다, 창으로 돌아올 때, 보내기가 끝날 때
@@ -376,7 +382,9 @@ class SessionHub {
                 rows.push({ p, s });
             }
         }
-        if (!rows.length) { body.innerHTML = `<p class="hub-empty">${q ? '찾는 세션이 없어요' : '아직 세션 기록이 없어요'}</p>`; return; }
+        // 폴더별 보기에서는 세션이 없는 폴더(새로 더한 폴더)도 보인다
+        const emptyFolders = this.group === 'folder' ? this.data.projects.filter(p => !p.sessions.length && !p.remoteOnly && (!q || p.name.toLowerCase().includes(q))) : [];
+        if (!rows.length && !emptyFolders.length) { body.innerHTML = `<p class="hub-empty">${q ? '찾는 세션이 없어요' : '아직 세션 기록이 없어요'}</p>`; return; }
 
         const item = ({ p, s, depth, prevCount, isPrev }) => {
             const on = this.sel && this.sel.root === p.root && this.sel.id === s.id;
@@ -394,6 +402,7 @@ class SessionHub {
         let html = '';
         if (this.group === 'folder') {
             const byRoot = new Map();
+            for (const p of this.data.projects) if (emptyFolders.includes(p) || rows.some(r => r.p === p)) byRoot.set(p, []); // 폴더 순서는 최근 순 그대로
             rows.forEach(r => { if (!byRoot.has(r.p)) byRoot.set(r.p, []); byRoot.get(r.p).push(r); });
             for (const [p, flat] of byRoot) {
                 const on = this.sel && this.sel.root === p.root && !this.sel.id;
@@ -519,13 +528,26 @@ class SessionHub {
             html = `<div class="hub-welcome"><p>세션을 고르면 여기서 대화를 보고 이어서 말할 수 있어요.</p>
               <p>보낸 메시지는 그 세션을 <code>claude --resume</code> 으로 이어서 실행해요.</p></div>`;
         }
-        if (this.run && this._runBelongsHere()) html += this._runHtml();
-        // 마지막 답 아래 "자세히": 짧게 받은 답을 다시 풀어 달라고 한다
         const msgs = this.transcript && s && this.transcript.file === s.file ? this.transcript.messages || [] : [];
-        const lastIsAnswer = this.run && this._runBelongsHere() ? this.run.done && !this.run.stopped : msgs.length && msgs[msgs.length - 1].role === 'assistant';
+        // 끝난 실행이 기록 파일에 이미 들어왔으면 실시간 칸은 빼서 같은 답이 두 번 안 보이게
+        const live = this.run && this._runBelongsHere() && !SessionHub.runRecorded(this.run, msgs);
+        if (live) html += this._runHtml();
+        // 마지막 답 아래 "자세히": 짧게 받은 답을 다시 풀어 달라고 한다
+        const lastIsAnswer = live ? this.run.done && !this.run.stopped : msgs.length && msgs[msgs.length - 1].role === 'assistant';
         if (s && !s.remote && this.ipc && lastIsAnswer) html += '<button class="btn hub-more" data-act="more" title="방금 답을 자세히 다시 설명해 달라고 보내요">자세히 설명해 줘</button>';
         box.innerHTML = html || '<p class="hub-empty">첫 메시지를 보내면 새 세션이 시작돼요</p>';
         if (scroll) box.scrollTop = box.scrollHeight;
+    }
+
+    /**
+     * 끝난 실행이 세션 기록에 들어왔는지: 보낸 시각 뒤(5초 여유)의 사람 메시지와 그 뒤 Claude 답이 있으면 들어온 것.
+     * 오류(stderr)가 있으면 기록에 없는 정보라 실시간 칸을 남긴다.
+     */
+    static runRecorded(run, messages) {
+        if (!run || !run.done || !messages || !messages.length) return false;
+        if (run.events.some(e => e.type === 'stderr' && String(e.text || '').trim())) return false;
+        const i = messages.findIndex(m => m.role === 'user' && m.at && m.at >= run.sentAt - 5000);
+        return i >= 0 && messages.slice(i + 1).some(m => m.role === 'assistant');
     }
 
     _runBelongsHere() {
@@ -586,11 +608,12 @@ class SessionHub {
         this.el('hub-input').disabled = !can || running;
         this.el('hub-input').placeholder = !this.ipc ? '미리보기에서는 보낼 수 없어요'
             : s && s.remote ? `${s.machine} 의 세션은 그 기기에서 이어서 말할 수 있어요`
-            : s ? '이 세션에 이어서 말하기 (⌘↩ 보내기)'
+            : s ? `"${SessionMindMap._clip(s.title, 24)}" 에 이어서 말하기 (⌘↩ 보내기)` // 어느 세션으로 가는지 보이게
             : this.newFolder ? (this._newHub() && this.toonStart ? '세션 제목이나 할 일만 쓰세요 · 툰 허브를 읽고 시작해요 (⌘↩)' : '새 세션 첫 메시지 (⌘↩ 보내기)')
             : '왼쪽에서 세션을 고르세요';
         this.el('hub-send').hidden = running;
         this.el('hub-send').disabled = !can;
+        this.el('hub-send').title = s ? `보낼 곳: ${s.title}` : this.newFolder ? `새 세션 · ${this.newFolder}` : '';
         this.el('hub-stop').hidden = !running;
     }
 
@@ -1030,6 +1053,8 @@ class SessionHub {
         }));
         this.el('hub-new').addEventListener('click', () => this.newSession());
         this.el('hub-refresh').addEventListener('click', () => this.refresh());
+        const addFolder = this.el('hub-add-folder');
+        if (addFolder) addFolder.addEventListener('click', () => { if (this.ipc) this.ipc.send('sessions:pick-folder'); });
         if (this.el('hub-usage')) this.el('hub-usage').addEventListener('click', () => { this.usage = null; this._renderUsage(); this.readUsage(); });
         document.querySelectorAll('.hub-seg button').forEach(b => b.addEventListener('click', () => this.setCenter(b.dataset.center)));
         this.el('hub-send').addEventListener('click', () => this.send());

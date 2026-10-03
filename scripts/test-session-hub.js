@@ -91,6 +91,16 @@ assert.deepStrictEqual(lt.loose.map(r => r.s.id), ['loose']);
 lt = SessionHub.listTree(lp, lsess, new Set(['/r::e3']), true);
 assert.deepStrictEqual(lt.branches.find(b => b.topic === 'eye').rows.map(r => [r.s.id, r.isPrev]), [['e3', false], ['e2', true], ['e1', true], ['k', false]], '펼치면 최근 앞 세션부터');
 assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
+// 끝난 실행이 기록에 들어오면 실시간 칸을 뺀다 (같은 답 두 번 안 보이게)
+{
+    const run = { done: true, sentAt: T, events: [{ type: 'assistant' }] };
+    const recorded = [{ role: 'user', at: T - 60000 }, { role: 'assistant', at: T - 50000 }, { role: 'user', at: T + 800 }, { role: 'assistant', at: T + 5000 }];
+    assert.strictEqual(SessionHub.runRecorded(run, recorded), true);
+    assert.strictEqual(SessionHub.runRecorded(run, recorded.slice(0, 3)), false, '답이 아직 기록에 없음');
+    assert.strictEqual(SessionHub.runRecorded(run, recorded.slice(0, 2)), false, '보낸 메시지가 아직 기록에 없음');
+    assert.strictEqual(SessionHub.runRecorded({ ...run, done: false }, recorded), false, '실행 중');
+    assert.strictEqual(SessionHub.runRecorded({ ...run, events: [{ type: 'stderr', text: 'API Error' }] }, recorded), false, '오류는 남김');
+}
 // 겹침 풀기: 겹친 두 노드는 떨어지고, 고정 노드(가운데·끌어다 놓은 노드)는 안 움직인다
 {
     const box = [-50, 50, -15, 15];

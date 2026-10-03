@@ -192,6 +192,27 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     const none = await new SessionIndexer({ claudeDir: path.join(tmp, 'nope') }).index();
     assert.deepStrictEqual(none.projects, []);
 
+    // 더한 폴더: 세션이 없어도 빈 폴더로 나온다. 이미 세션이 있는 폴더는 한 번만, 없어진 폴더는 뺀다
+    {
+        const foldersFile = path.join(tmp, 'folders.json');
+        const fresh = path.join(tmp, '새 폴더');
+        fs.mkdirSync(fresh);
+        const fx = new SessionIndexer({ claudeDir, linksFile: path.join(tmp, 'links2.json'), foldersFile, now: () => NOW });
+        assert.deepStrictEqual(fx.folders(), [], '파일 없으면 빈 목록');
+        fx.addFolder(fresh);
+        fx.addFolder(fresh);
+        fx.addFolder(repo);
+        fx.addFolder(path.join(tmp, 'logic-pro-mcp'));
+        assert.strictEqual(fx.folders().length, 2, '같은 폴더는 한 번만');
+        assert.throws(() => fx.addFolder('relative/dir'));
+        const r = await fx.index();
+        const added = r.projects.find(p => p.root === fresh);
+        assert.ok(added && added.added && added.sessions.length === 0, '세션 없는 새 폴더도 보임');
+        assert.strictEqual(r.projects.filter(p => p.root === repo).length, 1, '세션 있는 폴더는 한 번만');
+        fs.rmSync(fresh, { recursive: true });
+        assert.ok(!(await fx.index()).projects.some(p => p.root === fresh), '지운 폴더는 안 보임');
+    }
+
     fs.rmSync(tmp, { recursive: true, force: true });
     console.log('SessionIndexer: 모든 테스트 통과');
 })().catch(e => {

@@ -416,7 +416,8 @@ class SessionMindMap {
                     s.files.some(f => (f.rel || f.path).toLowerCase().includes(q)) ||
                     p.name.toLowerCase().includes(q);
             });
-            if (!sessions.length && this.pendingRoot !== p.root) return;
+            // 폴더는 기간과 상관없이 늘 보인다 (세션이 없거나 오래된 폴더도). 검색 중에는 맞는 것만
+            if (!sessions.length && q && !p.name.toLowerCase().includes(q) && this.pendingRoot !== p.root) return;
             const pNode = { key: `p:${p.root}`, kind: 'project', label: p.name, data: p, color, total: sessions.length, children: [] };
             this._pendingPlaced = false;
             // 처음에는 폴더만: 폴더 아래(가지·세션)는 접어 두고 ▸ 로 펼친다. 새 세션 자리가 있으면 펼친다
@@ -683,7 +684,7 @@ class SessionMindMap {
         if (n.kind === 'project') {
             const label = SessionMindMap._clip(n.label, 20);
             const w = Math.max(84, W(label, 13) + 30), h = 30;
-            return `<g class="smm-node smm-project" data-key="${esc(n.key)}" ${at} tabindex="0">
+            return `<g class="smm-node smm-project${n.total ? '' : ' smm-project-quiet'}" data-key="${esc(n.key)}" ${at} tabindex="0">
                 ${SessionMindMap._folderShape(w, h, n.color)}
                 <text class="smm-folder-label" text-anchor="middle" dy="7">${esc(label)}</text>
                 ${this._addButton(w / 2 + 16, 2, n.data.root, n.color)}
@@ -1455,6 +1456,7 @@ class SessionMindMap {
         .smm-node:not(.smm-root-node) { cursor:grab; }
         .smm-moving { pointer-events:none; opacity:.9; }
         .smm-fold { cursor:pointer; }
+        .smm-project-quiet .smm-folder { opacity:.55; }
         .smm-fold rect { fill:var(--smm-panel); stroke-width:1.2; }
         .smm-fold text { fill:var(--smm-ink); font-size:10.5px; font-weight:600; }
         .smm-fold:hover rect { fill:var(--smm-accent); stroke:var(--smm-accent); }

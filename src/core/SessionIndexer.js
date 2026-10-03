@@ -53,6 +53,8 @@ class SessionIndexer {
         this.cache = new Map(); // 기록 파일 경로 → { key, session }
         // 세션 묶기(하위 세션) 정보: Claude Code 에는 없는 개념이라 FlowCode 가 따로 저장한다
         this.linksFile = options.linksFile || path.join(os.homedir(), '.flowcode', 'session-links.json');
+        // 사용자가 더한 폴더: 아직 세션이 없어도 목록·지도에 보인다
+        this.foldersFile = options.foldersFile || path.join(os.homedir(), '.flowcode', 'folders.json');
         this.lastSessions = new Map(); // "root::id" → session (마지막 index 결과)
     }
 
@@ -104,10 +106,40 @@ class SessionIndexer {
                 sessions: list
             });
         }
+        // 더해 둔 폴더 중 세션이 아직 없는 것: 빈 폴더로 넣는다 (지운 폴더는 뺀다)
+        for (const dir of this.folders()) {
+            const root = this._projectRoot(dir);
+            if (byRoot.has(root) || projects.some(p => p.root === root)) continue;
+            let st = null;
+            try { st = fs.statSync(root); } catch { continue; }
+            if (!st.isDirectory()) continue;
+            projects.push({ root, name: path.basename(root) || root, lastAt: st.mtimeMs, hub: this._readHub(root), sessions: [], added: true });
+        }
         projects.sort((a, b) => b.lastAt - a.lastAt);
         this.lastRoots = new Set(projects.map(p => p.root));
 
         return { generatedAt: this.now(), claudeDir: this.claudeDir, projects };
+    }
+
+    /** 더해 둔 폴더 목록 */
+    folders() {
+        try {
+            const d = JSON.parse(fs.readFileSync(this.foldersFile, 'utf8'));
+            return Array.isArray(d && d.folders) ? d.folders.filter(f => typeof f === 'string' && path.isAbsolute(f)) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    /** 폴더 더하기 (새로 만든 폴더 등). 이미 있으면 그대로 */
+    addFolder(dir) {
+        if (!dir || !path.isAbsolute(dir)) throw new Error('폴더 경로가 아니에요');
+        if (!fs.statSync(dir).isDirectory()) throw new Error('폴더가 아니에요');
+        const list = this.folders();
+        if (!list.includes(dir)) list.push(dir);
+        fs.mkdirSync(path.dirname(this.foldersFile), { recursive: true });
+        fs.writeFileSync(this.foldersFile, JSON.stringify({ version: 1, folders: list }, null, 2));
+        return this._projectRoot(dir);
     }
 
     // ---------------------------------------------------------------------

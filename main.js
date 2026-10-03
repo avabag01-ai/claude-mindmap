@@ -343,6 +343,10 @@ ipcMain.on('sessions:stop', (event, { runId } = {}) => {
 ipcMain.on('sessions:pick-folder', async (event) => {
     const { dialog } = require('electron');
     const win = BrowserWindow.fromWebContents(event.sender);
-    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: '새 세션을 열 폴더', buttonLabel: '선택' });
-    event.reply('sessions:pick-folder-result', { path: result.canceled ? null : result.filePaths[0] });
+    const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'], title: '폴더 고르기 (새 폴더도 만들 수 있어요)', buttonLabel: '선택' });
+    if (result.canceled) { event.reply('sessions:pick-folder-result', { path: null }); return; }
+    // 고른 폴더는 세션이 아직 없어도 목록·지도에 보이게 기억한다
+    let root = result.filePaths[0];
+    try { root = getSessionIndexer().addFolder(result.filePaths[0]); } catch (error) { console.error('add folder:', error); }
+    event.reply('sessions:pick-folder-result', { path: root });
 });
