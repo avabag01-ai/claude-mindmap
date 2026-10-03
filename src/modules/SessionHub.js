@@ -383,7 +383,7 @@ class SessionHub {
             return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
                 <span class="hub-item-title">${esc(s.title)}</span>
-                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
+                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
             </button>`;
         };
 
@@ -468,6 +468,7 @@ class SessionHub {
                 <span>${esc(p.name)}</span>${s.gitBranch ? `<span class="hub-mono">${esc(s.gitBranch)}</span>` : ''}
                 ${s.git ? `<span class="smm-git-pill smm-git-${s.git}" title="${SessionMindMap.GIT_LONG[s.git]}">${SessionMindMap.GIT[s.git]}</span>` : ''}
                 ${s.costUSD != null ? `<span>$${s.costUSD.toFixed(2)}</span>` : ''}
+                ${s.remote ? '' : `<button class="hub-link" data-act="kind" title="대화 세션 / 코드 세션 바꾸기 (지도 모양이 바뀌어요)">${s.kind === 'chat' ? '대화 → 코드로' : '코드 → 대화로'}</button>`}
                 <button class="hub-link" data-copy="${esc(resume)}" title="${esc(resume)}">${s.remote ? `${esc(s.machine)} 에서 열기 (명령 복사)` : '터미널 명령 복사'}</button></div>
               ${this.ipc && !s.remote ? `<div class="hub-toon-row"><button class="btn hub-toon" data-act="toon-ask"${this.run && !this.run.done ? ' disabled' : ''} title="툰 저장 후 새 세션에서 이어가기">툰 → 이어가기</button></div>` : ''}
               ${this.toonAsk ? `<div class="hub-confirm" role="group" aria-label="툰 저장 후 이어가기 확인">
@@ -989,6 +990,11 @@ class SessionHub {
             const c = e.target.closest('[data-copy]');
             if (c) { this._copy(c.dataset.copy); return; }
             const act = e.target.closest('[data-act]');
+            if (act && act.dataset.act === 'kind') {
+                const s = this._selSession();
+                if (s) this._meta(this.sel.root, s.id, { kind: s.kind === 'chat' ? 'code' : 'chat' }, s.kind === 'chat' ? '코드 세션으로 바꿨어요' : '대화 세션으로 바꿨어요');
+                return;
+            }
             if (act && act.dataset.act === 'toon-ask') { this.toonAsk = true; this._renderChat(); return; }
             if (act && act.dataset.act === 'toon-cancel') { this.toonAsk = false; this._renderChat(); return; }
             if (act && act.dataset.act === 'toon-go') { this.toonAndContinue(); return; }

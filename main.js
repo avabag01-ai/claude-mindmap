@@ -139,9 +139,9 @@ ipcMain.on('sessions:link', (event, { root, id, parentId } = {}) => {
 });
 
 // 새로 만든 세션 제자리 잡기: 하위 세션 · 줄기(툰 이어가기) · 주제 가지
-ipcMain.on('sessions:meta', (event, { root, id, parentId, prevId, topic } = {}) => {
+ipcMain.on('sessions:meta', (event, { root, id, parentId, prevId, topic, kind } = {}) => {
     try {
-        event.reply('sessions:changed', { ok: true, action: 'meta', quiet: true, ...getSessionIndexer().setMeta(root, id, { parentId, prevId, topic }) });
+        event.reply('sessions:changed', { ok: true, action: 'meta', quiet: true, ...getSessionIndexer().setMeta(root, id, { parentId, prevId, topic, kind }) });
     } catch (error) {
         event.reply('sessions:changed', { ok: false, error: error.message });
     }

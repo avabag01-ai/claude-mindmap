@@ -92,6 +92,8 @@ class SessionIndexer {
                 // 주제 가지: 정해 둔 것 → 첫 메시지의 "topic: X"
                 const key = `${root}::${s.id}`;
                 s.topic = key in links.topics ? links.topics[key] : SessionIndexer.topicOf(s.firstPrompt);
+                // 종류: 정해 둔 것 → 코드 파일을 고쳤으면 code, 아니면 chat (대화·관제)
+                s.kind = links.kinds[key] === 'chat' || links.kinds[key] === 'code' ? links.kinds[key] : SessionIndexer.kindOf(s.files);
                 this.lastSessions.set(`${root}::${s.id}`, s);
             }
             projects.push({
@@ -115,9 +117,9 @@ class SessionIndexer {
         try {
             const d = JSON.parse(fs.readFileSync(this.linksFile, 'utf8'));
             const obj = k => (d && d[k] && typeof d[k] === 'object' ? d[k] : {});
-            return { version: 1, parents: obj('parents'), prev: obj('prev'), topics: obj('topics') };
+            return { version: 1, parents: obj('parents'), prev: obj('prev'), topics: obj('topics'), kinds: obj('kinds') };
         } catch {
-            return { version: 1, parents: {}, prev: {}, topics: {} };
+            return { version: 1, parents: {}, prev: {}, topics: {}, kinds: {} };
         }
     }
 
@@ -150,7 +152,8 @@ class SessionIndexer {
      * 새로 만든 세션을 제자리에 붙인다 (한 번에 쓰기): 하위 세션(parentId), 줄기의 앞 세션(prevId), 주제(topic)
      * 값이 undefined 면 그대로, null 이면 지운다.
      */
-    setMeta(root, id, { parentId, prevId, topic } = {}) {
+    setMeta(root, id, { parentId, prevId, topic, kind } = {}) {
+        if (kind !== undefined && kind !== null && kind !== 'chat' && kind !== 'code') throw new Error('세션 종류는 chat 또는 code 예요');
         if (!this.lastSessions.has(`${root}::${id}`)) throw new Error('세션 목록에 없는 세션이에요');
         if (topic && !/^[\w.-]+$/.test(topic)) throw new Error('주제 이름이 올바르지 않아요');
         if (parentId !== undefined) this.setParent(root, id, parentId);
@@ -166,8 +169,11 @@ class SessionIndexer {
         if (topic !== undefined) {
             if (topic) links.topics[key] = topic; else links.topics[key] = null; // null = 주제 없음으로 고정
         }
+        if (kind !== undefined) {
+            if (kind) links.kinds[key] = kind; else delete links.kinds[key]; // null = 다시 자동
+        }
         this._writeLinks(links);
-        return { root, id, parentId, prevId, topic };
+        return { root, id, parentId, prevId, topic, kind };
     }
 
     /**
@@ -407,6 +413,11 @@ class SessionIndexer {
 SessionIndexer.topicOf = function (prompt) {
     const m = /\btopic:\s*([\w.-]+)/.exec(String(prompt || '').slice(0, 2000));
     return m ? m[1] : null;
+};
+
+/** 세션 종류 짐작: 문서·툰·설정 말고 코드 파일을 고쳤으면 code, 아니면 chat */
+SessionIndexer.kindOf = function (files) {
+    return (files || []).some(f => !/\.(md|markdown|toon|txt|json|ya?ml|csv)$/i.test(f.path) && !/[\\/]\.toon[\\/]/.test(f.path)) ? 'code' : 'chat';
 };
 
 /** 주제 허브의 화면 이름: HUB.toon 앞부분의 "title: …" (없으면 폴더 이름) */

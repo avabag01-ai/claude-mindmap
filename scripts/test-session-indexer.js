@@ -165,6 +165,17 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     fs.writeFileSync(path.join(repo, '.toon', 'logic-ax', 'HUB.toon'), '## TOPIC_HUB\ntopic: logic-ax\ntitle: 로직 AX\n');
     assert.deepStrictEqual(SessionIndexer.readHub(repo).titles, { 'logic-ax': '로직 AX' }, '화면 이름은 title:');
 
+    // 세션 종류: 코드 파일을 고쳤으면 code, 문서·툰만이면 chat, 정해 두면 그대로
+    assert.strictEqual(SessionIndexer.kindOf([{ path: '/a/b.js' }]), 'code');
+    assert.strictEqual(SessionIndexer.kindOf([{ path: '/a/README.md' }, { path: '/a/.toon/x/HUB.toon' }]), 'chat');
+    assert.strictEqual(SessionIndexer.kindOf([]), 'chat');
+    assert.strictEqual(pr.sessions.find(x => x.id === 'sess-a').kind, 'code');
+    ix.setMeta(repo, 'sess-a', { kind: 'chat' });
+    r2 = await ix.index();
+    assert.strictEqual(r2.projects.find(x => x.root === repo).sessions.find(x => x.id === 'sess-a').kind, 'chat', '정해 둔 종류');
+    assert.throws(() => ix.setMeta(repo, 'sess-a', { kind: 'music' }), /종류/);
+    ix.setMeta(repo, 'sess-a', { kind: null });
+
     const other = path.join(tmp, 'other');
     fs.mkdirSync(other);
     const copied = ix.copySession(repo, 'sess-a', other);

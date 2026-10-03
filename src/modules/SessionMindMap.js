@@ -147,6 +147,7 @@ class SessionMindMap {
               <span><i class="smm-chip-c smm-working"></i>작업 중 (10분 안)</span>
               <span><i class="smm-chip-c smm-recent"></i>최근 (24시간 안)</span>
               <span><i class="smm-chip-c smm-idle"></i>지난 세션</span>
+              <span><i class="smm-chip-c smm-chip-chat"></i>대화 세션</span>
               <span><i class="smm-dash"></i>같은 파일을 고친 세션</span>
             </div>
             <aside class="smm-info" hidden></aside>
@@ -561,11 +562,13 @@ class SessionMindMap {
             const badge = count && !open ? `<g class="smm-badge-pill" transform="translate(${right ? x + w : x},${-h / 2})"><rect x="-13" y="-8" width="26" height="16" rx="8" fill="${n.color}"/><text text-anchor="middle" dy="4">+${count}</text></g>` : '';
             const alarm = SessionMindMap.alarm(s, this.now());
             const ctx = SessionMindMap.contextInfo(s);
-            return `<g class="smm-node smm-session smm-${s.status}${n.sub ? ' smm-sub' : ''}${s.remote ? ' smm-remote' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
+            return `<g class="smm-node smm-session smm-${s.status}${n.sub ? ' smm-sub' : ''}${s.remote ? ' smm-remote' : ''} smm-kind-${s.kind || 'code'}" data-key="${esc(n.key)}" ${at} tabindex="0">
                 ${alarm ? `<rect x="${x - 4}" y="${-h / 2 - 4}" width="${w + 8}" height="${h + 8}" rx="13" class="smm-alarm"><title>${alarm === 'full' ? '세션이 거의 찼어요' : '큰 세션인데 캐시가 곧 끝나요'} · 툰 할 때</title></rect>` : ''}
                 ${s.status === 'working' ? `<rect x="${x - 3}" y="${-h / 2 - 3}" width="${w + 6}" height="${h + 6}" rx="12" class="smm-pulse"/>` : ''}
                 <circle r="4.5" class="smm-joint" fill="${n.color}"/>
-                <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="${n.sub ? 4 : 10}" class="smm-card smm-${s.status}" style="--c:${n.color}"/>
+                <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="${n.sub ? 4 : s.kind === 'chat' ? 16 : 10}" class="smm-card smm-${s.status}" style="--c:${n.color}"/>
+                ${s.kind === 'chat' ? `<path d="M${right ? x + 16 : x + w - 16},${h / 2 - 0.5}l${right ? 0 : 0},8l${right ? 9 : -9},-8z" class="smm-card smm-tail smm-${s.status}" style="--c:${n.color}"/>` : ''}
+                <text x="${x + w - 7}" y="${-h / 2 + 11}" text-anchor="end" class="smm-kind-mark">${s.kind === 'chat' ? '대화' : '&lt;/&gt;'}</text>
                 <text class="smm-label"><tspan x="${x + 12}" dy="-2">${n.seq ? `<tspan class="smm-seq">${n.seq}</tspan> ` : ''}${esc(title)}</tspan><tspan x="${x + 12}" dy="14" class="smm-time">${time}</tspan>${git ? `<tspan dx="8" class="smm-git smm-git-${s.git}">${git}</tspan>` : ''}</text>
                 ${ctx ? `<rect x="${x + 6}" y="${h / 2 - 4}" width="${(w - 12).toFixed(1)}" height="2.5" rx="1.2" class="smm-ctx-track"/><rect x="${x + 6}" y="${h / 2 - 4}" width="${((w - 12) * Math.min(1, ctx.pct)).toFixed(1)}" height="2.5" rx="1.2" class="smm-ctx smm-ctx-${ctx.phase}"/>` : ''}
                 ${where ? `<text x="${x + 12}" y="${h / 2 + 11}" class="smm-machine">${esc(where)}</text>` : ''}
@@ -1235,6 +1238,11 @@ class SessionMindMap {
         @keyframes smm-blink { to { visibility:hidden; } }
         @media (prefers-reduced-motion: reduce) { .smm-alarm { animation:none; } }
         .smm-ctx-track { fill:var(--smm-line); opacity:.6; }
+        .smm-chip-chat { border-color:#b48ead !important; background:color-mix(in srgb, #b48ead 25%, transparent) !important; border-radius:8px; }
+        .smm-kind-mark { fill:var(--smm-muted); font-size:8.5px; font-weight:700; font-family:ui-monospace, Menlo, Consolas, monospace; }
+        .smm-kind-chat .smm-card { fill:color-mix(in srgb, #b48ead 14%, var(--smm-bg)); stroke:#b48ead; }
+        .smm-kind-chat .smm-kind-mark { fill:#b48ead; }
+        .smm-tail { stroke-dasharray:none; }
         .smm-topic-tag { fill:color-mix(in srgb, var(--c) 28%, var(--smm-bg)); stroke:var(--c); stroke-width:1.5; }
         .smm-topic-empty .smm-topic-tag { fill:var(--smm-bg); stroke-dasharray:4 3; }
         .smm-topic-label { fill:var(--smm-ink); font-size:12px; font-weight:700; }

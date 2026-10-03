@@ -81,7 +81,7 @@ class MachineSync {
                 root: p.root, name: p.name, lastAt: p.lastAt,
                 sessions: p.sessions.filter(s => !s.remote).map(s => ({
                     id: s.id, title: s.title, cwd: s.cwd, gitBranch: s.gitBranch, firstAt: s.firstAt, lastAt: s.lastAt,
-                    costUSD: s.costUSD, parentId: s.parentId || null, git: s.git || null, context: s.context || null,
+                    costUSD: s.costUSD, parentId: s.parentId || null, git: s.git || null, context: s.context || null, kind: s.kind || null, topic: s.topic || null,
                     files: (s.files || []).map(f => ({ path: f.path, rel: f.rel, edits: f.edits }))
                 }))
             })).filter(p => p.sessions.length)
