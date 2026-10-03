@@ -1,6 +1,6 @@
 ## PROJECT_HUB v3.1
 project: claude-mindmap (클로드 마인드맵)
-root: ~/claude-mindmap (맥) · GitHub: avabag01-ai/claude-mindmap (만들 예정) · 임시 보관: avabag01-ai/flowcode 브랜치 claude-mindmap-app
+root: ~/claude-mindmap (맥) · GitHub: avabag01-ai/claude-mindmap (main)
 goal: Claude Code 세션을 한눈에 보고 지시하는 맥 앱. 왼쪽 탭(세션·파인더·메모·GitHub·브라우저) | 마인드맵 | 대화창
 updated: 2026-10-03
 
@@ -21,5 +21,5 @@ updated: 2026-10-03
 
 ## NEXT
 - NEXT 000000 맥에서 실행 확인: npm install && npm start (진짜 claude 보내기, 툰 저장, 키체인 메모, 사용량, 크롬 조종)
-- NEXT 000001 GitHub 에 빈 저장소 claude-mindmap 만들기 → claude-mindmap-app 브랜치를 main 으로 옮기기
+- [완료 10-03] GitHub 저장소 avabag01-ai/claude-mindmap 로 옮김 (flowcode 의 임시 브랜치 claude-mindmap-app 은 지워도 됨)
 - NEXT 000002 기기·git 표시 (MachineSync 연결) — .toon/claude-mindmap/HUB.toon 참고

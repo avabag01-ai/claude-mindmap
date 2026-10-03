@@ -49,6 +49,5 @@ $4 = ~/.flowcode/
 
 ## NEXT
 - NEXT 000000 맥 실측 (npm install && npm start) → 버그 보고
-- NEXT 000001 빈 저장소 avabag01-ai/claude-mindmap 만들고 옮기기:
-  git clone -b claude-mindmap-app https://github.com/$2 ~/claude-mindmap && cd ~/claude-mindmap && git remote set-url origin https://github.com/avabag01-ai/claude-mindmap && git push -u origin claude-mindmap-app:main
+- [완료] 저장소 옮김: github.com/avabag01-ai/claude-mindmap (main). 맥에서: git clone https://github.com/avabag01-ai/claude-mindmap ~/claude-mindmap
 - NEXT 000002 MachineSync 연결 (기기·git 표시) — 토픽 허브 OPEN 참고
