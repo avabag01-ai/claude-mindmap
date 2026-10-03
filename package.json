@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node scripts/test-session-indexer.js && node scripts/test-claude-runner.js && node scripts/test-session-hub.js && node scripts/test-memo-store.js && node scripts/test-git-panel.js && node scripts/test-usage-meter.js && node scripts/test-browser.js"
+    "test": "node scripts/test-session-indexer.js && node scripts/test-claude-runner.js && node scripts/test-session-hub.js && node scripts/test-memo-store.js && node scripts/test-git-panel.js && node scripts/test-usage-meter.js && node scripts/test-browser.js && node scripts/test-machine-sync.js"
   },
   "author": "김영일",
   "license": "MIT",

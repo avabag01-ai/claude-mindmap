@@ -368,7 +368,7 @@ class SessionHub {
             return `<button class="hub-item${on ? ' is-on' : ''}" data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
                 <span class="hub-item-title">${esc(s.title)}</span>
-                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}</span>
+                <span class="hub-item-sub">${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
             </button>`;
         };
 
@@ -415,6 +415,7 @@ class SessionHub {
     // ---------------------------------------------------------------------
     _loadTranscript(force) {
         const s = this._selSession();
+        if (s && s.remote) return; // 다른 기기 세션: 대화 기록은 그 기기에만 있다
         if (s && !this.ipc && this.previewTranscripts) {
             const messages = this.previewTranscripts[s.id] || [];
             this._onTranscript({ file: s.file, messages, truncated: false, mtimeMs: 0 });
@@ -450,9 +451,10 @@ class SessionHub {
             head.innerHTML = `<div class="hub-chat-title">${esc(s.title)}</div>
               <div class="hub-chat-meta"><span class="hub-pill hub-${s.status}">${SessionMindMap.STATUS[s.status]}</span>
                 <span>${esc(p.name)}</span>${s.gitBranch ? `<span class="hub-mono">${esc(s.gitBranch)}</span>` : ''}
+                ${s.git ? `<span class="smm-git-pill smm-git-${s.git}" title="${SessionMindMap.GIT_LONG[s.git]}">${SessionMindMap.GIT[s.git]}</span>` : ''}
                 ${s.costUSD != null ? `<span>$${s.costUSD.toFixed(2)}</span>` : ''}
-                <button class="hub-link" data-copy="${esc(resume)}" title="${esc(resume)}">터미널 명령 복사</button></div>
-              ${this.ipc ? `<div class="hub-toon-row"><button class="btn hub-toon" data-act="toon-ask"${this.run && !this.run.done ? ' disabled' : ''} title="툰 저장 후 새 세션에서 이어가기">툰 → 이어가기</button></div>` : ''}
+                <button class="hub-link" data-copy="${esc(resume)}" title="${esc(resume)}">${s.remote ? `${esc(s.machine)} 에서 열기 (명령 복사)` : '터미널 명령 복사'}</button></div>
+              ${this.ipc && !s.remote ? `<div class="hub-toon-row"><button class="btn hub-toon" data-act="toon-ask"${this.run && !this.run.done ? ' disabled' : ''} title="툰 저장 후 새 세션에서 이어가기">툰 → 이어가기</button></div>` : ''}
               ${this.toonAsk ? `<div class="hub-confirm" role="group" aria-label="툰 저장 후 이어가기 확인">
                 <p>이 세션에 <b>툰 저장</b>을 시키고, 저장 결과의 시작 메시지로 <b>같은 폴더에 새 세션</b>을 열어 이어가요. 툰 저장은 파일을 써야 해서 최소 "파일 수정 자동 허용"으로 실행해요.</p>
                 <div class="row"><button class="btn btn-primary" data-act="toon-go">시작</button><button class="btn" data-act="toon-cancel">취소</button></div></div>` : ''}`;
@@ -478,7 +480,11 @@ class SessionHub {
         const box = this.el('hub-messages');
         const s = this._selSession();
         let html = '';
-        if (s) {
+        if (s && s.remote) {
+            const resume = `cd ${SessionMindMap._shellQuote(s.cwd)} && claude --resume ${s.id}`;
+            html = `<div class="hub-welcome"><p><b>${SessionMindMap._esc(s.machine)}</b> 의 세션이에요. 대화 기록은 그 기기에만 있어서 여기서는 목록만 보여요.</p>
+              <p>그 기기 터미널에서 이어서 하세요: <code>${SessionMindMap._esc(resume)}</code></p></div>`;
+        } else if (s) {
             if (!this.transcript || this.transcript.file !== s.file) html = '<p class="hub-empty">대화 불러오는 중…</p>';
             else if (this.transcript.error) html = `<p class="hub-empty">대화를 읽지 못했어요: ${SessionMindMap._esc(this.transcript.error)}</p>`;
             else {
@@ -546,10 +552,11 @@ class SessionHub {
 
     _renderComposer() {
         const s = this._selSession();
-        const can = !!(s || this.newFolder) && !!this.ipc;
+        const can = !!(s || this.newFolder) && !!this.ipc && !(s && s.remote);
         const running = this.run && !this.run.done;
         this.el('hub-input').disabled = !can || running;
         this.el('hub-input').placeholder = !this.ipc ? '미리보기에서는 보낼 수 없어요'
+            : s && s.remote ? `${s.machine} 의 세션은 그 기기에서 이어서 말할 수 있어요`
             : s ? '이 세션에 이어서 말하기 (⌘↩ 보내기)'
             : this.newFolder ? (this._newHub() && this.toonStart ? '세션 제목이나 할 일만 쓰세요 · 툰 허브를 읽고 시작해요 (⌘↩)' : '새 세션 첫 메시지 (⌘↩ 보내기)')
             : '왼쪽에서 세션을 고르세요';
@@ -564,6 +571,7 @@ class SessionHub {
         if ((!typed && !this.attachments.length) || !this.ipc || (this.run && !this.run.done)) return;
         const text = SessionHub.withAttachments(typed, this.attachments);
         const s = this._selSession();
+        if (s && s.remote) return; // 다른 기기 세션에는 보낼 수 없다
         const folderSel = this.el('hub-folder');
         const cwd = s ? s.cwd : (folderSel ? folderSel.value : this.newFolder);
         if (!cwd) return;
@@ -590,6 +598,7 @@ class SessionHub {
     // ---------------------------------------------------------------------
     _onDrop(src, t) {
         const p = src.project, s = src.data;
+        if (s.remote) return;
         if (!t) {
             if (s.parentId) this._link(p.root, s.id, null, `떼어냈어요: ${s.title}`);
             return;

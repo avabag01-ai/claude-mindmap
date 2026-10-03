@@ -18,8 +18,9 @@ updated: 2026-10-03
 
 ## SESSIONS
 - 2026-10-03 · .toon/claude-mindmap/SESSION_20261003.toon · 관제탑(클라우드) · 세션 허브 처음부터 여기까지
+- 2026-10-03 · (하위 세션, 클라우드) · MachineSync 연결 · 브랜치 claude/epic-clarke-x1kk5z
 
 ## NEXT
 - NEXT 000000 맥에서 실행 확인: npm install && npm start (진짜 claude 보내기, 툰 저장, 키체인 메모, 사용량, 크롬 조종)
 - [완료 10-03] GitHub 저장소 avabag01-ai/claude-mindmap 로 옮김 (flowcode 의 임시 브랜치 claude-mindmap-app 은 지워도 됨)
-- NEXT 000002 기기·git 표시 (MachineSync 연결) — .toon/claude-mindmap/HUB.toon 참고
+- [완료 10-03] 기기·git 표시 (MachineSync 연결) — 클라우드 xvfb 에서 화면 확인, 맥·iCloud 실측 전

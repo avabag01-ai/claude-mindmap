@@ -104,6 +104,12 @@ class SessionMindMap {
 
     _findProject(root) { return this.data && this.data.projects.find(p => p.root === root); }
 
+    /** 카드 아래 기기 이름: 다른 기기 세션이거나, 고친 것이 아직 GitHub 에 없어 이 기기에만 있을 때 */
+    _machineOf(s) {
+        if (s.remote) return s.machine || '';
+        return (s.git === 'dirty' || s.git === 'ahead') && this.data && this.data.machine ? this.data.machine : '';
+    }
+
     // ---------------------------------------------------------------------
     // DOM 뼈대
     // ---------------------------------------------------------------------
@@ -447,11 +453,14 @@ class SessionMindMap {
             const s = n.ref.data;
             const label = SessionMindMap._clip(n.label, 22);
             const time = SessionMindMap._span(s.firstAt, s.lastAt);
-            const w = Math.max(W(label, 14), W(time, 11)) + 36, h = 56;
+            const git = SessionMindMap.GIT[s.git];
+            const where = this._machineOf(s);
+            const w = Math.max(W(label, 14), W(time, 11) + (git ? W(git, 10) + 10 : 0)) + 36, h = 56;
             return `<g class="smm-node smm-root-node smm-root-card" data-key="root" ${at}>
                 <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" rx="14" class="smm-card smm-${s.status}" style="--c:${n.color}"/>
-                <text text-anchor="middle"><tspan x="0" dy="-3" class="smm-card-title smm-big">${esc(label)}</tspan><tspan x="0" dy="18" class="smm-time">${time}</tspan></text>
-                ${n.children.length ? '' : `<text class="smm-hint" text-anchor="middle" y="${h / 2 + 22}">이 세션이 고친 파일이 없어요</text>`}
+                <text text-anchor="middle"><tspan x="0" dy="-3" class="smm-card-title smm-big">${esc(label)}</tspan><tspan x="0" dy="18" class="smm-time">${time}</tspan>${git ? `<tspan dx="8" class="smm-git smm-git-${s.git}">${git}</tspan>` : ''}</text>
+                ${where ? `<text text-anchor="middle" y="${h / 2 + 13}" class="smm-machine">${esc(where)}</text>` : ''}
+                ${n.children.length ? '' : `<text class="smm-hint" text-anchor="middle" y="${h / 2 + (where ? 32 : 22)}">이 세션이 고친 파일이 없어요</text>`}
                 <title>${esc(s.title)} · 눌러서 툰 허브 보기</title></g>`;
         }
 
@@ -481,16 +490,19 @@ class SessionMindMap {
             const title = SessionMindMap._clip(n.label, 20);
             const seq = n.seq ? `${n.seq} ` : '';
             const time = SessionMindMap._span(s.firstAt, s.lastAt);
-            const w = Math.max(W(seq + title, 12), W(time, 10.5) * 0.92) + 24, h = 36;
+            const git = SessionMindMap.GIT[s.git];
+            const where = this._machineOf(s);
+            const w = Math.max(W(seq + title, 12), W(time, 10.5) * 0.92 + (git ? W(git, 10) + 10 : 0)) + 24, h = 36;
             const x = right ? 11 : -11 - w;
             const badge = count && !open ? `<g class="smm-badge-pill" transform="translate(${right ? x + w : x},${-h / 2})"><rect x="-13" y="-8" width="26" height="16" rx="8" fill="${n.color}"/><text text-anchor="middle" dy="4">+${count}</text></g>` : '';
-            return `<g class="smm-node smm-session smm-${s.status}${n.sub ? ' smm-sub' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
+            return `<g class="smm-node smm-session smm-${s.status}${n.sub ? ' smm-sub' : ''}${s.remote ? ' smm-remote' : ''}" data-key="${esc(n.key)}" ${at} tabindex="0">
                 ${s.status === 'working' ? `<rect x="${x - 3}" y="${-h / 2 - 3}" width="${w + 6}" height="${h + 6}" rx="12" class="smm-pulse"/>` : ''}
                 <circle r="4.5" class="smm-joint" fill="${n.color}"/>
                 <rect x="${x}" y="${-h / 2}" width="${w}" height="${h}" rx="${n.sub ? 4 : 10}" class="smm-card smm-${s.status}" style="--c:${n.color}"/>
-                <text class="smm-label"><tspan x="${x + 12}" dy="-2">${n.seq ? `<tspan class="smm-seq">${n.seq}</tspan> ` : ''}${esc(title)}</tspan><tspan x="${x + 12}" dy="14" class="smm-time">${time}</tspan></text>
+                <text class="smm-label"><tspan x="${x + 12}" dy="-2">${n.seq ? `<tspan class="smm-seq">${n.seq}</tspan> ` : ''}${esc(title)}</tspan><tspan x="${x + 12}" dy="14" class="smm-time">${time}</tspan>${git ? `<tspan dx="8" class="smm-git smm-git-${s.git}">${git}</tspan>` : ''}</text>
+                ${where ? `<text x="${x + 12}" y="${h / 2 + 11}" class="smm-machine">${esc(where)}</text>` : ''}
                 ${badge}
-                <title>${esc(s.title)}${count ? ` · 고친 파일 ${count}개` : ''}</title></g>`;
+                <title>${esc(s.title)}${count ? ` · 고친 파일 ${count}개` : ''}${git ? ` · ${SessionMindMap.GIT_LONG[s.git]}` : ''}${s.remote ? ` · ${esc(s.machine)} 의 세션 (읽기 전용)` : ''}</title></g>`;
         }
 
         // 파일: 문서 아이콘 + 이름
@@ -595,7 +607,7 @@ class SessionMindMap {
             const g = e.target.closest('.smm-session');
             if (!g) return;
             const n = this.byKey.get(g.dataset.key);
-            if (!n || n.related) return; // 세션 중심 보기의 "같은 파일을 고친 세션"은 끌지 않는다
+            if (!n || n.related || n.data.remote) return; // "같은 파일을 고친 세션"·다른 기기 세션은 끌지 않는다
             d = { n, x: e.clientX, y: e.clientY, started: false, id: e.pointerId };
         });
         window.addEventListener('pointermove', e => {
@@ -642,6 +654,7 @@ class SessionMindMap {
     _dropAllowed(src, t) {
         const tSession = t.kind === 'session' ? t.data : t.kind === 'root' && t.ref && t.ref.kind === 'session' ? t.ref.data : null;
         const tProject = t.kind === 'project' ? t.data : t.kind === 'root' && t.ref && t.ref.kind === 'project' ? t.ref.data : null;
+        if (tSession && tSession.remote) return false; // 다른 기기 세션 아래로는 못 붙인다
         if (tSession) {
             const tp = t.kind === 'session' ? t.project : t.ref.project;
             if (tSession.id === src.data.id && tp.root === src.project.root) return false;
@@ -651,7 +664,7 @@ class SessionMindMap {
             for (let cur = tSession, guard = 0; cur && guard < 1000; cur = byId.get(cur.parentId), guard++) if (cur.id === src.data.id) return false;
             return true;
         }
-        return !!tProject;
+        return !!tProject && !tProject.remoteOnly;
     }
 
     _dropHint(src, t) {
@@ -729,12 +742,14 @@ class SessionMindMap {
             const s = n.data;
             const files = s.files.map(f => `<li><button class="smm-link-btn" data-act="select-file" data-path="${esc(f.path)}">${esc(f.rel || f.path)}</button><span class="smm-muted"> ${f.edits}</span></li>`).join('');
             const resume = `cd ${SessionMindMap._shellQuote(s.cwd)} && claude --resume ${s.id}`;
+            const where = this._machineOf(s);
             html = `<h4>${esc(s.title)}</h4>
-                <div class="smm-meta"><span class="smm-pill smm-${s.status}">${SessionMindMap.STATUS[s.status]}</span><span>${esc(n.project.name)}</span>${s.gitBranch ? `<span class="smm-mono">${esc(s.gitBranch)}</span>` : ''}</div>
-                <dl><dt>기간</dt><dd>${SessionMindMap._fmt(s.firstAt)} → ${SessionMindMap._fmt(s.lastAt)} (${SessionMindMap._ago(s.lastAt, now)})</dd>
+                <div class="smm-meta"><span class="smm-pill smm-${s.status}">${SessionMindMap.STATUS[s.status]}</span><span>${esc(n.project.name)}</span>${s.gitBranch ? `<span class="smm-mono">${esc(s.gitBranch)}</span>` : ''}${s.git ? `<span class="smm-git-pill smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</span>` : ''}</div>
+                <dl>${s.remote ? `<dt>기기</dt><dd>${esc(s.machine)} · 읽기 전용 (대화는 그 기기에서 열어요)</dd>` : where ? `<dt>기기</dt><dd>${esc(where)} 에만 있어요 · ${SessionMindMap.GIT_LONG[s.git]}</dd>` : ''}
+                <dt>기간</dt><dd>${SessionMindMap._fmt(s.firstAt)} → ${SessionMindMap._fmt(s.lastAt)} (${SessionMindMap._ago(s.lastAt, now)})</dd>
                 ${s.costUSD != null ? `<dt>비용</dt><dd>$${s.costUSD.toFixed(2)}</dd>` : ''}
                 <dt>고친 파일 ${s.files.length}개</dt><dd>${files ? `<ul class="smm-list smm-files">${files}</ul>` : '<span class="smm-muted">파일 수정 없음</span>'}</dd>
-                <dt>이어서 하기</dt><dd><code class="smm-cmd">${esc(resume)}</code></dd></dl>
+                <dt>${s.remote ? `${esc(s.machine)} 에서 열기` : '이어서 하기'}</dt><dd><code class="smm-cmd">${esc(resume)}</code></dd></dl>
                 <div class="smm-actions"><button class="smm-btn" data-act="copy" data-text="${esc(resume)}">명령 복사</button>
                 ${s.files.length ? `<button class="smm-btn" data-act="toggle-files" data-key="${esc(n.key)}">${this.expanded.has(n.key) || this.showAllFiles ? '파일 접기' : '파일 펼치기'}</button>` : ''}</div>`;
         } else if (n.kind === 'file') {
@@ -1084,6 +1099,14 @@ class SessionMindMap {
         .smm-seq { fill:var(--smm-accent); font-weight:700; font-variant-numeric:tabular-nums; }
         .smm-time { fill:var(--smm-muted); font-size:10.5px; font-family:ui-monospace, Menlo, Consolas, monospace; font-weight:400; }
         .smm-idle .smm-label { fill:var(--smm-muted); }
+        .smm-git { font-size:10px; font-weight:700; font-family:ui-monospace, Menlo, Consolas, monospace; }
+        .smm-git-pushed { fill:var(--smm-working); color:var(--smm-working); }
+        .smm-git-ahead { fill:#e0b44c; color:#e0b44c; }
+        .smm-git-dirty { fill:#ef7d6b; color:#ef7d6b; }
+        .smm-git-pill { font-size:11px; font-weight:700; border:1px solid currentColor; border-radius:9px; padding:0 7px; }
+        .smm-machine { fill:var(--smm-muted); font-size:10px; letter-spacing:.02em; paint-order:stroke; stroke:var(--smm-bg); stroke-width:3px; }
+        .smm-remote .smm-card { stroke-dasharray:2 3; fill-opacity:.6; }
+        .smm-remote.smm-session { cursor:pointer; }
         .smm-session-dot { stroke-width:2; }
         .smm-pulse { fill:none; stroke:var(--smm-working); stroke-width:2; animation:smm-pulse 1.8s ease-out infinite; transform-box:fill-box; transform-origin:center; }
         @keyframes smm-pulse { from { opacity:.9; transform:scale(1); } to { opacity:0; transform:scale(1.12); } }
@@ -1137,6 +1160,9 @@ class SessionMindMap {
 
 SessionMindMap.PALETTE = ['#e5a050', '#6cb6ff', '#d27ad6', '#7ee787', '#f47067', '#dcbdfb', '#f0c674', '#56d4dd'];
 SessionMindMap.STATUS = { working: '작업 중', recent: '최근', idle: '지난 세션' };
+// 세션이 고친 파일의 git 상태 (SessionIndexer.attachGit)
+SessionMindMap.GIT = { pushed: 'git', ahead: '푸시 전', dirty: '미커밋' };
+SessionMindMap.GIT_LONG = { pushed: 'GitHub 에 올라감', ahead: '커밋했지만 아직 푸시 전', dirty: '커밋 안 한 수정이 있음' };
 
 if (typeof window !== 'undefined') {
     window.SessionMindMap = SessionMindMap;

@@ -42,7 +42,7 @@ app.on('window-all-closed', () => {
 /**
  * 세션 허브 IPC
  *
- * - 'sessions:index'          ~/.claude/projects 세션 기록 → 프로젝트 → 세션 → 파일
+ * - 'sessions:index'          ~/.claude/projects 세션 기록 → 프로젝트 → 세션 → 파일 (+ git 상태, 다른 기기 세션)
  * - 'sessions:transcript'     고른 세션의 대화 (기록 파일이 그대로면 unchanged)
  * - 'sessions:send' / 'sessions:stop'   대화창 메시지를 claude -p (--resume) 로 실행
  * - 'sessions:pick-folder'    새 세션을 열 폴더 고르기
@@ -58,9 +58,40 @@ function getSessionIndexer() {
     return sessionIndexer;
 }
 
+// 기기 간 세션 공유: 내 목록은 공유 폴더에 쓰고, 다른 기기 목록은 읽기 전용으로 섞는다
+let machineSync = null;
+function getMachineSync() {
+    if (!machineSync) {
+        const MachineSync = require('./src/core/MachineSync.js');
+        machineSync = new MachineSync();
+    }
+    return machineSync;
+}
+
+async function buildSessionIndex() {
+    const SessionIndexer = require('./src/core/SessionIndexer.js');
+    const MachineSync = require('./src/core/MachineSync.js');
+    const index = await getSessionIndexer().index();
+    try {
+        await SessionIndexer.attachGit(index);
+    } catch (error) {
+        console.error('Session git error:', error);
+    }
+    const sync = getMachineSync();
+    index.machine = sync.name();
+    let others = [];
+    try {
+        sync.publish(index);
+        others = sync.readOthers();
+    } catch (error) {
+        console.error('Machine sync error:', error); // 공유 폴더 문제로 목록까지 못 보면 안 된다
+    }
+    return { ...MachineSync.merge(index, others, Date.now()), machine: index.machine, syncDir: sync.dir() };
+}
+
 ipcMain.on('sessions:index', async (event) => {
     try {
-        event.reply('sessions:index-result', await getSessionIndexer().index());
+        event.reply('sessions:index-result', await buildSessionIndex());
     } catch (error) {
         console.error('Session index error:', error);
         event.reply('sessions:index-result', { success: false, error: error.message });

@@ -9,7 +9,8 @@
  *     generatedAt, claudeDir,
  *     projects: [{ root, name, lastAt, hub: { path, next[], topics[] } | null,
  *                  sessions: [{ id, title, cwd, gitBranch, firstAt, lastAt, status,
- *                               costUSD, files: [{ path, rel, edits }] }] }]
+ *                               costUSD, git: 'dirty'|'ahead'|'pushed'|null (attachGit 후),
+ *                               files: [{ path, rel, edits }] }] }]
  *   }
  *
  * 성능: 기록 파일이 수 MB 이상일 수 있어서 한 줄씩 읽고, 필요한 줄만 JSON.parse 한다.
@@ -432,6 +433,62 @@ SessionIndexer.readTranscript = async function (file, { limit = 300 } = {}) {
         truncated: cleaned.length > limit,
         mtimeMs: st.mtimeMs
     };
+};
+
+/**
+ * 세션마다 git 상태를 붙인다 (그 세션이 고친 파일 기준)
+ *   dirty  = 고친 파일 중 커밋 안 한 것이 있음 (git status --porcelain)
+ *   ahead  = 커밋했지만 아직 푸시 전 (git log @{u}..HEAD, upstream 이 없으면 어느 원격 브랜치에도 없는 커밋)
+ *   pushed = 모두 GitHub 에 올라감
+ * 고친 파일이 없거나 git 저장소가 아니면 git 을 붙이지 않는다 (null).
+ * @param {object} index  index() 결과 (그대로 고친다)
+ * @param {(args: string[], cwd: string) => Promise<{code: number, stdout: string}>} [run]  git 실행기 (테스트용)
+ */
+SessionIndexer.attachGit = async function (index, run = SessionIndexer.runGit) {
+    await Promise.all(index.projects.map(async p => {
+        const withFiles = p.sessions.filter(s => s.files && s.files.length);
+        if (!withFiles.length) return;
+        const st = await SessionIndexer.gitState(p.root, run).catch(() => null);
+        for (const s of p.sessions) s.git = null;
+        if (!st) return;
+        for (const s of withFiles) {
+            const rels = s.files.map(f => path.relative(p.root, f.path)).filter(r => r && !r.startsWith('..') && !path.isAbsolute(r));
+            if (!rels.length) continue;
+            s.git = rels.some(r => st.dirty.has(r)) ? 'dirty' : rels.some(r => st.ahead.has(r)) ? 'ahead' : 'pushed';
+        }
+    }));
+    return index;
+};
+
+/** 저장소 한 개의 상태: { dirty: Set<rel>, ahead: Set<rel>, upstream } (git 저장소가 아니면 null) */
+SessionIndexer.gitState = async function (root, run = SessionIndexer.runGit) {
+    const status = await run(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root);
+    if (status.code !== 0) return null;
+    const dirty = new Set();
+    const parts = status.stdout.split('\0');
+    for (let i = 0; i < parts.length; i++) {
+        const e = parts[i];
+        if (e.length < 4) continue;
+        dirty.add(e.slice(3));
+        if (e[0] === 'R' || e[0] === 'C') dirty.add(parts[++i]); // 이름 바꾸기: 다음 칸이 옛 이름
+    }
+    const up = await run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], root);
+    const upstream = up.code === 0 ? up.stdout.trim() : null;
+    // 올릴 곳(upstream)이 없는 새 브랜치면 어느 원격 브랜치에도 없는 커밋만 (원격이 아예 없으면 전부)
+    const range = upstream ? ['@{u}..HEAD'] : ['HEAD', '--not', '--remotes'];
+    const log = await run(['log', ...range, '--name-only', '--pretty=format:', '-n', '500'], root);
+    const ahead = new Set(log.code === 0 ? log.stdout.split('\n').map(l => l.trim()).filter(Boolean) : []);
+    return { dirty, ahead, upstream };
+};
+
+/** 로그인 셸 PATH 로 git 실행 (실패해도 던지지 않고 code 를 돌려준다) */
+SessionIndexer.runGit = function (args, cwd) {
+    const { execFile } = require('child_process');
+    const { childEnv } = require('./loginPath.js');
+    return new Promise(resolve => {
+        execFile('git', args, { cwd, env: childEnv({ GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' }), timeout: 15000, maxBuffer: 8 * 1024 * 1024 },
+            (err, stdout) => resolve({ code: err ? (typeof err.code === 'number' ? err.code : 1) : 0, stdout: String(stdout || '') }));
+    });
 };
 
 function toolTarget(input) {

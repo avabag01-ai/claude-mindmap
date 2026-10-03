@@ -15,14 +15,19 @@ latest_session: .toon/claude-mindmap/SESSION_20261003.toon
 - [가설] 기기 간 세션 공유 = iCloud Drive/FlowCode/machines/<기기>.json (대화 내용 없이 목록만)
 
 ## OPEN
-- 기기·git 표시: src/core/MachineSync.js 작성만, 연결·테스트 전
-  - 카드에 작게 git(푸시됨) / 푸시 전 / 미커밋, GitHub 에 없고 그 기기에만 있으면 카드 아래 영어로 MacBook · Mac mini
-  - 세션 git 상태 = 그 세션이 고친 파일 기준: status --porcelain(미커밋), log @{u}..HEAD --name-only(푸시 전), 나머지 git
-  - 다른 기기 세션은 읽기 전용(remote), 대화창에 "그 기기에서 열기" 명령
+- 기기·git 표시: [연결됨 10-03] 맥·iCloud 실측 전
+  - SessionIndexer.attachGit: 세션이 고친 파일 기준 dirty(미커밋) > ahead(푸시 전) > pushed(git)
+    upstream 없는 새 브랜치는 log HEAD --not --remotes (main 에 이미 있는 건 git 으로)
+  - main.js buildSessionIndex: index → attachGit → publish → readOthers → merge (공유 폴더 오류여도 목록은 보임)
+  - 카드: 시각 옆 git/푸시 전/미커밋, 미커밋·푸시 전이거나 다른 기기 세션이면 카드 아래 기기 이름(MacBook · Mac mini)
+  - 다른 기기 세션: 점선 카드, 끌기·보내기·툰 막음, 대화창에 "그 기기에서 열기" 명령
+  - 테스트: scripts/test-machine-sync.js (진짜 git + 빈 원격, 두 기기 공유 폴더) [확인 클라우드]
+  - 기기 이름 바꾸기: ~/.flowcode/machine.json {"name":"Mac mini"}, 공유 폴더: FLOWCODE_SYNC_DIR 또는 ~/.flowcode/sync.json
 - 맥 실측 전: 진짜 claude 보내기·툰 저장·복사한 세션 --resume, 키체인 암호화, 사용량 API, 크롬·사파리 애플스크립트
 - flowcode PR #1(claude/session-mindmap)과 이 앱의 관계: 이 앱이 본체, flowcode 쪽은 정리 필요
 
 ## NEXT
-- NEXT 000000 MachineSync 연결: SessionIndexer 에 git 상태 붙이기 → main 에서 publish/readOthers/merge → 카드 표시 → 테스트
+- NEXT 000000 맥 실측: npm install && npm start, 맥북·맥미니 둘 다 켜서 iCloud Drive/FlowCode/machines 에 서로 보이는지
+- [완료 10-03] MachineSync 연결 (attachGit → publish/readOthers/merge → 카드 표시 → 테스트)
 - NEXT 000001 맥 실측 후 버그 수정
 - NEXT 000002 SNS 홍보 스킬 (초안까지 자동, 게시는 사람이 확인)
