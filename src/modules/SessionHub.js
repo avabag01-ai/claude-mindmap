@@ -201,6 +201,9 @@ class SessionHub {
             });
             this.refresh();
             this._poll = setInterval(() => this._pollTranscript(), 4000);
+            // 클로드 앱 등 밖에서 만든 세션도 보이게: 10초마다, 창으로 돌아올 때 목록을 조용히 다시 읽는다
+            this._indexPoll = setInterval(() => this._quietRefresh(), 10000);
+            window.addEventListener('focus', () => this._quietRefresh());
             // 사용량: 2분마다, 창으로 돌아올 때, 보내기가 끝날 때
             this.readUsage();
             this._cachePoll = setInterval(() => this._tickCache(), 15000);
@@ -211,6 +214,17 @@ class SessionHub {
 
     refresh() {
         if (this.ipc) this.ipc.send('sessions:index', {});
+    }
+
+    // 조용히 다시 읽기: 세션이 새로 생기거나 없어졌을 때만 다시 그리고, 맵 보는 자리는 그대로 둔다
+    _quietRefresh() {
+        if (!this.ipc || document.hidden || this._quiet) return;
+        this._quiet = true;
+        this.refresh();
+    }
+
+    static _sessionKeys(data) {
+        return (data.projects || []).map(p => `${p.root}:${p.sessions.map(s => s.id).join(',')}`).sort().join('|');
     }
 
     readUsage() {
@@ -246,15 +260,19 @@ class SessionHub {
     setData(data) { this._onIndex(data); if (!this.ipc) this.readUsage(); }
 
     _onIndex(data) {
+        const quiet = this._quiet;
+        this._quiet = false;
         if (!data || data.success === false) {
+            if (quiet && this.data) return; // 조용히 읽다 실패하면 보던 목록을 그대로 둔다
             this.el('hub-list-body').innerHTML = `<p class="hub-empty">세션 기록을 읽지 못했어요${data && data.error ? `: ${SessionMindMap._esc(data.error)}` : ''}</p>`;
             return;
         }
+        if (quiet && this.data && SessionHub._sessionKeys(this.data) === SessionHub._sessionKeys(data)) return;
         this.data = data;
         // 맵은 허브가 직접 데이터를 넣는다 (맵 자체 IPC 응답은 같은 데이터라 무해)
         this.map.loading = false;
         this.map.data = data;
-        this.map._fitPending = true;
+        if (!quiet) this.map._fitPending = true;
         if (this.sel && !this._selProject()) this.sel = null;
         this._applyCenter(false);
         this._renderList();
