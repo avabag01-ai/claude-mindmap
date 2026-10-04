@@ -1,9 +1,58 @@
-// 마인드맵 도구: 자리 되돌리기 옆 − / ＋ 확대 버튼, 세션 노드 우클릭 → 제목 바꾸기 · 세션 지우기 (앱 휴지통으로),
+// 마인드맵 도구: 자리 되돌리기 옆 − / ＋ 단계 버튼(− 맨 아래 단계부터 한 단계씩 접기, ＋ 한 단계씩 펼치기), 세션 노드 우클릭 → 제목 바꾸기 · 세션 지우기 (앱 휴지통으로),
 // 위 "코드 보기" 켜기/끄기(코드 파일 노드), 파일 노드의 "코드 보기" → 코드 창.
 // SessionMindMap 이 화면을 만든 뒤 SessionMindMap.addTools(this) 로 부른다.
 (function () {
     if (typeof SessionMindMap === 'undefined' || typeof document === 'undefined') return;
-    const STEP = 1.25;
+    const P = SessionMindMap.prototype;
+
+    // 단계 접기: map.levelLimit = 보일 깊이(가운데 0). 그보다 깊은 노드는 접어서 ▸ 개수로 보인다
+    function deepest(n, d = 0) {
+        return n.children.reduce((m, c) => Math.max(m, deepest(c, d + 1)), d);
+    }
+    function cut(map, n, d) {
+        for (const c of n.children) cut(map, c, d + 1);
+        if (d >= map.levelLimit && n.children.length && !map.levelOpen.has(n.key)) {
+            n.hidden = (n.hidden || 0) + n.children.length;
+            n.children = [];
+            map.levelCut.add(n.key);
+        }
+    }
+    const visibleTree = P._visibleTree;
+    P._visibleTree = function () {
+        const tree = visibleTree.call(this);
+        this.levelCut = new Set();
+        this.fullDepth = deepest(tree);
+        if (this.levelLimit !== undefined && this.levelLimit < this.fullDepth) cut(this, tree, 0);
+        return tree;
+    };
+    // 단계로 접힌 노드의 ▸ 를 누르면 그 노드만 펼친다
+    const toggleFold = P._toggleFold;
+    P._toggleFold = function (key) {
+        if (this.levelCut && this.levelCut.has(key)) { this.levelOpen.add(key); return this.render(); }
+        return toggleFold.call(this, key);
+    };
+
+    const render = P.render;
+    P.render = function () {
+        render.call(this);
+        if (this.container) updateLevelBtns(this);
+    };
+
+    function stepLevel(map, dir) {
+        const shown = map.levelLimit === undefined ? map.fullDepth : Math.min(map.levelLimit, map.fullDepth);
+        const next = Math.max(1, shown + dir);
+        map.levelLimit = next >= map.fullDepth && dir > 0 ? undefined : next;
+        map.levelOpen = new Set();
+        map._fitPending = true;
+        map.render();
+    }
+    function updateLevelBtns(map) {
+        const [out, inn] = map.container.querySelectorAll('.smm-zoom');
+        if (!out) return;
+        const all = map.levelLimit === undefined;
+        out.disabled = !all ? map.levelLimit <= 1 : map.fullDepth <= 1;
+        inn.disabled = all;
+    }
 
     function injectStyle() {
         if (document.getElementById('smm-tools-style')) return;
@@ -11,6 +60,7 @@
         style.id = 'smm-tools-style';
         style.textContent = `
         .smm-zoom { min-width:26px; font-weight:700; }
+        .smm-zoom:disabled { opacity:.35; cursor:default; }
         .smm-menu { position:fixed; z-index:50; min-width:150px; background:var(--smm-panel, #1f2329); border:1px solid var(--smm-line, #323943);
           border-radius:8px; padding:4px; box-shadow:0 6px 20px rgba(0,0,0,.45); font-size:12.5px; }
         .smm-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; border-radius:5px; padding:6px 10px; cursor:pointer; color:var(--smm-ink, #d7dde4); }
@@ -30,11 +80,6 @@
         .smm-code-body span::before { counter-increment:ln; content:counter(ln); display:inline-block; width:4.2em; padding-right:12px; text-align:right; color:var(--smm-muted, #8a95a1); opacity:.6; user-select:none; }
         .smm-code-msg { padding:16px; color:var(--smm-muted, #8a95a1); }`;
         document.head.appendChild(style);
-    }
-
-    function zoomBy(map, f) {
-        const r = map.svg.getBoundingClientRect();
-        map._zoomAt(r.width / 2, r.height / 2, map.view.k * f);
     }
 
     function closeMenu(map) {
@@ -143,10 +188,12 @@
         const reset = map.resetBtn;
         if (reset && !map.container.querySelector('.smm-zoom')) {
             reset.insertAdjacentHTML('afterend',
-                '<button class="smm-btn smm-zoom" data-zoom="out" title="작게" aria-label="작게">−</button><button class="smm-btn smm-zoom" data-zoom="in" title="크게" aria-label="크게">＋</button>');
+                '<button class="smm-btn smm-zoom" data-zoom="out" title="맨 아래 단계부터 한 단계 접기" aria-label="한 단계 접기">−</button><button class="smm-btn smm-zoom" data-zoom="in" title="한 단계 더 펼치기" aria-label="한 단계 펼치기">＋</button>');
+            map.levelOpen = new Set();
             for (const b of map.container.querySelectorAll('.smm-zoom')) {
-                b.addEventListener('click', () => zoomBy(map, b.dataset.zoom === 'in' ? STEP : 1 / STEP));
+                b.addEventListener('click', () => stepLevel(map, b.dataset.zoom === 'in' ? 1 : -1));
             }
+            updateLevelBtns(map);
         }
         map.gNodes.addEventListener('contextmenu', e => {
             const g = e.target.closest('.smm-node');
