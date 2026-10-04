@@ -38,7 +38,7 @@ latest_session: .toon/side-tabs/SESSION_20261004d.toon
 - 2026-10-04 · .toon/side-tabs/SESSION_20261004b.toon · 하위(side-tabs) · 그룹 넣기 손 시험 통과·폴더 빠짐 우회·앱 세션 대화창→앱으로 넘김·폴더 옮긴 세션 묶기·그룹 가지 유지 · 5ba9d48
 - 2026-10-04 · .toon/session-hub/SESSION_20261004.toon · 하위(session-hub, logic-pro-mcp 세션에서) · 클로드 앱 연동: 사이드바 바꾸기·AX 보내기·클로드 앱 붙이기(대화창 구멍)·고정 서명·툰으로 이어가기 · 5e70e22
 - 2026-10-04 · .toon/side-tabs/SESSION_20261004c.toon · 하위(side-tabs) · 손 시험 3개 통과 · GitHub·브라우저 가운데 탭·사이드바 닫기(⌘B)·대화창 너비 끌기·사용량 쓴 % · 앱 교체 · 29c121d
-- 2026-10-04 · .toon/side-tabs/SESSION_20261004d.toon · 하위(side-tabs, logic-pro-mcp 세션에서) · 툰 이어가기 실전 확인·워크트리 잇기·툰 저장 스크립트·브라우저 마지막 주소·크롬 기록·즐겨찾기 · 60a0fe0
+- 2026-10-04 · .toon/side-tabs/SESSION_20261004d.toon · 하위(side-tabs) · 툰 이어가기 실전 확인·워크트리 잇기·툰 저장 스크립트·브라우저 마지막 주소·크롬 기록·붙이기 실패 표시 · d74777d
 
 ## NEXT
 - side-tabs: 기록·즐겨찾기 단추 손 시험 · toon-flow: 다음 툰 저장에서 빠른 길(~/.claude/skills/toon-save/toon_save.py) 시간 재기 · session-hub: 저장→새 세션 12분 원인(신뢰 창?) 기록

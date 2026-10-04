@@ -13,7 +13,7 @@ topic: side-tabs
 session: 툰 이어가기 실전 확인·워크트리 잇기·툰 저장 스크립트·브라우저 탭 마지막 주소·크롬 기록·즐겨찾기
 hub_task: 가운데 브라우저 탭 이어보기 + 크롬 기록·즐겨찾기, 툰 저장 빠르게, 툰 이어가기 실전 결과 확인
 prev_session: .toon/side-tabs/SESSION_20261004d.toon
-head: 60a0fe0   dirty: yes
+head: d74777d   dirty: no
 compression: ~92%
 
 ## DICTIONARY
@@ -46,6 +46,8 @@ $6=local_2e91c399 "마인드맵 세션 선택을 클로드 앱 화면과 연동"
 - $1 새로 만듦, ~/.claude/skills/toon-save/SKILL.md '빠른 길' (git 밖)
 - $5 두 번 교체(60a0fe0 빌드, 고정 서명 확인)
 
+- d74777d 클로드 앱 붙이기: 실패하면 단추에 '붙이기 실패'+까닭(8초), 붙일 때마다 ~/.claude-mindmap/dock.log 기록. 앱 교체 후 자동 붙이기 성공(로그 ok, 창 1110,125 600×810 = 구멍 자리). 푸시 끝(60a0fe0..d74777d)
+
 ### results
 - [확인] cargo test --lib 49 통과(3 ignored), npm test 12개 통과, release 빌드 경고 0
 - [확인] 진짜 크롬 읽기(live_load): Default 즐겨찾기 269 · 기록 500
@@ -57,6 +59,7 @@ $6=local_2e91c399 "마인드맵 세션 선택을 클로드 앱 화면과 연동"
 - 새 섹션 after 없이 parts[0](이름 None) 과 맞춰 맨 위에 넣던 것 — op 에 after 가 있을 때만
 
 ### open_issues
+- [가설] 앱을 껐다 켠 뒤 '붙이기'가 안 되던 원인 미확인 — 알림이 마인드맵 탭에서만 1.6초라 안 보였음. 다음엔 dock.log 로
 - [가설] 저장→새 세션 12분은 '작업 공간 신뢰' 창 대기 — 다음 이어가기 때 시각 기록으로 확인
 - [확인] 클로드 앱 사이드바 제목은 마인드맵 rename 이 못 바꿈 (앱 local_*.json title)
 - [가설] 같은 실행 중 탭을 다시 눌러 구글로 가던 원인 미확인 — 앱 재시작 때로 추정, 마지막 주소 기억으로 덮음

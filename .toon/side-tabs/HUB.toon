@@ -29,4 +29,4 @@ files: src/modules/HubPanels.js · src/modules/HubCenterTabs.js · src/modules/H
 - .toon/side-tabs/SESSION_20261004.toon | 2026-10-04 | NEXT 000008 GitHub 마인드맵 | GitHub 맵·더블클릭 접기·그룹 중심(확인)·새 세션 워크트리 오류 고침·가운데 ＋·툰 이어가기 앱 안 새 세션+그룹 부탁 | c754c72
 - .toon/side-tabs/SESSION_20261004b.toon | 2026-10-04 | NEXT 000008c 그룹 손 시험 | 그룹 넣기 통과·폴더 빠짐 우회·앱 세션 넘기기·폴더 옮긴 세션 묶기·그룹 가지 유지 | 5ba9d48
 - .toon/side-tabs/SESSION_20261004c.toon | 2026-10-04 | NEXT 000008d·e·f 손 시험 + 요청 | 손 시험 셋 통과 · GitHub·브라우저 가운데 탭·사이드바 닫기(⌘B)·대화창 너비 끌기·사용량 쓴 % · 앱 교체 | 29c121d
-- .toon/side-tabs/SESSION_20261004d.toon | 2026-10-04 | 브라우저 이어보기·툰 빠르게 | 워크트리 잇기·toon_save.py(복원 비교 통과)·마지막 주소·크롬 기록 269/500 · 앱 교체 | 60a0fe0
+- .toon/side-tabs/SESSION_20261004d.toon | 2026-10-04 | 브라우저 이어보기·툰 빠르게 | 워크트리 잇기·toon_save.py(복원 비교 통과)·마지막 주소·크롬 기록 269/500·붙이기 실패 표시+dock.log · 앱 교체 | d74777d
