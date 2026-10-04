@@ -10,51 +10,66 @@ date: 2026-10-04
 project: claude-mindmap
 root: /Users/kim/claude-mindmap
 topic: side-tabs
-session: 손 시험 3개 통과 — 툰 이어가기 새 세션 폴더·그룹, 앱 세션 넘기기, 그룹 가지 유지
-hub_task: NEXT 000008e + 000008f + 000008d 손 시험
+session: 손 시험 3개 통과 → GitHub·브라우저 가운데 탭, 사이드바 닫기(⌘B), 대화창 너비 끌기, 사용량 쓴 % 표시
+hub_task: NEXT 000008d·e·f 손 시험 (+ 사용자 요청 4개)
 prev_session: .toon/side-tabs/SESSION_20261004b.toon
-head: 1152903   dirty: no (package-lock.json 미추적, 손대지 않음)
-compression: ~95%
+head: 29c121d   dirty: no (package-lock.json 미추적, 손대지 않음)
+compression: ~92%
 
 ## DICTIONARY
-$1=cg-015421b2-4dce-4c88-a650-66e95f7d120e (클로드 앱 그룹 "클로드마인드맵")
-$2=local_06168fc0-e3c3-4926-978a-8ebfff075a3e (이 세션)
+$1=/Applications/클로드 마인드맵.app
+$2=src/modules/HubCenterTabs.js
+$3=src/modules/HubSidebar.js
+$4=src/modules/HubResize.js
+$5=src/modules/MindMapGitHub.js
+$6=cg-015421b2-4dce-4c88-a650-66e95f7d120e (클로드 앱 그룹 "클로드마인드맵")
 
 ## STANDING_CONSTRAINTS
 - see HUB
 
 ## STATE
 ### goal
-지난 세션(b)에서 만든 것들을 진짜 앱에서 손 시험. 코드 변경 없음.
+손 시험 마무리 후, 사용자 요청으로 화면 배치 손보기.
 
 ### architecture
-- 변경 없음 (SESSION_20261004b 참고)
+- [변경] 왼쪽 탭 = 세션·파인더·메모만. GitHub·브라우저는 가운데 탭(마인드맵 | GitHub | 브라우저) — $2 의 SessionHub.prototype.setCenterTab(tab), hub.centerTab ('map'|'github'|'browser'), body[data-ctab]
+- [변경] 가운데: #center-row(flex) = #hub-mindmap + #panel-github(.center-side 300px, GitHub 탭에서만) / #panel-browser(.center-full, 브라우저 탭이면 center-row 숨김)
+- [변경] $5 wireHub 는 setLeftTab 대신 setCenterTab 을 감싼다 (GitHub 탭 ↔ GitHub 맵). "세션 맵 보기" = setCenterTab('map') + setLeftTab('sessions')
+- [변경] SessionHub.selectSession 끝: centerTab==='github' 면 github.show()
+- [변경] $3: 신호등 옆 고정 단추(#hub-sidebar-toggle, top 7 left 78) + ⌘B → body.left-hidden, localStorage hub.leftHidden
+- [변경] $4: 대화창 왼쪽 .chat-resizer 끌기 → .hub 의 --chat-w(px), 최소 280, 맵 최소 320 남김, 두 번 누르면 처음대로, localStorage hub.chatWidth. 기본 --chat-w = minmax(320px,420px), 1100px 이하 340px
+- [변경] 사용량(SessionHub._renderUsage): 막대·글자 = 쓴 % ("23% 사용"), 경고색 used>80 u-low, >50 u-mid. title 에 남은 % 도
+- 빌드: npx tauri build --bundles app (beforeBuild scripts/web-sync.js 가 src/modules/*.js 전부 복사) → $1 교체
 
 ### changes_this_session
-- 코드 없음. 툰 기록만
+- 툰 저장 d88394e (손 시험 3개)
+- 가운데 탭 d3cc7f7 · 사이드바 열기·닫기 740f6a7 · 대화창 너비 끌기 af957a0 · 사용량 쓴 % 29c121d
+- $1 교체 후 다시 켬 (pid 1489)
 
 ### results
-- [확인] 000008d: 툰 이어가기로 연 이 세션($2)이 또 임시 폴더(scratch-workspaces/...)로 시작함 → 첫 메시지 부탁대로 move_sessions($1) 성공(get_session group=클로드마인드맵), change_directory 로 ~/claude-mindmap 이동 성공(턴 끝에 작업 폴더 바뀜). get_session cwd 칸은 그 턴 안에서는 옛 임시 폴더로 보임
-- [확인] 000008e 앱 세션에 대화창 보내기 → 앱으로 넘기기: 사용자 손 시험 "잘 작동한다"
-- [확인] 000008f 그룹 보기에서 세션 클릭 시 그룹 가지 유지: 사용자 손 시험 "잘 작동한다"
-- [확인] npm test 9개 묶음 통과, VERIFY_ON_LOAD 4개 맞음
+- [확인] 000008d: 새 세션이 또 임시 폴더로 시작 → 첫 메시지 부탁으로 move_sessions($6)·change_directory 성공
+- [확인] 000008e 앱 세션 넘기기, 000008f 그룹 가지 유지: 사용자 "잘 작동한다"
+- [확인] npm test 9개 통과 (커밋마다)
+- [확인] 미리보기(python http.server, 빈 데이터, 1400x860): GitHub 탭 → gh.on true·옆 칸, 브라우저 탭 → center-row 숨김·gh.on false, 마인드맵 탭 복귀 caption "전체 · 모든 폴더", 사이드바 닫기 → 열 980px 420px, ⌘B 다시 열림, 대화창 끌기 420→700 저장·새로고침 유지·두 번 누르면 420, 사용량 예시 "23% 사용 · 64% 사용". 콘솔 오류 없음
 
 ### rejected
 - 없음
 
 ### open_issues
-- [가설] 새 세션 폴더가 빠지는 원인은 여전히 모름 — 첫 메시지 부탁(우회)으로 충분히 돌아감
-- [확인] 000008e·000008f 는 사용자가 "잘 작동한다"고 한 것. 세부(마인드맵에서 만든 세션은 마인드맵에서 답) 따로 나눠 확인하지 않음
+- [확인] 진짜 앱에서 아직 안 봄: 사이드바 단추가 신호등 옆에 맞는지(Tauri Overlay 제목줄), 진짜 사용량 값, 가운데 탭 실제 데이터
+- [가설] 새 세션 폴더 빠짐 원인 모름 — 첫 메시지 부탁 우회로 충분
 
 ### next_action
-1. 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 세션 탭 복귀
-2. 000000 맥에서 키체인 메모·크롬 조종 실측
+1. 진짜 앱 손 시험: 사이드바 단추 위치·⌘B, 대화창 끌기, 가운데 GitHub·브라우저 탭, 사용량 쓴 %
+2. 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 마인드맵 탭 복귀
+3. 000000 맥에서 키체인 메모·크롬 조종 실측
 
 ## ARTIFACTS
-- 없음
+- 없음 (미리보기: 프로젝트 폴더에서 python3 -m http.server 8765 → /index.html. 사용량 보려면 window.HUB_PREVIEW_DATA·HUB_PREVIEW_USAGE 스크립트를 index.html 앞에 붙인 임시 파일)
 
 ## VERIFY_ON_LOAD
-- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 이 툰 저장 커밋이거나 그 뒤
-- `grep -c "_keepAll\|_markSession" /Users/kim/claude-mindmap/src/modules/MindMapGroupFocus.js` → 2 이상
-- `grep -ln "claude-app:handoff" /Users/kim/claude-mindmap/src-tauri/src/handlers.rs /Users/kim/claude-mindmap/main.js` → 둘 다
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 29c121d 이거나 그 뒤
+- `ls /Users/kim/claude-mindmap/src/modules/HubCenterTabs.js /Users/kim/claude-mindmap/src/modules/HubSidebar.js /Users/kim/claude-mindmap/src/modules/HubResize.js` → 셋 다 있음
+- `grep -c "setCenterTab" /Users/kim/claude-mindmap/src/modules/MindMapGitHub.js` → 3 이상
+- `grep -c 'b.used}%' /Users/kim/claude-mindmap/src/modules/SessionHub.js` → 1 이상
 - `cd /Users/kim/claude-mindmap && npm test` → 9개 통과
