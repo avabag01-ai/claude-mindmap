@@ -24,7 +24,7 @@ const WindowSnap = require('../src/core/WindowSnap.js');
         if (cmd === 'osascript') return JSON.stringify(list);
         if (cmd === 'screencapture') { fs.writeFileSync(args.at(-1), 'png'); return ''; }
         if (cmd === 'sips' && args[0] === '-g') return `pixelWidth: ${size.w}\n  pixelHeight: ${size.h}`;
-        if (cmd === 'sips' && args[0] === '-c') { assert.notStrictEqual(args[5], args[7], '자르기는 다른 파일로 받아야 해요'); fs.writeFileSync(args[7], 'png'); size = { w: +args[2], h: +args[1] }; return ''; }
+        if (cmd === 'sips' && args[0] === '-c') { assert.strictEqual(args[7], '--out'); assert.notStrictEqual(args[6], args[8], '자르기는 다른 파일로 받아야 해요'); fs.writeFileSync(args[8], 'png'); size = { w: +args[2], h: +args[1] }; return ''; }
         if (cmd === 'sips' && args[0] === '-Z') { const k = +args[1] / Math.max(size.w, size.h); size = { w: Math.round(size.w * k), h: Math.round(size.h * k) }; return ''; }
         return '';
     };
