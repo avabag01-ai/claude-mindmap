@@ -1,4 +1,4 @@
-// GitHub 마인드맵: 왼쪽 "GitHub" 탭을 누르면 가운데 맵이 GitHub 보기로 바뀐다 (다른 탭으로 가면 원래 세션 맵).
+// GitHub 마인드맵: 가운데 "GitHub" 탭을 누르면 가운데 맵이 GitHub 보기로 바뀐다 (마인드맵·브라우저 탭으로 가면 원래 세션 맵).
 //   가운데 계정 → 묶음(클로드 앱 그룹, 못 맞추면 언어) → 저장소 → (▸ 펼치면) 열린 PR · 최근 브랜치
 // - 묶음: 저장소의 로컬 폴더(세션 폴더의 origin) → 그 폴더 세션들이 든 클로드 앱 그룹 중 가장 많은 것
 // - 저장소 색 = 마지막 푸시가 얼마나 최근인지. 노드를 누르면 정보 창: "세션 맵 보기"(로컬 폴더) · "GitHub 에서 열기"(맥의 진짜 브라우저)
@@ -376,7 +376,7 @@
         }
         if (act === 'gh-local') {
             const hub = this.gh.hub;
-            if (hub && hub.selectFolder) { hub.setLeftTab('sessions'); hub.selectFolder(b.dataset.root); }
+            if (hub && hub.selectFolder) { hub.setCenterTab('map'); hub.setLeftTab('sessions'); hub.selectFolder(b.dataset.root); }
         }
     };
 
@@ -442,13 +442,13 @@
         map.render();
     };
 
-    // 왼쪽 탭: GitHub 이면 가운데를 GitHub 보기로, 다른 탭이면 원래 세션 맵으로 (SessionHub.setLeftTab 을 감싼다)
+    // 가운데 탭: GitHub 이면 가운데를 GitHub 보기로, 다른 탭이면 원래 세션 맵으로 (SessionHub.setCenterTab 을 감싼다 — HubCenterTabs.js)
     function wireHub() {
-        if (typeof SessionHub === 'undefined' || SessionHub.prototype._ghWired) return;
+        if (typeof SessionHub === 'undefined' || !SessionHub.prototype.setCenterTab || SessionHub.prototype._ghWired) return;
         SessionHub.prototype._ghWired = true;
-        const setLeftTab = SessionHub.prototype.setLeftTab;
-        SessionHub.prototype.setLeftTab = function (tab) {
-            setLeftTab.call(this, tab);
+        const setCenterTab = SessionHub.prototype.setCenterTab;
+        SessionHub.prototype.setCenterTab = function (tab) {
+            setCenterTab.call(this, tab);
             const was = on(this.map);
             SessionMindMap.setGitHub(this.map, tab === 'github', this);
             const cap = document.getElementById('hub-map-caption');
@@ -463,6 +463,6 @@
             if (on(this.map) && cap) cap.textContent = 'GitHub · 내 저장소';
         };
     }
-    if (typeof SessionHub !== 'undefined') wireHub();
+    if (typeof SessionHub !== 'undefined' && SessionHub.prototype.setCenterTab) wireHub();
     else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireHub);
 })();

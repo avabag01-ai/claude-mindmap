@@ -65,7 +65,7 @@ class SessionHub {
     }
 
     // ---------------------------------------------------------------------
-    // 왼쪽 탭 (세션 · 파인더 · 메모)
+    // 왼쪽 탭 (세션 · 파인더 · 메모). GitHub·브라우저는 가운데 탭 (HubCenterTabs.js)
     // ---------------------------------------------------------------------
     setLeftTab(tab) {
         this.leftTab = tab;
@@ -73,8 +73,6 @@ class SessionHub {
         document.querySelectorAll('.hub-left .hub-panel').forEach(p => { p.hidden = p.id !== `panel-${tab}`; });
         if (tab === 'finder' && this.finder) this.finder.show();
         if (tab === 'memos' && this.memos) this.memos.show();
-        if (tab === 'github' && this.github) this.github.show();
-        if (tab === 'browser' && this.browser) this.browser.show();
     }
 
     // ---------------------------------------------------------------------
@@ -307,7 +305,7 @@ class SessionHub {
         this._renderList();
         this._renderChat();
         this._loadTranscript(true);
-        if (this.leftTab === 'github' && this.github) this.github.show();
+        if (this.centerTab === 'github' && this.github) this.github.show();
     }
 
     selectFolder(root) {

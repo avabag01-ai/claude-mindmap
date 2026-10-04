@@ -180,6 +180,15 @@
         .u-err { font-size: 11px; color: var(--muted); max-width: 260px; }
         #hub-map-caption { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #hub-mindmap { flex: 1; min-height: 0; }
+        .center-tabs { display: flex; gap: 2px; }
+        .center-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 4px 10px; cursor: pointer; color: var(--muted); }
+        .center-tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+        .center-row { flex: 1; min-height: 0; display: flex; }
+        .center-row[hidden] { display: none; }
+        .center-row #hub-mindmap { min-width: 0; }
+        .center-side { flex: 0 0 300px; border-left: 1px solid var(--line); }
+        .center-side[hidden], .center-full[hidden] { display: none; }
+        body[data-ctab=browser] .hub-seg, body[data-ctab=browser] #hub-map-caption { display: none; }
         main.col { position: relative; }
         .hub-toon-panel { position: absolute; z-index: 5; top: 64px; right: 10px; bottom: 10px; width: min(520px, calc(100% - 20px));
             background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow: auto;
@@ -275,6 +284,8 @@
             .col-head { padding-top: 12px; }
             #hub-list-body { max-height: 32vh; }
             #hub-mindmap { height: 60vh; flex: none; }
+            .center-row { flex-direction: column; }
+            .center-side { flex: none; border-left: 0; border-top: 1px solid var(--line); }
             #hub-messages { max-height: 65vh; min-height: 30vh; }
         }
     </style>
@@ -287,8 +298,6 @@
                 <button role="tab" id="tab-sessions" data-tab="sessions" aria-selected="true" aria-controls="panel-sessions">세션</button>
                 <button role="tab" id="tab-finder" data-tab="finder" aria-selected="false" aria-controls="panel-finder">파인더</button>
                 <button role="tab" id="tab-memos" data-tab="memos" aria-selected="false" aria-controls="panel-memos">메모</button>
-                <button role="tab" id="tab-github" data-tab="github" aria-selected="false" aria-controls="panel-github">GitHub</button>
-                <button role="tab" id="tab-browser" data-tab="browser" aria-selected="false" aria-controls="panel-browser">브라우저</button>
             </div>
             <div class="hub-panel" id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions">
             <div class="col-head">
@@ -327,30 +336,16 @@
                 <div id="memo-body" class="memo-body"></div>
             </div>
 
-            <!-- GitHub: 고른 세션의 저장소 -->
-            <div class="hub-panel" id="panel-github" role="tabpanel" aria-labelledby="tab-github" hidden>
-                <div class="col-head">
-                    <div class="row"><h2 id="gh-repo" class="gh-repo"></h2><button class="btn" id="gh-refresh">새로고침</button></div>
-                </div>
-                <div id="gh-body" class="gh-body"></div>
-            </div>
-
-            <!-- 브라우저: 맥의 진짜 크롬·사파리 -->
-            <div class="hub-panel" id="panel-browser" role="tabpanel" aria-labelledby="tab-browser" hidden>
-                <div class="col-head">
-                    <div class="row">
-                        <select id="br-browser" aria-label="브라우저"><option value="chrome">크롬</option><option value="safari">사파리</option><option value="brave">Brave</option><option value="edge">Edge</option></select>
-                        <select id="br-engine" aria-label="검색 엔진"><option value="google">구글</option><option value="naver">네이버</option></select>
-                    </div>
-                    <div class="row"><input type="search" id="br-address" placeholder="주소나 검색어" aria-label="주소나 검색어"><button class="btn btn-primary" id="br-go">열기</button></div>
-                </div>
-                <div id="br-body" class="gh-body"></div>
-            </div>
         </aside>
 
         <!-- 가운데: 마인드맵 -->
         <main class="col" aria-label="세션 마인드맵">
             <div class="col-head">
+                <div class="center-tabs" role="tablist" aria-label="가운데 탭">
+                    <button role="tab" id="ctab-map" data-ctab="map" aria-selected="true">마인드맵</button>
+                    <button role="tab" id="ctab-github" data-ctab="github" aria-selected="false" aria-controls="panel-github">GitHub</button>
+                    <button role="tab" id="ctab-browser" data-ctab="browser" aria-selected="false" aria-controls="panel-browser">브라우저</button>
+                </div>
                 <div class="row">
                     <div class="hub-seg" role="group" aria-label="가운데에 둘 것">
                         <button data-center="all" aria-pressed="true">전체</button>
@@ -361,7 +356,30 @@
                     <button id="hub-usage" class="hub-usage" title="Claude 사용량 · 눌러서 새로고침" aria-label="Claude 사용량"></button>
                 </div>
             </div>
-            <div id="hub-mindmap"></div>
+            <div id="center-row" class="center-row">
+                <div id="hub-mindmap"></div>
+
+                <!-- GitHub: 고른 세션의 저장소 -->
+                <div class="hub-panel center-side" id="panel-github" role="tabpanel" aria-labelledby="ctab-github" hidden>
+                    <div class="col-head">
+                        <div class="row"><h2 id="gh-repo" class="gh-repo"></h2><button class="btn" id="gh-refresh">새로고침</button></div>
+                    </div>
+                    <div id="gh-body" class="gh-body"></div>
+                </div>
+            </div>
+
+            <!-- 브라우저: 맥의 진짜 크롬·사파리 -->
+            <div class="hub-panel center-full" id="panel-browser" role="tabpanel" aria-labelledby="ctab-browser" hidden>
+                <div class="col-head">
+                    <div class="row">
+                        <select id="br-browser" aria-label="브라우저"><option value="chrome">크롬</option><option value="safari">사파리</option><option value="brave">Brave</option><option value="edge">Edge</option></select>
+                        <select id="br-engine" aria-label="검색 엔진"><option value="google">구글</option><option value="naver">네이버</option></select>
+                    </div>
+                    <div class="row"><input type="search" id="br-address" placeholder="주소나 검색어" aria-label="주소나 검색어"><button class="btn btn-primary" id="br-go">열기</button></div>
+                </div>
+                <div id="br-body" class="gh-body"></div>
+            </div>
+
             <aside id="hub-toon-panel" class="hub-toon-panel" aria-label="툰 허브" hidden></aside>
             <div id="hub-drop-ask" class="hub-drop-ask" role="dialog" aria-label="다른 폴더로 복사" hidden></div>
         </main>
@@ -407,6 +425,7 @@
     <script src="src/modules/SessionHub.js"></script>
     <script src="src/modules/HubGuard.js"></script>
     <script src="src/modules/HubPanels.js"></script>
+    <script src="src/modules/HubCenterTabs.js"></script>
     <script src="src/modules/HubApprovals.js"></script>
     <script src="src/modules/HubAppList.js"></script>
     <script>
