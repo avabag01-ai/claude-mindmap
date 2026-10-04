@@ -6,6 +6,7 @@
 pub mod app_dir;
 pub mod approvals;
 pub mod browser_bridge;
+pub mod center_web;
 pub mod claude_app;
 pub mod claude_runner;
 pub mod git_panel;
@@ -36,7 +37,13 @@ fn ipc_send(app: tauri::AppHandle, channel: String, payload: serde_json::Value) 
 
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![ipc_send])
+        .invoke_handler(tauri::generate_handler![
+            ipc_send,
+            center_web::web_show,
+            center_web::web_hide,
+            center_web::web_go,
+            center_web::web_url
+        ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 if window.app_handle().webview_windows().is_empty() {

@@ -200,6 +200,11 @@
         .center-row #hub-mindmap { min-width: 0; }
         .center-side { flex: 0 0 300px; border-left: 1px solid var(--line); }
         .center-side[hidden], .center-full[hidden] { display: none; }
+        /* 가운데 웹 화면 (HubCenterWeb.js): 주소줄 + 자리. 실제 웹 화면은 자리 위에 떠 있는 따로 된 웹뷰 */
+        .cw-bar { display: flex; gap: 4px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+        .cw-bar .btn { padding: 3px 8px; }
+        .cw-addr { flex: 1; min-width: 80px; }
+        .cw-slot { flex: 1; min-height: 0; display: grid; place-items: center; }
         body[data-ctab=browser] .hub-seg, body[data-ctab=browser] #hub-map-caption { display: none; }
         main.col { position: relative; }
         .hub-toon-panel { position: absolute; z-index: 5; top: 64px; right: 10px; bottom: 10px; width: min(520px, calc(100% - 20px));
@@ -439,6 +444,7 @@
     <script src="src/modules/HubGuard.js"></script>
     <script src="src/modules/HubPanels.js"></script>
     <script src="src/modules/HubCenterTabs.js"></script>
+    <script src="src/modules/HubCenterWeb.js"></script>
     <script src="src/modules/HubSidebar.js"></script>
     <script src="src/modules/HubResize.js"></script>
     <script src="src/modules/HubApprovals.js"></script>
