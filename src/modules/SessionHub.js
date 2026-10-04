@@ -328,6 +328,7 @@ class SessionHub {
      * meta = 폴더 ⊕ 는 없음, 주제 가지 ⊕ 는 { topic }, 세션 ⊕ 는 { parentId, topic } (하위 세션)
      */
     newSessionIn(root, meta) {
+        root = SessionHub.mainRoot(root);
         this.newMeta = meta && (meta.topic || meta.parentId) ? { ...meta } : null;
         if (this.newMeta && this.newMeta.topic) { this.newTopic = this.newMeta.topic; this.toonStart = true; }
         this.newFolder = root;
@@ -626,6 +627,11 @@ class SessionHub {
         return SessionHub.withTitle(`툰 불러와 — 하위 세션, root: ${cwd}${topic ? `, topic: ${topic}` : ''}, hub_task: ${task}`, task);
     }
 
+    /** 새 세션 폴더: 다른 세션의 워크트리(.claude/worktrees/…)면 원래 저장소 폴더 (같은 브랜치를 두 폴더에서 못 연다) */
+    static mainRoot(p) {
+        return String(p || '').replace(/\/\.claude\/worktrees\/[^/]+\/?$/, '');
+    }
+
     /** 시작 메시지 맨 앞에 세션 제목을 붙인다 (첫 줄이 클로드 앱 세션 제목이 된다). 이미 제목이 있으면 그대로 */
     static withTitle(prompt, title) {
         const p = String(prompt || '').trim();
@@ -791,10 +797,12 @@ class SessionHub {
         const s = this._selSession();
         if (s && s.remote) return; // 다른 기기 세션에는 보낼 수 없다
         const folderSel = this.el('hub-folder');
-        const cwd = s ? s.cwd : (folderSel ? folderSel.value : this.newFolder);
+        const cwd = s ? s.cwd : SessionHub.mainRoot(folderSel ? folderSel.value : this.newFolder);
         if (!cwd) return;
         const hub = s ? null : this._newHub();
-        const first = hub && this.toonStart ? SessionHub.toonStartPrompt(cwd, this.newTopic, text) : text;
+        // 이미 "툰 불러와 …" 시작 메시지를 붙여 넣었으면 다시 감싸지 않는다 (제목만 앞에)
+        const first = !s && /툰\s*불러/.test(text) ? SessionHub.withTitle(text, '')
+            : hub && this.toonStart ? SessionHub.toonStartPrompt(cwd, this.newTopic, text) : text;
         if (!s) this.sel = { root: cwd };
         this._startRun({ cwd, sessionId: s ? s.id : null, root: s ? this.sel.root : cwd, text: first, permissionMode: this.permission });
         input.value = '';
