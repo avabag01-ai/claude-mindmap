@@ -32,7 +32,7 @@ head: f78a248   dirty: no
 - [가설] 세션 폴더와 이어지는 저장소가 적어 대부분 언어 묶음일 것
 ### next_action
 1. 진짜 앱에서 세션 노드 더블클릭 접기·펼치기, 한 번 누르기 느낌(0.25초 지연) 손 시험
-2. (사용자가 GitHub 맵 보고 '빽빽하다' 함 → 묶음 접기 반영) 진짜 앱에서 GitHub ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀, ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀 확인
+2. (사용자가 GitHub 맵 보고 '빽빽하다' 함 → 묶음 접기 반영) 진짜 앱에서 GitHub ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀 확인
 
 ## VERIFY_ON_LOAD
 - `git log --oneline -3 main` → c640dc1, bef89a1 포함
