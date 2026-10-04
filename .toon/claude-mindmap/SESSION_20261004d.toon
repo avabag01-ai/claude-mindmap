@@ -1,0 +1,64 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: claude-mindmap
+session: 하위 세션(클로드 앱으로 넘어옴) · 그룹 넣기 조사 → 앱 도구로 47개 그룹 정리 · 맵 −/＋ = 단계 접기 · 빌드 교체
+hub_task: NEXT 000006 클로드 앱 그룹에 새 세션 넣는 방법 조사
+prev_session: .toon/claude-mindmap/SESSION_20261004c.toon
+head: 6ba14de   dirty: no (package-lock.json 미추적만)
+compression: ~85%
+
+## DICTIONARY
+$1=~/Library/Application Support/Claude/claude_desktop_config.json
+$2=preferences.epitaxyPrefs["dframe-group-scopes"][<계정>/<조직>]
+$3=src/modules/MindMapTools.js
+$4=/Applications/클로드 마인드맵.app
+$5=mcp__ccd_sidebar__ (list_groups · create_group · move_sessions)
+
+## STANDING_CONSTRAINTS
+- see HUB
+- [새 규칙·메모리] 앱 조작은 MCP 도구·코드·파일 먼저, 화면 캡처는 그림 확인할 때만 (사용자 지적)
+
+## STATE
+### goal
+마인드맵에서 만든 세션을 클로드 앱 그룹에 넣는 길 찾기 + 맵 정리
+
+### architecture
+- [확인] 그룹 저장 위치: $1 → $2 = {groups:[{id:"cg-…",name}], assignments:{"code:local_<앱id>": "cg-…"}}. 순서·이름은 dframe-code-sections(kind manual)
+- [확인] claude:// 링크로는 그룹 지정 불가 — 앱 코드(app.asar · ion-dist)에 code/new · code/continue · needs-input 만, group 인자 없음
+- [확인] 길 = 클로드 앱 안에서 도는 세션의 $5 도구. 다른 세션 옮기기 됨(아래 결과). 앱 밖(claude -p) 세션엔 이 도구 없음
+- [확인] 맵 −/＋ ($3): map.levelLimit(보일 깊이, Claude=0) 보다 깊은 노드를 잘라 ▸개수, ▸ 누르면 그 노드만(levelOpen). _visibleTree·_toggleFold·render 를 감쌈. 확대는 휠·트랙패드만
+- [확인] SessionHub.js:273 조용한 다시 읽기는 세션 id 가 바뀔 때만 다시 그림 → 그룹만 바뀌면 안 그려짐 (재시작하면 읽힘)
+
+### changes_this_session
+- 클로드 앱 그룹 정리(도구로): 미분류 47 → valveforge +6, 작곡 +3, 클로드마인드맵 +2, 새 그룹 Logic Pro MCP 7 · 툰 7 · 맥·장비 설정 10 · 기타 12
+- $3: −/＋ 확대 → 단계 접기/펼치기 (6ba14de, 푸시함)
+- $4 교체: npm run tauri:build -- --bundles app (6.37 MiB) → 끄고 복사 → 실행
+- 메모리: prefer-tools-over-screenshots.md
+
+### results
+- [확인] npm test 8개 모두 통과. 단계 자르기는 가짜 트리로 node 확인(깊이 3 → 2: 파일 ▸, 1: 세션 ▸, ▸ 누르면 그 노드만)
+- [확인 맥 실측] 새 앱에서 − 한 번 → Claude + 그룹 6개만(▸47 ▸22 …), ＋ → 다 펼침. 코드 보기 꺼짐이라 단계 2개
+- [확인] list_sessions 로 그룹 '기타' 12개 확인(list_groups 숫자는 0으로 늦게 바뀜)
+
+### open_issues
+- [확인] 맵에 툰 · 맥·장비 설정 · 기타 그룹 안 보이고 "앱 밖 세션 47" 이 따로 나옴. 앱 설정엔 7개 그룹·기록 파일 있음(cli id 짝도 있음). [가설] HubAppList.js appSections 가 새 그룹/세션을 짝 못 지음 또는 기간(period) 필터
+- SessionHub.js:273 키에 claudeApp 그룹 배정을 넣어야 그룹 바뀌면 다시 그림 (다른 세션이 SessionHub.js 고치는 중이라 손 안 댐)
+
+### next_action
+1. "앱 밖 세션 47" 원인: HubAppList.js appSections + claude_app.rs read 결과를 node 로 찍어 새 그룹 3개 세션이 어디로 가는지 확인 → 고침. 완료 = 맵에 그룹 7개
+2. SessionHub.js:273 비교 키에 claudeApp 배정 포함 (다른 세션 끝난 뒤)
+3. 마인드맵 ⊕ 새 세션 → 그룹 넣기: 앱 안 세션에 move_sessions 시키는 흐름 설계
+
+## VERIFY_ON_LOAD
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 6ba14de 이후
+- `grep -c levelLimit src/modules/MindMapTools.js` → 5 이상
+- `python3 -c "import json;d=json.load(open('$1'));print(len(list(d['preferences']['epitaxyPrefs']['dframe-group-scopes'].values())[0]['groups']))"` → 7
