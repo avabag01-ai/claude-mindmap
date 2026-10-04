@@ -90,10 +90,14 @@
         .hub-sidebar-toggle:hover { background: var(--panel-2); color: var(--ink); }
         body.left-hidden .hub-left { display: none; }
         body.left-hidden .hub { grid-template-columns: minmax(0, 1fr) var(--chat-w); }
-        /* 클로드 앱 붙이기 (HubClaudeDock.js): 대화창 자리에 클로드 앱 창이 붙으니 대화창은 숨긴다 */
-        body.claude-docked .hub { grid-template-columns: 270px minmax(0, 1fr); }
-        body.claude-docked.left-hidden .hub { grid-template-columns: minmax(0, 1fr); }
-        body.claude-docked .hub > section.col[aria-label="대화"], body.claude-docked .chat-resizer { display: none; }
+        /* 클로드 앱 붙이기 (HubClaudeDock.js): 대화 내용·입력칸 자리를 투명한 구멍으로 비우고 그 뒤에 클로드 앱 창을 둔다.
+           창이 투명 창이라 바탕색은 칸마다 따로 칠한다 (구멍만 비게) */
+        html:has(body.claude-docked), body.claude-docked { background: transparent; }
+        body.claude-docked .hub > aside.col, body.claude-docked .hub > main.col { background: var(--bg); }
+        body.claude-docked #hub-chat-head, body.claude-docked #hub-composer { background: var(--bg); }
+        body.claude-docked #hub-messages, body.claude-docked #hub-attach, body.claude-docked #hub-input { display: none; }
+        #hub-claude-hole { display: none; }
+        body.claude-docked #hub-claude-hole { display: block; flex: 1; min-height: 200px; outline: 1px solid var(--line); outline-offset: -1px; }
         .hub-claude-dock { margin-left: auto; -webkit-app-region: no-drag; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
         .hub-claude-dock[aria-pressed=true] { color: var(--ink); border-color: var(--accent); }
         .hub-tabs { display: flex; gap: 2px; padding: 34px 10px 0; border-bottom: 1px solid var(--line); -webkit-app-region: drag; }
@@ -298,7 +302,7 @@
         .hub-more { align-self: flex-start; justify-self: start; font-size: 11px; padding: 2px 9px; }
         .hub-mode { justify-self: start; background: var(--accent); color: #0b1512; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 0 6px; }
 
-        @media (max-width: 1100px) { .hub { --chat-w: 340px; grid-template-columns: 220px minmax(0, 1fr) var(--chat-w); } body.claude-docked .hub { grid-template-columns: 220px minmax(0, 1fr); } }
+        @media (max-width: 1100px) { .hub { --chat-w: 340px; grid-template-columns: 220px minmax(0, 1fr) var(--chat-w); } }
         /* 좁은 화면(폰·작은 창): 목록 → 맵 → 대화 순으로 쌓는다 */
         @media (max-width: 860px) {
             html, body { height: auto; }
@@ -412,6 +416,7 @@
         <section class="col" aria-label="대화">
             <div class="col-head" id="hub-chat-head"></div>
             <div id="hub-messages" aria-live="polite"></div>
+            <div id="hub-claude-hole" aria-label="클로드 앱 창 자리"></div>
             <div class="composer" id="hub-composer">
                 <div id="hub-attach" class="hub-attach" hidden></div>
                 <textarea id="hub-input" rows="3" placeholder="왼쪽에서 세션을 고르세요" disabled></textarea>
