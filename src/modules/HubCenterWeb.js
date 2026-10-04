@@ -3,6 +3,8 @@
 // - 두 탭 모두 "번역" 단추: Google 번역으로 한국어 (코드 칸은 그대로, src-tauri/src/translate_web.rs). 켜 두면 페이지가 바뀔 때마다 다시.
 // - 두 탭 모두 "대화창에" 단추: 지금 주소를 대화창 입력칸(커서 자리)에 넣는다.
 // - 브라우저 탭: 주소창 + 웹 화면. "크롬 조종" 단추로 예전 진짜 크롬·사파리 조종 칸으로.
+// - 두 탭 모두 마지막 주소를 기억해서, 앱을 다시 켜거나 웹 화면을 새로 만들 때 처음 화면(구글) 대신 그 주소로 연다.
+// - 브라우저 탭 "기록·즐겨찾기": 맥 크롬의 즐겨찾기·방문 기록(읽기만, src-tauri/src/chrome_places.rs)을 자리에 목록으로 — 누르면 그 주소로.
 // - 웹 화면은 앱 화면 위에 떠 있는 따로 된 창이라, 자리(.cw-slot)가 움직이면 좌표를 다시 보낸다(보일 때만 매 프레임 확인).
 // - Electron 판·미리보기(Tauri 없음)에서는 예전 칸 그대로.
 // HubCenterTabs.js · MindMapGitHub.js 다음에 불러야 setCenterTab 을 바깥에서 감싼다.
@@ -37,6 +39,10 @@
         b.setAttribute('aria-pressed', String(!!pressed));
     }
 
+    // 마지막 주소 (탭마다)
+    function lastUrl(tab) { try { return localStorage.getItem(`cw.url.${tab}`) || null; } catch { return null; } }
+    function setLastUrl(tab, u) { try { if (/^https?:\/\//i.test(u || '')) localStorage.setItem(`cw.url.${tab}`, u); } catch { /* 미리보기 */ } }
+
     function setMode(tab, m) { try { localStorage.setItem(`cw.mode.${tab}`, m); } catch { /* 미리보기 */ } }
 
     function build(hub) {
@@ -52,6 +58,7 @@
                 <button class="btn" data-cw="back" title="뒤로">←</button><button class="btn" data-cw="forward" title="앞으로">→</button>
                 <button class="btn" data-cw="reload" title="새로고침">⟳</button><button class="btn" data-cw="home" title="${tab === 'github' ? '내 GitHub' : '처음 화면'}">⌂</button>
                 ${tab === 'github' ? '<button class="btn" data-cw="repo" title="고른 세션의 저장소">이 세션 저장소</button>' : ''}
+                ${tab === 'browser' ? '<button class="btn" data-cw="places" title="맥 크롬의 즐겨찾기·방문 기록" aria-pressed="false">기록·즐겨찾기</button>' : ''}
                 <input type="text" class="cw-addr" placeholder="${esc(v.ph)}" aria-label="${esc(v.ph)}" spellcheck="false">
                 <button class="btn" data-cw="translate" title="한국어로 번역 (Google 번역, 코드는 그대로) · 켜 두면 다음 페이지도">번역</button>
                 <button class="btn" data-cw="chat" title="지금 주소를 대화창에 넣기">대화창에</button>
@@ -59,7 +66,7 @@
                 <button class="btn" data-cw="alt" title="${esc(v.altTitle)}">${esc(v.alt)}</button></div>
                 <div class="cw-slot"><p class="hub-empty">불러오는 중…</p></div>`;
             main.insertBefore(box, document.getElementById('hub-toon-panel'));
-            cw[tab] = { box, slot: box.querySelector('.cw-slot'), addr: box.querySelector('.cw-addr'), label: v.label, rect: '', url: '' };
+            cw[tab] = { tab, box, slot: box.querySelector('.cw-slot'), addr: box.querySelector('.cw-addr'), label: v.label, rect: '', url: '', opened: false, panel: false };
             box.querySelector('.cw-bar').addEventListener('click', e => {
                 const b = e.target.closest('[data-cw]');
                 if (b) act(hub, tab, b.dataset.cw);
@@ -93,12 +100,16 @@
     }
 
     function setAddr(v, url) {
-        if (url) v.url = url;
+        if (url) { v.url = url; setLastUrl(v.tab, url); }
         if (document.activeElement !== v.addr) v.addr.value = v.url;
     }
 
     function show(hub, tab, url) {
         const v = hub._cw[tab];
+        // 이 화면에서 처음 띄울 때는 마지막 주소로 (웹뷰가 이미 있으면 같은 주소라 그대로 보임)
+        if (!url && !v.opened) url = lastUrl(tab);
+        v.opened = true;
+        placesOff(v);
         const r = v.slot.getBoundingClientRect();
         v.rect = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
         invoke('web_show', { label: v.label, x: r.left, y: r.top, w: r.width, h: r.height, url: url || null })
@@ -106,8 +117,74 @@
             .catch(m => { v.slot.innerHTML = `<p class="hub-empty">웹 화면을 못 띄웠어요: ${esc(m)}</p>`; });
     }
 
+    // ---- 기록·즐겨찾기 (크롬) — 웹뷰는 앱 화면 위에 떠 있어서, 목록을 보일 땐 웹뷰를 숨기고 자리에 그린다
+    function placesOff(v) {
+        if (!v.panel) return;
+        v.panel = false;
+        const b = v.box.querySelector('[data-cw="places"]');
+        if (b) b.setAttribute('aria-pressed', 'false');
+    }
+    const PLACES_TTL = 60 * 1000;
+    function loadPlaces(hub) {
+        const c = hub._chromePlaces;
+        if (c && Date.now() - c.at < PLACES_TTL) return Promise.resolve(c.data);
+        return invoke('chrome_places', {}).then(data => { hub._chromePlaces = { at: Date.now(), data }; return data; });
+    }
+    function placesOn(hub, tab) {
+        const v = hub._cw[tab];
+        v.panel = true;
+        v.rect = '';
+        v.box.querySelector('[data-cw="places"]').setAttribute('aria-pressed', 'true');
+        invoke('web_hide', { label: v.label }).catch(() => {});
+        const kind = (() => { try { return localStorage.getItem('cw.places.kind') || 'bookmarks'; } catch { return 'bookmarks'; } })();
+        v.slot.innerHTML = `<div class="cw-places"><div class="cw-places-head">
+            <button class="btn" data-k="bookmarks" aria-pressed="${kind === 'bookmarks'}">즐겨찾기</button>
+            <button class="btn" data-k="history" aria-pressed="${kind === 'history'}">방문 기록</button>
+            <input type="search" class="cw-addr cw-places-q" placeholder="제목·주소로 찾기" aria-label="기록·즐겨찾기 찾기" spellcheck="false">
+            <button class="btn" data-k="close" title="웹 화면으로 돌아가기">닫기</button></div>
+            <div class="cw-places-list"><p class="hub-empty">크롬에서 읽는 중…</p></div></div>`;
+        const box = v.slot.querySelector('.cw-places');
+        const q = box.querySelector('.cw-places-q');
+        const list = box.querySelector('.cw-places-list');
+        let cur = kind, data = null;
+        const draw = () => {
+            if (!data) return;
+            const rows = SessionHub.cwFilterPlaces(data[cur] || [], q.value).slice(0, 300);
+            list.innerHTML = rows.length ? rows.map((p, i) => `<button class="cw-place" data-i="${i}" title="${esc(p.url)}">
+                <span class="cw-place-t">${esc(p.title || p.url)}</span><span class="cw-place-u">${esc(p.url.replace(/^https?:\/\//, ''))}</span>
+                <span class="cw-place-n">${esc(cur === 'history' ? `${p.note} · ${SessionHub.cwAgo(p.at)}` : p.note)}</span></button>`).join('')
+                : `<p class="hub-empty">${q.value ? '찾는 게 없어요' : '비어 있어요'}</p>`;
+            list._rows = rows;
+        };
+        box.addEventListener('click', e => {
+            const k = e.target.closest('[data-k]');
+            if (k) {
+                if (k.dataset.k === 'close') { show(hub, tab); return; }
+                cur = k.dataset.k;
+                try { localStorage.setItem('cw.places.kind', cur); } catch { /* 미리보기 */ }
+                box.querySelectorAll('[data-k=bookmarks],[data-k=history]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === cur)));
+                draw();
+                return;
+            }
+            const row = e.target.closest('.cw-place');
+            if (row && list._rows) show(hub, tab, list._rows[+row.dataset.i].url);
+        });
+        q.addEventListener('input', draw);
+        q.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && list._rows && list._rows[0]) show(hub, tab, list._rows[0].url);
+            if (e.key === 'Escape') show(hub, tab);
+        });
+        q.focus();
+        loadPlaces(hub).then(d => {
+            if (!v.panel) return;
+            data = d;
+            draw();
+        }).catch(m => { if (v.panel) list.innerHTML = `<p class="hub-empty">크롬 기록을 못 읽었어요: ${esc(m)}</p>`; });
+    }
+
     function act(hub, tab, what) {
         const v = hub._cw[tab];
+        if (what === 'places') { if (v.panel) show(hub, tab); else placesOn(hub, tab); return; }
         if (what === 'alt') { setMode(tab, 'app'); hub.setCenterTab(tab); return; }
         if (what === 'translate') {
             const on = !trOn(tab);
@@ -140,6 +217,7 @@
             const tab = hub._cwOn;
             if (!tab) { hub._cwLoop = null; return; }
             const v = hub._cw[tab];
+            if (v.panel) { hub._cwLoop = requestAnimationFrame(step); return; } // 목록을 보는 동안은 웹뷰를 띄우지 않는다
             const r = v.slot.getBoundingClientRect();
             const key = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
             if (key !== v.rect) show(hub, tab);
@@ -156,6 +234,22 @@
         };
         hub._cwLoop = requestAnimationFrame(step);
     }
+
+    /** 기록·즐겨찾기 찾기: 낱말마다 제목이나 주소에 들어 있어야 (대소문자 무시) */
+    SessionHub.cwFilterPlaces = function (rows, q) {
+        const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+        if (!words.length) return rows.slice();
+        return rows.filter(p => { const h = `${p.title || ''} ${p.url || ''}`.toLowerCase(); return words.every(w => h.includes(w)); });
+    };
+    /** 마지막 방문 (유닉스 ms) → "3분 전" */
+    SessionHub.cwAgo = function (at, now) {
+        if (!at) return '';
+        const m = Math.max(0, ((now || Date.now()) - at) / 60000);
+        if (m < 1) return '방금';
+        if (m < 60) return `${Math.floor(m)}분 전`;
+        if (m < 60 * 24) return `${Math.floor(m / 60)}시간 전`;
+        return `${Math.floor(m / 60 / 24)}일 전`;
+    };
 
     function wire() {
         const P = SessionHub.prototype;

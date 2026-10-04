@@ -219,6 +219,17 @@
         .cw-bar .btn { padding: 3px 8px; }
         .cw-addr { flex: 1; min-width: 80px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
         .cw-slot { flex: 1; min-height: 0; display: grid; place-items: center; }
+        /* 기록·즐겨찾기 목록 (크롬) */
+        .cw-places { align-self: stretch; justify-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+        .cw-places-head { display: flex; gap: 4px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+        .cw-places-head .btn[aria-pressed=true], .cw-bar .btn[aria-pressed=true] { border-color: var(--accent, #6aa0ff); }
+        .cw-places-list { flex: 1; min-height: 0; overflow: auto; padding: 4px 6px; }
+        .cw-place { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; width: 100%; text-align: left; background: none; border: 0;
+            border-radius: 6px; padding: 6px 8px; color: var(--ink); cursor: pointer; }
+        .cw-place:hover, .cw-place:focus-visible { background: var(--panel); }
+        .cw-place-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cw-place-u { grid-column: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .6; font-size: 12px; }
+        .cw-place-n { grid-column: 2; grid-row: 1 / span 2; align-self: center; opacity: .6; font-size: 12px; white-space: nowrap; }
         body[data-ctab=browser] .hub-seg, body[data-ctab=browser] #hub-map-caption { display: none; }
         main.col { position: relative; }
         .hub-toon-panel { position: absolute; z-index: 5; top: 64px; right: 10px; bottom: 10px; width: min(520px, calc(100% - 20px));

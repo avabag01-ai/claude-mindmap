@@ -26,4 +26,19 @@ vm.runInContext(fs.readFileSync(require.resolve('../src/modules/HubCenterWeb.js'
 assert.ok(FakeHub.prototype._cwWired, 'setCenterTab 을 감쌌어야 해요');
 assert.deepStrictEqual(listened.sort(), ['center-web:open', 'center-web:translate']);
 assert.notStrictEqual(sandbox.HubGitHub.openUrl.toString().indexOf('_cwPendingUrl'), -1, 'github.com 주소는 가운데 탭으로');
+// 기록·즐겨찾기 찾기, 방문 시각
+const rows = [{ title: 'GitHub 홈', url: 'https://github.com/' }, { title: '러스트 책', url: 'https://doc.rust-lang.org/book/' }];
+assert.strictEqual(FakeHub.cwFilterPlaces(rows, '').length, 2);
+assert.deepStrictEqual(FakeHub.cwFilterPlaces(rows, 'RUST 책').map(r => r.title), ['러스트 책']);
+assert.deepStrictEqual(FakeHub.cwFilterPlaces(rows, 'github.com').map(r => r.title), ['GitHub 홈']);
+assert.strictEqual(FakeHub.cwFilterPlaces(rows, '없는말').length, 0);
+const now = 1_800_000_000_000;
+assert.strictEqual(FakeHub.cwAgo(0, now), '');
+assert.strictEqual(FakeHub.cwAgo(now - 30 * 1000, now), '방금');
+assert.strictEqual(FakeHub.cwAgo(now - 5 * 60000, now), '5분 전');
+assert.strictEqual(FakeHub.cwAgo(now - 3 * 3600000, now), '3시간 전');
+assert.strictEqual(FakeHub.cwAgo(now - 2 * 86400000, now), '2일 전');
+// 마지막 주소: 처음 띄울 때 기억한 주소로
+const src = fs.readFileSync(require.resolve('../src/modules/HubCenterWeb.js'), 'utf8');
+assert.ok(/if \(!url && !v\.opened\) url = lastUrl\(tab\)/.test(src), '처음 띄울 때 마지막 주소로 가야 해요');
 console.log('HubCenterWeb: 모든 테스트 통과');
