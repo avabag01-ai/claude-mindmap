@@ -132,7 +132,7 @@ pub fn run_with_bin(
         args.push(id.into());
     }
     if let Some(m) = req.permission_mode.as_deref() {
-        if m == "acceptEdits" || m == "plan" {
+        if m == "auto" || m == "acceptEdits" || m == "plan" {
             args.push("--permission-mode".into());
             args.push(m.into());
         }

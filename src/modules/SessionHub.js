@@ -31,7 +31,7 @@ class SessionHub {
         this.transcript = null;    // { file, messages, truncated, mtimeMs }
         this.run = null;           // { runId, text, events[], sessionId, root }
         this.newFolder = null;     // 새 세션을 열 폴더
-        this.permission = 'default';
+        this.permission = 'auto';  // 클로드 앱과 같은 기본 (index.html #hub-perm 첫 줄)
         this.answerMode = SessionHub._loadAnswerMode(); // result | summary | detail
         this.openChains = new Set();  // 왼쪽 목록에서 "이전 N" 을 펼친 줄기 ("root::맨 끝 id")
         this.toonStart = true;      // 새 세션: 툰 허브를 읽고 시작

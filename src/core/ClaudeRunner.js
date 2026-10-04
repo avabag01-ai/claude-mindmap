@@ -15,7 +15,7 @@ const { spawn } = require('child_process');
 const { childEnv } = require('./loginPath.js');
 const fs = require('fs');
 
-const PERMISSION_MODES = new Set(['default', 'acceptEdits', 'plan']);
+const PERMISSION_MODES = new Set(['default', 'auto', 'acceptEdits', 'plan']); // auto = 클로드 앱 기본 (안전한 건 묻지 않음)
 
 // 답 길이: 대화창의 결과만 / 요약 / 자세히 버튼. --append-system-prompt 로 붙여서 사람이 쓴 메시지는 그대로 남는다.
 const ANSWER_STYLES = {
