@@ -172,4 +172,36 @@ assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
     assert.deepStrictEqual(r.sessions['cli-a'], { appId: 'local_a', title: '가', group: 'g1', archived: false, createdAt: 1, pinned: false, adopted: false });
     assert.strictEqual(ClaudeApp.read(path.join(d, '없음')).ok, false);
 }
+// 클로드 앱 연동(HubAppLink.js): 고르면 앱 화면 바꾸기, 보내기는 앱 입력칸으로, 멈추면 글 돌려 두기
+{
+    global.SessionHub = SessionHub;
+    require('../src/modules/HubAppLink.js');
+    const app = { ok: true, sessions: { s1: { appId: 'local_ab-1' }, s2: { appId: 'local_x', archived: true }, s3: { appId: 'bad id' } } };
+    assert.strictEqual(SessionHub.appIdOf(app, 's1'), 'local_ab-1');
+    assert.strictEqual(SessionHub.appIdOf(app, 's2'), null, '보관한 세션은 안 바꿈');
+    assert.strictEqual(SessionHub.appIdOf(app, 's3'), null, '이상한 id 는 안 보냄');
+    assert.strictEqual(SessionHub.appIdOf(null, 's1'), null);
+
+    const sent = [], toasts = [];
+    const hub = Object.create(SessionHub.prototype);
+    Object.assign(hub, { data: { claudeApp: app }, ipc: { send: (ch, x) => sent.push([ch, x]) }, map: { _toast: m => toasts.push(m) } });
+    assert.strictEqual(hub._handOff({ id: 's1' }, '안녕'), true);
+    assert.deepStrictEqual(sent.pop(), ['claude-app:send', { id: 's1', appId: 'local_ab-1', text: '안녕' }]);
+    hub._onAppSend({ ok: false, appId: 'local_ab-1', reason: 'typing', message: '쓰던 글' });
+    assert.strictEqual(sent.length, 0, '쓰던 글이 있으면 복사로 넘기지 않음');
+    assert.strictEqual(toasts.pop(), '쓰던 글');
+    hub._handOff({ id: 's1' }, '둘');
+    sent.length = 0;
+    hub._onAppSend({ ok: false, appId: 'local_ab-1', reason: 'no-permission', message: '권한 없음' });
+    assert.deepStrictEqual(sent.pop(), ['claude-app:handoff', { id: 's1', appId: 'local_ab-1', text: '둘' }], '권한이 없으면 예전처럼 복사+앱 열기');
+    hub._onAppSend({ ok: true, appId: 'local_ab-1' });
+    assert.strictEqual(sent.length, 0, '한 번 받은 답은 다시 안 씀');
+    assert.strictEqual(hub._handOff({ id: 's2' }, 'x'), false, '보관한 세션은 여기서 보냄');
+
+    const ClaudeApp = require('../src/core/ClaudeApp.js');
+    assert.strictEqual(typeof ClaudeApp.showInApp, 'function', 'main.js 가 부르는 함수');
+    assert.strictEqual(ClaudeApp.continueUrl('local_a'), 'claude://code/continue?session=local_a');
+    assert.strictEqual(ClaudeApp.focus('local_a; rm'), false);
+    assert.strictEqual(ClaudeApp.handOff('', 'x', 'nope'), false);
+}
 console.log('SessionHub: 모든 테스트 통과');

@@ -449,6 +449,7 @@
     <script src="src/modules/HubResize.js"></script>
     <script src="src/modules/HubApprovals.js"></script>
     <script src="src/modules/HubAppList.js"></script>
+    <script src="src/modules/HubAppLink.js"></script>
     <script>
         // 미리보기 페이지(?preview)는 IPC 없이 window.HUB_PREVIEW_DATA 로 그린다
         window.sessionHub = new SessionHub(window.HUB_PREVIEW_DATA ? { ipc: null, now: window.HUB_PREVIEW_NOW, transcripts: window.HUB_PREVIEW_TRANSCRIPTS, hubs: window.HUB_PREVIEW_HUBS, previewFs: window.HUB_PREVIEW_FS, previewMemos: window.HUB_PREVIEW_MEMOS, usage: window.HUB_PREVIEW_USAGE } : {});
