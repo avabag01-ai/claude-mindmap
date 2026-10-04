@@ -623,7 +623,16 @@ class SessionHub {
 
     /** 새 세션 첫 메시지: 툰 허브를 읽게 하고, 쓴 글은 이번 할 일(hub_task)로 넘긴다 */
     static toonStartPrompt(cwd, topic, task) {
-        return `툰 불러와 — 하위 세션, root: ${cwd}${topic ? `, topic: ${topic}` : ''}, hub_task: ${task}`;
+        return SessionHub.withTitle(`툰 불러와 — 하위 세션, root: ${cwd}${topic ? `, topic: ${topic}` : ''}, hub_task: ${task}`, task);
+    }
+
+    /** 시작 메시지 맨 앞에 세션 제목을 붙인다 (첫 줄이 클로드 앱 세션 제목이 된다). 이미 제목이 있으면 그대로 */
+    static withTitle(prompt, title) {
+        const p = String(prompt || '').trim();
+        if (!/^툰\s*불러/.test(p)) return p;
+        const task = /hub_task:\s*([^\n]+)/.exec(p);
+        const t = String((task && task[1]) || title || '').split('\n')[0].replace(/^NEXT\s*\d+[a-z]?\s*/i, '').trim();
+        return t ? `${t.length > 30 ? t.slice(0, 29) + '…' : t} — ${p}` : p;
     }
 
     _renderComposer() {
@@ -1033,7 +1042,7 @@ class SessionHub {
             this.map._toast(run.stopped ? '툰 저장을 멈췄어요' : '툰 저장이 끝나지 않아서 새 세션을 열지 않았어요');
             return;
         }
-        const prompt = SessionHub.nextPrompt(all, `툰 불러와 — root: ${flow.cwd}`);
+        const prompt = SessionHub.withTitle(SessionHub.nextPrompt(all, `툰 불러와 — root: ${flow.cwd}`), `${SessionMindMap._base(flow.cwd)} 이어서`);
         flow.stage = 'start';
         flow.prompt = prompt;
         // 새 세션 자리로 옮겨 가서 시작 과정을 보여준다
@@ -1235,9 +1244,9 @@ class SessionHub {
         if (tagged && tagged[1].trim()) return tagged[1].trim();
         const blocks = [...t.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map(m => m[1].trim()).filter(b => /툰\s*불러/.test(b));
         if (blocks.length) return blocks[blocks.length - 1];
-        const inline = [...t.matchAll(/`(툰\s*불러[^`\n]+)`/g)].map(m => m[1].trim());
+        const inline = [...t.matchAll(/`([^`\n]*툰\s*불러[^`\n]+)`/g)].map(m => m[1].trim());
         if (inline.length) return inline[inline.length - 1];
-        const line = t.split('\n').map(l => l.trim().replace(/^[`>*-]+\s*|`+$/g, '')).reverse().find(l => /^툰\s*불러/.test(l));
+        const line = t.split('\n').map(l => l.trim().replace(/^[`>*-]+\s*|`+$/g, '')).reverse().find(l => /^([^\n—]{1,40}—\s*)?툰\s*불러/.test(l));
         return line || fallback;
     }
 
@@ -1263,7 +1272,7 @@ SessionHub.ANSWER_MODES = ['result', 'summary', 'detail'];
 SessionHub.topicOf = prompt => { const m = /\btopic:\s*([\w.-]+)/.exec(String(prompt || '')); return m ? m[1] : null; };
 SessionHub.ANSWER_LABEL = { result: '결과만', summary: '요약', detail: '자세히' };
 SessionHub.DETAIL_TEXT = '방금 답을 자세히 설명해 줘.';
-SessionHub.TOON_SAVE_TEXT = '툰 저장해줘. 저장이 끝나면 새 세션에서 이어갈 시작 메시지를 ```toon-next 코드 블록 하나에만 담아서 답의 맨 끝에 보여줘.';
+SessionHub.TOON_SAVE_TEXT = '툰 저장해줘. 저장이 끝나면 새 세션에서 이어갈 시작 메시지를 ```toon-next 코드 블록 하나에만 담아서 답의 맨 끝에 보여줘. 시작 메시지 맨 앞에는 짧은 세션 제목을 넣어줘 (예: 제목 — 툰 불러와 — …).';
 
 if (typeof window !== 'undefined') window.SessionHub = SessionHub;
 if (typeof module !== 'undefined' && module.exports) module.exports = SessionHub;

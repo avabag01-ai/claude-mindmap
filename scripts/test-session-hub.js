@@ -15,8 +15,15 @@ const cases = [
 ];
 for (const [text, want] of cases) assert.strictEqual(SessionHub.nextPrompt(text, fb), want, text);
 assert.ok(SessionHub.TOON_SAVE_TEXT.includes('toon-next'));
-assert.strictEqual(SessionHub.toonStartPrompt('/a/b', '', 'MLX 이식'), '툰 불러와 — 하위 세션, root: /a/b, hub_task: MLX 이식');
-assert.strictEqual(SessionHub.toonStartPrompt('/a/b', 'logic-ax', 'AMT 후보 듣기'), '툰 불러와 — 하위 세션, root: /a/b, topic: logic-ax, hub_task: AMT 후보 듣기');
+assert.strictEqual(SessionHub.toonStartPrompt('/a/b', '', 'MLX 이식'), 'MLX 이식 — 툰 불러와 — 하위 세션, root: /a/b, hub_task: MLX 이식');
+assert.strictEqual(SessionHub.toonStartPrompt('/a/b', 'logic-ax', 'AMT 후보 듣기'), 'AMT 후보 듣기 — 툰 불러와 — 하위 세션, root: /a/b, topic: logic-ax, hub_task: AMT 후보 듣기');
+// 시작 메시지 맨 앞 제목: hub_task 에서, 없으면 넘긴 제목, 이미 있으면 그대로
+assert.strictEqual(SessionHub.withTitle('툰 불러와 — 하위 세션, root: /a, hub_task: NEXT 000008b GitHub 맵 손 시험', 'x'), 'GitHub 맵 손 시험 — 툰 불러와 — 하위 세션, root: /a, hub_task: NEXT 000008b GitHub 맵 손 시험');
+assert.strictEqual(SessionHub.withTitle('툰 불러와 — root: /a/b', 'b 이어서'), 'b 이어서 — 툰 불러와 — root: /a/b');
+assert.strictEqual(SessionHub.withTitle('맵 고치기 — 툰 불러와 — root: /a', 'x'), '맵 고치기 — 툰 불러와 — root: /a');
+assert.ok(SessionHub.withTitle('툰 불러와 — hub_task: ' + '가'.repeat(50), '').startsWith('가'.repeat(29) + '… — 툰'));
+assert.strictEqual(SessionHub.nextPrompt('다음엔 `맵 — 툰 불러와 — root: /c` 로', fb), '맵 — 툰 불러와 — root: /c');
+assert.strictEqual(SessionHub.nextPrompt('저장 완료\n맵 — 툰 불러와 — root: /d', fb), '맵 — 툰 불러와 — root: /d');
 assert.strictEqual(SessionHub.withAttachments('봐줘', []), '봐줘');
 assert.strictEqual(SessionHub.withAttachments('이거 고쳐', ['/a/b.js', '/c d/e.png']), '이거 고쳐\n\n첨부 파일:\n- /a/b.js\n- /c d/e.png');
 assert.strictEqual(SessionHub.withAttachments('', ['/a.js']), '첨부한 파일을 봐줘.\n\n첨부 파일:\n- /a.js');
