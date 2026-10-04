@@ -9,6 +9,7 @@ pub mod browser_bridge;
 pub mod center_web;
 pub mod claude_app;
 pub mod claude_app_ax;
+pub mod claude_dock;
 pub mod claude_runner;
 pub mod git_panel;
 pub mod github_map;
@@ -46,7 +47,8 @@ pub fn run() {
             center_web::web_hide,
             center_web::web_go,
             center_web::web_url,
-            translate_web::web_translate
+            translate_web::web_translate,
+            claude_dock::claude_dock
         ])
         .setup(|app| {
             // Claude 가 앱 안 웹 화면을 조종하는 통로 (127.0.0.1 전용, 열쇠 파일)
@@ -54,6 +56,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            claude_dock::on_window_event(window, event);
             if let tauri::WindowEvent::Destroyed = event {
                 if window.app_handle().webview_windows().is_empty() {
                     claude_runner::stop_all();

@@ -42,7 +42,7 @@ pub fn reason_text(reason: &str) -> &'static str {
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{focus, focus_back, send, shown_title};
+pub use mac::{focus, focus_back, place_window, raise_window, send, shown_title};
 
 #[cfg(not(target_os = "macos"))]
 pub fn focus(_app_id: &str) -> bool {
@@ -55,6 +55,14 @@ pub fn send(_app_id: &str, _title: &str, _text: &str) -> Result<(), &'static str
 #[cfg(not(target_os = "macos"))]
 pub fn shown_title() -> Option<String> {
     None
+}
+#[cfg(not(target_os = "macos"))]
+pub fn place_window(_x: f64, _y: f64, _w: f64, _h: f64) -> Option<(f64, f64, f64, f64)> {
+    None
+}
+#[cfg(not(target_os = "macos"))]
+pub fn raise_window() -> bool {
+    false
 }
 
 /// 기다리기: f 가 Some 을 주거나 시간이 다 될 때까지
@@ -90,6 +98,8 @@ mod mac {
         fn AXUIElementSetAttributeValue(e: CFTypeRef, attr: CFTypeRef, v: CFTypeRef) -> i32;
         fn AXUIElementPerformAction(e: CFTypeRef, action: CFTypeRef) -> i32;
         fn AXUIElementSetMessagingTimeout(e: CFTypeRef, secs: f32) -> i32;
+        fn AXValueCreate(kind: u32, ptr: *const c_void) -> CFTypeRef;
+        fn AXValueGetValue(v: CFTypeRef, kind: u32, ptr: *mut c_void) -> u8;
         static kAXTrustedCheckOptionPrompt: CFTypeRef;
     }
 
@@ -110,6 +120,7 @@ mod mac {
         fn CFRetain(v: CFTypeRef) -> CFTypeRef;
         fn CFRelease(v: CFTypeRef);
         static kCFBooleanTrue: CFTypeRef;
+        static kCFBooleanFalse: CFTypeRef;
         static kCFTypeDictionaryKeyCallBacks: c_void;
         static kCFTypeDictionaryValueCallBacks: c_void;
     }
@@ -409,6 +420,51 @@ mod mac {
             }
         }
         shown
+    }
+
+    // --- 창 붙이기 (claude_dock.rs): 클로드 앱 창 자리·크기 ---
+    const AX_POINT: u32 = 1;
+    const AX_SIZE: u32 = 2;
+
+    /// 클로드 앱의 대화 창 (주 창 → 아무 창). 작게 내려 둔 창이면 다시 편다
+    fn claude_window() -> Option<Cf> {
+        if !trusted(false) {
+            return None;
+        }
+        let app = app_element(claude_pid()?);
+        let win = get(&app, "AXMainWindow").or_else(|| find(&app, &|e| role_is(e, "AXWindow")))?;
+        if get(&win, "AXMinimized").map_or(false, |v| unsafe { CFGetTypeID(v.0) == CFBooleanGetTypeID() && CFBooleanGetValue(v.0) != 0 }) {
+            let no = Cf(unsafe { CFRetain(kCFBooleanFalse) });
+            set(&win, "AXMinimized", no.0);
+        }
+        Some(win)
+    }
+
+    fn read_pair(win: &Cf, attr: &str, kind: u32) -> Option<(f64, f64)> {
+        let v = get(win, attr)?;
+        let mut xy = [0f64; 2];
+        (unsafe { AXValueGetValue(v.0, kind, xy.as_mut_ptr() as *mut c_void) } != 0).then(|| (xy[0], xy[1]))
+    }
+
+    /// 클로드 앱 창을 (x, y, w, h)(화면 점, 왼쪽 위 기준)에 둔다. 앱이 최소 크기를 지키면 실제 자리·크기를 돌려준다
+    pub fn place_window(x: f64, y: f64, w: f64, h: f64) -> Option<(f64, f64, f64, f64)> {
+        let win = claude_window()?;
+        let pos = [x, y];
+        let size = [w, h];
+        let p = Cf(unsafe { AXValueCreate(AX_POINT, pos.as_ptr() as *const c_void) });
+        let z = Cf(unsafe { AXValueCreate(AX_SIZE, size.as_ptr() as *const c_void) });
+        set(&win, "AXSize", z.0);
+        set(&win, "AXPosition", p.0);
+        let (ax, ay) = read_pair(&win, "AXPosition", AX_POINT)?;
+        let (aw, ah) = read_pair(&win, "AXSize", AX_SIZE)?;
+        Some((ax, ay, aw, ah))
+    }
+
+    /// 클로드 앱 창을 앱 앞으로 올리지 않고 창만 위로 (마인드맵을 누르면 다른 창에 가리지 않게)
+    pub fn raise_window() -> bool {
+        let Some(win) = claude_window() else { return false };
+        let a = cfstr("AXRaise");
+        unsafe { AXUIElementPerformAction(win.0, a.0) == 0 }
     }
 
     /// 앱 세션에 글을 보낸다. Err = 멈춘 까닭 (reason_text)
