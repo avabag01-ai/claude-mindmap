@@ -19,6 +19,7 @@ pub mod memo_store;
 pub mod session_cwd;
 pub mod session_indexer;
 pub mod usage_meter;
+pub mod web_control;
 
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
@@ -44,6 +45,11 @@ pub fn run() {
             center_web::web_go,
             center_web::web_url
         ])
+        .setup(|app| {
+            // Claude 가 앱 안 웹 화면을 조종하는 통로 (127.0.0.1 전용, 열쇠 파일)
+            web_control::start(app.handle().clone());
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 if window.app_handle().webview_windows().is_empty() {
