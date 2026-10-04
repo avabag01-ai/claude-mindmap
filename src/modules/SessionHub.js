@@ -33,6 +33,8 @@ class SessionHub {
         this.newFolder = null;     // 새 세션을 열 폴더
         this.permission = 'auto';  // 클로드 앱과 같은 기본 (index.html #hub-perm 첫 줄)
         this.answerMode = SessionHub._loadAnswerMode(); // result | summary | detail
+        this.folded = new Set();      // 왼쪽 목록에서 접은 폴더·그룹 ("folder:<root>" | "app:<그룹>") — 기억
+        try { this.folded = new Set(JSON.parse(localStorage.getItem('hub.folded') || '[]')); } catch { /* 미리보기 */ }
         this.openChains = new Set();  // 왼쪽 목록에서 "이전 N" 을 펼친 줄기 ("root::맨 끝 id")
         this.toonStart = true;      // 새 세션: 툰 허브를 읽고 시작
         this.newTopic = '';         // 새 세션: 주제 허브
@@ -437,10 +439,11 @@ class SessionHub {
                 }
                 if (loose.length) body += `${branches.length ? '<div class="hub-loose">가지 없음</div>' : ''}${rowsHtml(loose)}`;
                 if (empty.length) body += `<div class="hub-empty-branches">빈 가지 ${empty.map(b => `<button class="hub-topic-add hub-chip-btn" data-root="${esc(p.root)}" data-topic="${esc(b.topic)}" title="${esc(b.title)} 가지에 첫 세션">${esc(b.title)} +</button>`).join('')}</div>`;
+                const fk = `folder:${p.root}`, folded = this.folded.has(fk) && !q;
                 html += `<div class="hub-group">
                     <button class="hub-folder${on ? ' is-on' : ''}" data-folder="${esc(p.root)}" title="${esc(p.root)}">
-                      <i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${count}</span>
-                    </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${body}</div>`;
+                      <span class="hub-fold hub-fold-arrow" role="button" tabindex="0" data-fold="${esc(fk)}" aria-expanded="${!folded}" aria-label="${folded ? '펼치기' : '접기'}">${folded ? '▸' : '▾'}</span><i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${count}</span>
+                    </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${folded ? '' : body}</div>`;
             }
         } else if (this.group === 'app' && SessionHub.appListHtml) {
             html = SessionHub.appListHtml(this, rows, item);   // HubAppList.js: 클로드 앱 사이드바 순서
@@ -1092,9 +1095,21 @@ class SessionHub {
     // 이벤트 연결
     // ---------------------------------------------------------------------
     _bind() {
+        this.el('hub-list-body').addEventListener('keydown', e => {
+            const fold = (e.key === 'Enter' || e.key === ' ') && e.target.closest('.hub-fold');
+            if (fold) { e.preventDefault(); fold.click(); }
+        });
         this.el('hub-list-body').addEventListener('click', e => {
             const add = e.target.closest('.hub-add');
             if (add) return this.newSessionIn(add.dataset.add);
+            const fold = e.target.closest('.hub-fold');
+            if (fold) {
+                e.stopPropagation();
+                const k = fold.dataset.fold;
+                if (this.folded.has(k)) this.folded.delete(k); else this.folded.add(k);
+                try { localStorage.setItem('hub.folded', JSON.stringify([...this.folded])); } catch { /* 미리보기 */ }
+                return this._renderList();
+            }
             const chain = e.target.closest('.hub-chain-toggle');
             if (chain) {
                 e.stopPropagation();

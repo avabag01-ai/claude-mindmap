@@ -39,6 +39,10 @@
         .col-head .row { flex-wrap: wrap; }
         #hub-list-body { flex: 1; overflow: auto; padding: 6px; }
         .hub-bucket { color: var(--muted); font-size: 11px; padding: 10px 8px 4px; letter-spacing: .04em; }
+        .hub-bucket.hub-fold { display: flex; align-items: center; cursor: pointer; border-radius: 6px; user-select: none; }
+        .hub-bucket.hub-fold:hover { color: var(--ink); background: var(--panel); }
+        .hub-fold-arrow { display: inline-block; width: 12px; flex: none; font-size: 9px; color: var(--muted); text-align: center; margin-right: 4px; cursor: pointer; }
+        .hub-folder .hub-fold-arrow { margin-right: 0; }
         .hub-item { width: 100%; display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 6px; align-items: center; text-align: left;
             background: transparent; border: 0; border-radius: 7px; padding: 6px 8px; cursor: pointer; }
         .hub-item:hover { background: var(--panel); }
