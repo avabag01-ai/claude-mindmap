@@ -1,4 +1,5 @@
 // 그룹 중심 보기: "클로드 앱" 보기의 전체 맵에서 그룹을 누르면 그 그룹이 가운데, 둘레에 그 그룹 세션이 나온다.
+// 왼쪽 목록 "클로드 앱" 보기의 그룹 제목을 눌러도 같다 (▸/▾ 화살표는 원래대로 목록 접기).
 // 가운데를 누르면 다시 전체. 그룹 접기는 ▸/▾ 단추나 더블클릭(MindMapDoubleClick.js)으로.
 // 그룹 트리는 MindMapAppGroups.js 의 _allTree 를 그대로 쓰고 그 그룹 가지만 꺼낸다.
 // MindMapAppGroups.js 뒤, MindMapDoubleClick.js 앞에 불러야 한다.
@@ -10,7 +11,7 @@
 
     function caption(map) {
         const cap = document.getElementById('hub-map-caption');
-        if (cap && active(map)) cap.textContent = `그룹 중심 · ${map.groupFocus.label}`;
+        if (cap && active(map)) cap.textContent = `그룹 중심 · ${map._tree && map._tree.groupRoot ? map._tree.label : map.groupFocus.label}`;
     }
 
     const visibleTree = P._visibleTree;
@@ -90,4 +91,18 @@
     }
     if (typeof SessionHub !== 'undefined') wireHub();
     else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireHub);
+
+    // 왼쪽 목록 그룹 제목 → 그룹 중심 (화살표는 SessionHub 가 맡는 목록 접기)
+    document.addEventListener('click', e => {
+        const head = e.target.closest && e.target.closest('#hub-list-body .hub-bucket[data-fold^="app:"]');
+        const hub = typeof window !== 'undefined' && window.sessionHub;
+        if (!head || e.target.closest('.hub-fold-arrow') || !hub || !hub.map) return;
+        e.stopPropagation();
+        const map = hub.map;
+        map.groupFocus = { fold: head.dataset.fold, label: (head.textContent || '').replace(/[▸▾]/g, '').replace(/\d+\s*$/, '').trim() };
+        map.selected = null;
+        if (map.info) map.info.hidden = true;
+        hub.center = 'all';
+        if (hub._applyCenter) hub._applyCenter(true); else { map.setFocus('all'); }
+    }, true);
 })();
