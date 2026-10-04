@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 mod trash; // 세션 지우기 (session_indexer/trash.rs)
+mod rename; // 세션 제목 바꾸기 (session_indexer/rename.rs)
 
 const EDIT_TOOLS: [&str; 4] = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
 const WORKING_MS: f64 = 10.0 * 60.0 * 1000.0; // 마지막 기록이 10분 안이면 "작업 중"
@@ -271,6 +272,9 @@ pub struct Session {
     /// attachGit 전에는 키 자체가 없다. 뒤에는 'dirty'|'ahead'|'pushed'|null
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "double_opt")]
     pub git: Option<Option<String>>,
+    /// 사람이 바꾼 제목(custom-title)이면 true. 클로드 앱 제목보다 먼저 쓴다
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub custom_title: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -877,7 +881,7 @@ impl SessionIndexer {
             }
 
             // 필요한 줄만 파싱
-            let want_title = line.contains("\"ai-title\"");
+            let want_title = line.contains("\"ai-title\"") || line.contains("\"custom-title\"");
             let want_cost = line.contains("\"cost-state\"");
             let want_tool = line.contains("\"tool_use\"") && line.contains("\"assistant\"");
             let want_prompt = s.first_prompt.is_empty() && line.contains("\"type\":\"user\"");
@@ -889,7 +893,12 @@ impl SessionIndexer {
                 Err(_) => continue,
             };
             let ty = d.get("type").and_then(|t| t.as_str()).unwrap_or("");
-            if ty == "ai-title" && js_truthy(d.get("aiTitle")) {
+            if ty == "custom-title" && js_truthy(d.get("customTitle")) {
+                if let Some(t) = d.get("customTitle").and_then(|t| t.as_str()) {
+                    s.title = t.to_string();
+                    s.custom_title = true;
+                }
+            } else if ty == "ai-title" && !s.custom_title && js_truthy(d.get("aiTitle")) {
                 if let Some(t) = d.get("aiTitle").and_then(|t| t.as_str()) {
                     s.title = t.to_string();
                 }

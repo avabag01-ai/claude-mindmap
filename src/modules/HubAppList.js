@@ -1,6 +1,6 @@
 // 왼쪽 목록 "클로드 앱" 보기: 클로드 앱 코드 탭 사이드바와 같은 순서로 보여 준다.
 //   고정됨 → 직접 만든 그룹(앱 순서, 최근 순) → 세션(그룹 없는 것, 만든 순) → 앱 밖 세션(터미널·마인드맵에서 만든 것)
-// 보관한 세션은 숨긴다 (앱의 "진행 중" 거르기와 같게). 제목은 앱 제목을 쓴다.
+// 보관한 세션은 숨긴다 (앱의 "진행 중" 거르기와 같게). 제목은 앱 제목을 쓴다 (마인드맵에서 바꾼 제목이 있으면 그것).
 // 데이터: 세션 목록의 claudeApp (src-tauri/src/claude_app.rs · src/core/ClaudeApp.js)
 (function () {
     if (typeof SessionHub === 'undefined') return;
@@ -8,7 +8,7 @@
     /** rows = [{ p, s }] (검색 거른 것) → [{ title, rows, hint }] */
     SessionHub.appSections = function (app, rows) {
         const info = r => (!r.s.remote && app.sessions[r.s.id]) || null;
-        const titled = r => { const a = info(r); return a && a.title ? { p: r.p, s: { ...r.s, title: a.title } } : r; };
+        const titled = r => { const a = info(r); return a && a.title && !r.s.customTitle ? { p: r.p, s: { ...r.s, title: a.title } } : r; };
         const live = rows.filter(r => !(info(r) && info(r).archived));
         const recent = list => list.sort((a, b) => b.s.lastAt - a.s.lastAt);
         const created = list => list.sort((a, b) => ((info(b) && info(b).createdAt) || b.s.firstAt) - ((info(a) && info(a).createdAt) || a.s.firstAt));

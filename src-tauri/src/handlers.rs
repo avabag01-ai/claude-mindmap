@@ -134,6 +134,13 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
                 Err(e) => json!({ "ok": false, "error": e.to_string() }),
             });
         }
+        "sessions:rename" => {
+            let r = INDEXER.lock().unwrap().rename_session(s(&p, "root").unwrap_or(""), s(&p, "id").unwrap_or(""), s(&p, "title").unwrap_or(""));
+            ctx.emit("sessions:changed", match r {
+                Ok(v) => spread(json!({ "ok": true, "action": "rename" }), v),
+                Err(e) => json!({ "ok": false, "error": e.to_string() }),
+            });
+        }
         "sessions:send" => {
             let run_id = s(&p, "runId").unwrap_or("").to_string();
             let req: Result<claude_runner::RunRequest, _> = serde_json::from_value(p.clone());

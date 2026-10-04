@@ -285,6 +285,23 @@ class SessionIndexer {
         return { root, id, trashed: dest, from: s.file };
     }
 
+    /**
+     * 세션 제목 바꾸기: Claude Code 가 /rename 할 때 쓰는 줄({"type":"custom-title",…})을 기록 파일 끝에 붙인다.
+     * 따로 저장 파일을 만들지 않는다. 읽을 때는 마지막 custom-title 이 ai-title 보다 먼저다.
+     */
+    renameSession(root, id, title) {
+        const t = String(title || '').split(/\s+/).filter(Boolean).join(' ');
+        if (!t) throw new Error('제목이 비었어요');
+        if ([...t].length > 200) throw new Error('제목이 너무 길어요 (200자까지)');
+        const s = this.lastSessions.get(`${root}::${id}`);
+        if (!s) throw new Error('세션 목록에 없는 세션이에요');
+        let endsNl = true;
+        try { const b = fs.readFileSync(s.file); endsNl = !b.length || b[b.length - 1] === 10; } catch { /* 없음 */ }
+        fs.appendFileSync(s.file, (endsNl ? '' : '\n') + JSON.stringify({ type: 'custom-title', customTitle: t, sessionId: id }) + '\n');
+        this.cache.delete(s.file);
+        return { root, id, title: t };
+    }
+
     /** 기록을 toRoot 의 기록 자리에 newId 로 쓴다 (sessionId·cwd 바꿈) */
     _writeIn(s, toRoot, newId) {
         const fromCwd = s.cwd;
@@ -405,7 +422,7 @@ class SessionIndexer {
             }
 
             // 필요한 줄만 파싱
-            const wantTitle = line.includes('"ai-title"');
+            const wantTitle = line.includes('"ai-title"') || line.includes('"custom-title"');
             const wantCost = line.includes('"cost-state"');
             const wantTool = line.includes('"tool_use"') && line.includes('"assistant"');
             const wantPrompt = !s.firstPrompt && line.includes('"type":"user"');
@@ -418,7 +435,8 @@ class SessionIndexer {
                 continue;
             }
 
-            if (d.type === 'ai-title' && d.aiTitle) s.title = d.aiTitle;
+            if (d.type === 'custom-title' && d.customTitle) { s.title = d.customTitle; s.customTitle = true; }
+            else if (d.type === 'ai-title' && d.aiTitle && !s.customTitle) s.title = d.aiTitle;
             else if (d.type === 'cost-state' && typeof d.totalCostUSD === 'number') s.costUSD = d.totalCostUSD;
             else if (d.type === 'user' && !s.firstPrompt) s.firstPrompt = this._promptText(d);
             else if (d.type === 'assistant') {

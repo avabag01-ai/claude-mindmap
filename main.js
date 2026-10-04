@@ -212,6 +212,15 @@ ipcMain.on('approval:answer', (event, { id, allow, always } = {}) => {
     }
 });
 
+// 세션 제목 바꾸기 = 기록 파일에 custom-title 줄 붙이기
+ipcMain.on('sessions:rename', (event, { root, id, title } = {}) => {
+    try {
+        event.reply('sessions:changed', { ok: true, action: 'rename', ...getSessionIndexer().renameSession(root, id, title) });
+    } catch (error) {
+        event.reply('sessions:changed', { ok: false, error: error.message });
+    }
+});
+
 // 세션 지우기 = 앱 휴지통(~/.claude-mindmap/trash)으로 옮기기
 ipcMain.on('sessions:trash', (event, { root, id } = {}) => {
     try {

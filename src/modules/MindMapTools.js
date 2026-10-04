@@ -1,4 +1,4 @@
-// 마인드맵 도구: 자리 되돌리기 옆 − / ＋ 확대 버튼, 세션 노드 우클릭 → 세션 지우기 (앱 휴지통으로),
+// 마인드맵 도구: 자리 되돌리기 옆 − / ＋ 확대 버튼, 세션 노드 우클릭 → 제목 바꾸기 · 세션 지우기 (앱 휴지통으로),
 // 위 "코드 보기" 켜기/끄기(코드 파일 노드), 파일 노드의 "코드 보기" → 코드 창.
 // SessionMindMap 이 화면을 만든 뒤 SessionMindMap.addTools(this) 로 부른다.
 (function () {
@@ -16,6 +16,8 @@
         .smm-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; border-radius:5px; padding:6px 10px; cursor:pointer; color:var(--smm-ink, #d7dde4); }
         .smm-menu button:hover { background:var(--smm-line, #323943); }
         .smm-menu .smm-menu-danger { color:#f47067; }
+        .smm-menu input { display:block; box-sizing:border-box; width:240px; margin:2px 4px 6px; padding:5px 8px; border-radius:5px;
+          border:1px solid var(--smm-line, #323943); background:var(--smm-bg, #15181c); color:var(--smm-ink, #d7dde4); font:inherit; }
         .smm-menu p { margin:4px 10px 6px; color:var(--smm-muted, #8a95a1); max-width:220px; }
         .smm-codebtn[aria-pressed=true] { background:var(--smm-accent, #4ec9b0); color:#0b1512; border-color:var(--smm-accent, #4ec9b0); font-weight:600; }
         .smm-code { position:absolute; z-index:30; left:12px; right:12px; top:var(--smm-code-top, 48px); bottom:12px; display:flex; flex-direction:column;
@@ -46,7 +48,8 @@
         menu.className = 'smm-menu';
         menu.setAttribute('role', 'menu');
         const title = SessionMindMap._esc(SessionMindMap._clip(s.title || s.id, 24));
-        menu.innerHTML = `<p>${title}</p><button type="button" class="smm-menu-danger" data-act="trash" role="menuitem">세션 지우기</button>`;
+        menu.innerHTML = `<p>${title}</p><button type="button" data-act="rename" role="menuitem">제목 바꾸기</button>
+            <button type="button" class="smm-menu-danger" data-act="trash" role="menuitem">세션 지우기</button>`;
         menu.style.left = `${e.clientX}px`;
         menu.style.top = `${e.clientY}px`;
         document.body.appendChild(menu);
@@ -55,9 +58,33 @@
         const r = menu.getBoundingClientRect();
         if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
         if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
+        const rename = () => {
+            const input = menu.querySelector('input');
+            const t = input ? input.value.trim() : '';
+            if (t && t !== s.title && map.ipc) map.ipc.send('sessions:rename', { root: n.project.root, id: s.id, title: t });
+            closeMenu(map);
+        };
+        menu.addEventListener('keydown', ev => {
+            ev.stopPropagation(); // 맵 단축키가 글자를 먹지 않게
+            if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); rename(); }
+            else if (ev.key === 'Escape') closeMenu(map);
+        });
         menu.addEventListener('click', ev => {
             const b = ev.target.closest('button');
             if (!b) return;
+            if (b.dataset.act === 'rename') {
+                menu.innerHTML = `<p>새 제목</p><input type="text" maxlength="200" aria-label="새 제목">
+                    <button type="button" data-act="rename-yes" role="menuitem">바꾸기</button>
+                    <button type="button" data-act="no" role="menuitem">그만두기</button>`;
+                const input = menu.querySelector('input');
+                input.value = s.title || '';
+                const r2 = menu.getBoundingClientRect();
+                if (r2.right > innerWidth - 8) menu.style.left = `${innerWidth - r2.width - 8}px`;
+                input.focus();
+                input.select();
+                return;
+            }
+            if (b.dataset.act === 'rename-yes') { rename(); return; }
             if (b.dataset.act === 'trash') {
                 // 한 번 더 눌러야 지운다
                 menu.innerHTML = `<p>"${title}" 를 지울까요? 기록은 앱 휴지통(~/.claude-mindmap/trash)에 남아요.</p>

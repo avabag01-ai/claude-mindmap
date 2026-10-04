@@ -920,7 +920,7 @@ class SessionHub {
     _onChanged(r) {
         if (!r) return;
         if (!r.ok) { this.map._toast(r.error || '바꾸지 못했어요'); return; }
-        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : r.action === 'move' ? '옮겼어요' : r.action === 'trash' ? '지웠어요 (앱 휴지통에 보관)' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
+        const msg = r.action === 'copy' ? '복사했어요. 새 세션으로 이동해요' : r.action === 'move' ? '옮겼어요' : r.action === 'trash' ? '지웠어요 (앱 휴지통에 보관)' : r.action === 'rename' ? '제목을 바꿨어요' : this._pendingToast || (r.quiet ? '' : '바꿨어요');
         this._pendingToast = null;
         if (r.quiet && !msg) { this.refresh(); return; }
         if (r.action === 'copy' || r.action === 'move') {
