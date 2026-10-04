@@ -1,5 +1,6 @@
 // 가운데 GitHub·브라우저 탭에 진짜 웹 화면을 바로 띄운다 (Tauri 자식 웹뷰 = 맥 WebKit, src-tauri/src/center_web.rs).
 // - GitHub 탭: github.com (처음 한 번 이 안에서 로그인하면 기억). "저장소 맵" 단추로 예전 GitHub 맵·저장소 칸으로 바꿀 수 있다.
+// - 두 탭 모두 "번역" 단추: Google 번역으로 한국어 (코드 칸은 그대로, src-tauri/src/translate_web.rs). 켜 두면 페이지가 바뀔 때마다 다시.
 // - 두 탭 모두 "대화창에" 단추: 지금 주소를 대화창 입력칸(커서 자리)에 넣는다.
 // - 브라우저 탭: 주소창 + 웹 화면. "크롬 조종" 단추로 예전 진짜 크롬·사파리 조종 칸으로.
 // - 웹 화면은 앱 화면 위에 떠 있는 따로 된 창이라, 자리(.cw-slot)가 움직이면 좌표를 다시 보낸다(보일 때만 매 프레임 확인).
@@ -20,6 +21,22 @@
         if (!T()) return 'app';
         try { return localStorage.getItem(`cw.mode.${tab}`) || 'web'; } catch { return 'web'; }
     }
+    // 번역 켜 둠 (탭마다 기억)
+    function trOn(tab) { try { return localStorage.getItem(`cw.tr.${tab}`) === '1'; } catch { return false; } }
+    function setTr(tab, on) { try { localStorage.setItem(`cw.tr.${tab}`, on ? '1' : '0'); } catch { /* 미리보기 */ } }
+    function translate(hub, tab, on) {
+        const v = hub._cw && hub._cw[tab];
+        if (!v) return;
+        trButton(v, on ? '번역 중…' : '번역', on);
+        invoke('web_translate', { label: v.label, on }).catch(m => hub.map._toast(m));
+    }
+    function trButton(v, text, pressed) {
+        const b = v.box.querySelector('[data-cw="translate"]');
+        if (!b) return;
+        b.textContent = text;
+        b.setAttribute('aria-pressed', String(!!pressed));
+    }
+
     function setMode(tab, m) { try { localStorage.setItem(`cw.mode.${tab}`, m); } catch { /* 미리보기 */ } }
 
     function build(hub) {
@@ -36,6 +53,7 @@
                 <button class="btn" data-cw="reload" title="새로고침">⟳</button><button class="btn" data-cw="home" title="${tab === 'github' ? '내 GitHub' : '처음 화면'}">⌂</button>
                 ${tab === 'github' ? '<button class="btn" data-cw="repo" title="고른 세션의 저장소">이 세션 저장소</button>' : ''}
                 <input type="text" class="cw-addr" placeholder="${esc(v.ph)}" aria-label="${esc(v.ph)}" spellcheck="false">
+                <button class="btn" data-cw="translate" title="한국어로 번역 (Google 번역, 코드는 그대로) · 켜 두면 다음 페이지도">번역</button>
                 <button class="btn" data-cw="chat" title="지금 주소를 대화창에 넣기">대화창에</button>
                 <button class="btn" data-cw="chrome" title="지금 주소를 맥의 진짜 브라우저로 열기">크롬으로</button>
                 <button class="btn" data-cw="alt" title="${esc(v.altTitle)}">${esc(v.alt)}</button></div>
@@ -91,6 +109,12 @@
     function act(hub, tab, what) {
         const v = hub._cw[tab];
         if (what === 'alt') { setMode(tab, 'app'); hub.setCenterTab(tab); return; }
+        if (what === 'translate') {
+            const on = !trOn(tab);
+            setTr(tab, on);
+            translate(hub, tab, on);
+            return;
+        }
         if (what === 'chat') {
             if (!v.url) return;
             const input = hub.el('hub-input');
@@ -119,7 +143,15 @@
             const r = v.slot.getBoundingClientRect();
             const key = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
             if (key !== v.rect) show(hub, tab);
-            if (t - last > 1500) { last = t; invoke('web_url', { label: v.label }).then(u => setAddr(v, u)).catch(() => {}); }
+            if (t - last > 1500) {
+                last = t;
+                invoke('web_url', { label: v.label }).then(u => {
+                    const moved = u && v.url && u !== v.url;
+                    setAddr(v, u);
+                    // 번역을 켜 뒀으면 새 페이지도 (조금 기다렸다가 — 글이 다 그려진 뒤)
+                    if (moved && trOn(tab)) setTimeout(() => { if (hub._cwOn === tab) translate(hub, tab, true); }, 1200);
+                }).catch(() => {});
+            }
             hub._cwLoop = requestAnimationFrame(step);
         };
         hub._cwLoop = requestAnimationFrame(step);
@@ -146,8 +178,22 @@
             const url = this._cwPendingUrl || null;
             this._cwPendingUrl = null;
             show(this, this._cwOn, url);
+            const tab0 = this._cwOn;
+            trButton(this._cw[tab0], trOn(tab0) ? '원문' : '번역', trOn(tab0));
+            if (trOn(tab0)) setTimeout(() => { if (this._cwOn === tab0) translate(this, tab0, true); }, 1500);
             loop(this);
         };
+        // 번역 진행 (translate_web.rs)
+        if (ev) ev.listen('center-web:translate', e => {
+            const hub = window.sessionHub, p = e.payload || {};
+            const tab = Object.keys(VIEWS).find(t => VIEWS[t].label === p.label);
+            const v = hub && hub._cw && tab && hub._cw[tab];
+            if (!v) return;
+            if (p.state === 'working') trButton(v, p.n ? `번역 중… ${p.n}` : '번역 중…', true);
+            else if (p.state === 'done') trButton(v, '원문', true);
+            else if (p.state === 'off') trButton(v, '번역', false);
+            else if (p.state === 'error') { trButton(v, trOn(tab) ? '원문' : '번역', trOn(tab)); hub.map._toast(`번역 못 했어요: ${p.error || ''}`); }
+        });
         // Claude 가 앱 화면에 주소를 열면 (web_control.rs → center-web:open) 그 탭으로 바꾸고 연다 — 사용자도 같이 본다
         const ev = window.__TAURI__ && window.__TAURI__.event;
         if (ev) ev.listen('center-web:open', e => {

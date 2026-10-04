@@ -18,6 +18,7 @@ pub mod machine_sync;
 pub mod memo_store;
 pub mod session_cwd;
 pub mod session_indexer;
+pub mod translate_web;
 pub mod usage_meter;
 pub mod web_control;
 
@@ -43,7 +44,8 @@ pub fn run() {
             center_web::web_show,
             center_web::web_hide,
             center_web::web_go,
-            center_web::web_url
+            center_web::web_url,
+            translate_web::web_translate
         ])
         .setup(|app| {
             // Claude 가 앱 안 웹 화면을 조종하는 통로 (127.0.0.1 전용, 열쇠 파일)
