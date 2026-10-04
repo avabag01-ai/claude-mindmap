@@ -233,7 +233,7 @@ class SessionHub {
         else if (this.previewUsage) { this.usage = this.previewUsage; this._renderUsage(); }
     }
 
-    // 가운데 칸 오른쪽 위: 세션(5시간) · 주간 한도, 남은 % 막대
+    // 가운데 칸 오른쪽 위: 세션(5시간) · 주간 한도, 쓴 % 막대 (차오를수록 한도에 가까움)
     _renderUsage() {
         const el = this.el('hub-usage');
         if (!el) return;
@@ -249,10 +249,10 @@ class SessionHub {
         };
         const row = (label, b) => {
             if (!b) return '';
-            const tone = b.left < 20 ? 'u-low' : b.left < 50 ? 'u-mid' : '';
-            return `<span class="u-row ${tone}" title="${label}: ${b.used}% 사용${b.resetsAt ? ` · ${new Date(b.resetsAt).toLocaleString()} 초기화` : ''}">
-                <span class="u-label">${label}</span><span class="u-bar"><span class="u-fill" style="width:${b.left}%"></span></span>
-                <span class="u-text"><b>${Math.round(b.left)}%</b> 남음${b.resetsAt ? ` <span class="u-reset">· ${when(b.resetsAt)}</span>` : ''}</span></span>`;
+            const tone = b.used > 80 ? 'u-low' : b.used > 50 ? 'u-mid' : '';
+            return `<span class="u-row ${tone}" title="${label}: ${b.used}% 사용 · ${b.left}% 남음${b.resetsAt ? ` · ${new Date(b.resetsAt).toLocaleString()} 초기화` : ''}">
+                <span class="u-label">${label}</span><span class="u-bar"><span class="u-fill" style="width:${b.used}%"></span></span>
+                <span class="u-text"><b>${Math.round(b.used)}%</b> 사용${b.resetsAt ? ` <span class="u-reset">· ${when(b.resetsAt)}</span>` : ''}</span></span>`;
         };
         el.innerHTML = row('세션', u.session) + row('주간', u.week);
         el.title = `Claude 사용량 · ${SessionMindMap._ago(u.at, now)} 기준 · 눌러서 새로고침`;
