@@ -1,5 +1,6 @@
 // 그룹 중심 보기: "클로드 앱" 보기의 전체 맵에서 그룹을 누르면 그 그룹이 가운데, 둘레에 그 그룹 세션이 나온다.
 // 왼쪽 목록 "클로드 앱" 보기의 그룹 제목을 눌러도 같다 (▸/▾ 화살표는 원래대로 목록 접기).
+// 세션을 눌러도 그룹 가지는 그대로 두고 그 세션만 강조한다 (_keepAll).
 // 가운데를 누르면 다시 전체. 그룹 접기는 ▸/▾ 단추나 더블클릭(MindMapDoubleClick.js)으로.
 // 그룹 트리는 MindMapAppGroups.js 의 _allTree 를 그대로 쓰고 그 그룹 가지만 꺼낸다.
 // MindMapAppGroups.js 뒤, MindMapDoubleClick.js 앞에 불러야 한다.
@@ -83,6 +84,19 @@
     function wireHub() {
         if (typeof SessionHub === 'undefined' || SessionHub.prototype._groupFocusWired) return;
         SessionHub.prototype._groupFocusWired = true;
+        // 그룹 보기 전체 맵에서 세션을 고르면 가운데를 세션으로 바꾸지 않는다 (그룹 가지가 사라지지 않게)
+        SessionHub.prototype._keepAll = function () {
+            return this.group === 'app' && this.center === 'all' && !!this.map && !(this.map.gh && this.map.gh.on);
+        };
+        SessionHub.prototype._markSession = function (root, id) {
+            const map = this.map;
+            const n = map.byKey && [...map.byKey.values()].find(x => x.kind === 'session' && x.data && x.data.id === id && x.project && x.project.root === root);
+            if (!n) return;
+            map.selected = { key: n.key };
+            map._drawSelection();
+            map._showInfo(n);
+            if (map._reveal) map._reveal(n);
+        };
         const applyCenter = SessionHub.prototype._applyCenter;
         SessionHub.prototype._applyCenter = function (fit) {
             applyCenter.call(this, fit);

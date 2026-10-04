@@ -298,8 +298,12 @@ class SessionHub {
         const changed = !this.sel || this.sel.root !== root || this.sel.id !== id;
         this.sel = { root, id };
         if (changed) { this.transcript = null; this.newFolder = null; this.toonAsk = false; this.newMeta = null; }
-        if (this.center === 'all') this.center = 'session';
-        this._applyCenter(true);
+        // 클로드 앱 그룹 보기의 전체 맵이면 그룹 가지는 두고 그 세션만 강조 (MindMapGroupFocus.js)
+        if (this._keepAll && this._keepAll()) this._markSession(root, id);
+        else {
+            if (this.center === 'all') this.center = 'session';
+            this._applyCenter(true);
+        }
         this._renderList();
         this._renderChat();
         this._loadTranscript(true);
