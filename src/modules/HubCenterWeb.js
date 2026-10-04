@@ -143,17 +143,29 @@
             if (!this._cwOn) return;
             // 예전 칸들은 숨긴다 (GitHub 맵은 MindMapGitHub 가 켜 두지만 안 보임)
             for (const id of ['center-row', 'panel-browser']) { const el = document.getElementById(id); if (el) el.hidden = true; }
-            show(this, this._cwOn);
+            const url = this._cwPendingUrl || null;
+            this._cwPendingUrl = null;
+            show(this, this._cwOn, url);
             loop(this);
         };
+        // Claude 가 앱 화면에 주소를 열면 (web_control.rs → center-web:open) 그 탭으로 바꾸고 연다 — 사용자도 같이 본다
+        const ev = window.__TAURI__ && window.__TAURI__.event;
+        if (ev) ev.listen('center-web:open', e => {
+            const hub = window.sessionHub, p = e.payload || {};
+            if (!hub || !VIEWS[p.tab]) return;
+            setMode(p.tab, 'web');
+            // 탭을 바꾸면서 바로 그 주소로 (따로 show 를 또 부르면 웹뷰를 두 번 만들려다 주소가 빠진다)
+            hub._cwPendingUrl = p.url;
+            hub.setCenterTab(p.tab);
+        });
         // "GitHub 에서 열기" 같은 github.com 주소는 가운데 GitHub 탭에서 연다
         if (typeof HubGitHub !== 'undefined') {
             realOpen = HubGitHub.openUrl;
             HubGitHub.openUrl = function (hub, url) {
                 if (!T() || !/^https:\/\/github\.com\//.test(url)) return realOpen.call(this, hub, url);
                 setMode('github', 'web');
+                hub._cwPendingUrl = url;
                 hub.setCenterTab('github');
-                show(hub, 'github', url);
             };
         }
     }

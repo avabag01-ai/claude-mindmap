@@ -9,6 +9,8 @@ use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewBuilder, WebviewUrl};
 
 const LABELS: [&str; 2] = ["github", "web"];
+// 만들기가 끝나기 전에 또 show 가 오면 웹뷰를 두 번 만들려 한다 → 한 번에 하나씩
+static SHOW: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn check(label: &str) -> Result<(), String> {
     if LABELS.contains(&label) { Ok(()) } else { Err(format!("모르는 웹 화면: {label}")) }
@@ -32,6 +34,7 @@ fn current(app: &AppHandle, label: &str) -> String {
 #[tauri::command]
 pub async fn web_show(app: AppHandle, label: String, x: f64, y: f64, w: f64, h: f64, url: Option<String>) -> Result<String, String> {
     check(&label)?;
+    let _one = SHOW.lock().unwrap_or_else(|e| e.into_inner());
     let pos = LogicalPosition::new(x, y);
     let size = LogicalSize::new(w.max(1.0), h.max(1.0));
     let go = url.as_deref().and_then(parse_url);
