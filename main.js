@@ -304,6 +304,11 @@ ipcMain.on('git:info', (event, { cwd } = {}) => gitReply(event, 'git:info-result
 ipcMain.on('git:diff', (event, { root, file } = {}) => gitReply(event, 'git:diff-result', { root, file }, getGitPanel().diff(root, file)));
 ipcMain.on('git:action', (event, req = {}) => gitReply(event, 'git:action-result', { root: req.root, action: req.action }, getGitPanel().action(req.root, req)));
 ipcMain.on('gh:list', (event, { root, what } = {}) => gitReply(event, 'gh:list-result', { root, what }, getGitPanel().ghList(root, what)));
+// GitHub 마인드맵: 내 저장소 목록 · 저장소 하나의 PR·최근 브랜치 (src/core/GitHubMap.js)
+let gitHubMap = null;
+const getGitHubMap = () => gitHubMap || (gitHubMap = new (require('./src/core/GitHubMap.js'))({ gitPanel: getGitPanel() }));
+ipcMain.on('gh:repos', (event, { roots } = {}) => gitReply(event, 'gh:repos-result', {}, getGitHubMap().repos(roots || [])));
+ipcMain.on('gh:repo-detail', (event, { slug } = {}) => gitReply(event, 'gh:repo-detail-result', { slug }, getGitHubMap().detail(slug)));
 // 웹 주소는 기본 브라우저로 (http/https 만)
 ipcMain.on('open-external', (event, { url } = {}) => {
     if (/^https?:\/\//.test(String(url || ''))) require('electron').shell.openExternal(url);

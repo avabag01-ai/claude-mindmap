@@ -236,6 +236,8 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
         "git:diff" => git_reply(ctx, "git:diff-result", json!({ "root": p.get("root"), "file": p.get("file") }), GIT.diff(s(&p, "root").unwrap_or(""), s(&p, "file"))),
         "git:action" => git_reply(ctx, "git:action-result", json!({ "root": p.get("root"), "action": p.get("action") }), GIT.action(s(&p, "root").unwrap_or(""), &p)),
         "gh:list" => git_reply(ctx, "gh:list-result", json!({ "root": p.get("root"), "what": p.get("what") }), GIT.gh_list(s(&p, "root").unwrap_or(""), s(&p, "what").unwrap_or(""))),
+        "gh:repos" => git_reply(ctx, "gh:repos-result", json!({}), crate::github_map::repos(&GIT, &p["roots"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect::<Vec<_>>())),
+        "gh:repo-detail" => git_reply(ctx, "gh:repo-detail-result", json!({ "slug": p.get("slug") }), crate::github_map::detail(&GIT, s(&p, "slug").unwrap_or(""))),
         "open-external" => {
             if let Some(url) = s(&p, "url").filter(|u| u.starts_with("http://") || u.starts_with("https://")) {
                 let _ = std::process::Command::new("/usr/bin/open").arg(url).spawn();

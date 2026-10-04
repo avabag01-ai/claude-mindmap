@@ -9,6 +9,7 @@ pub mod browser_bridge;
 pub mod claude_app;
 pub mod claude_runner;
 pub mod git_panel;
+pub mod github_map;
 pub mod handlers;
 pub mod ipc;
 pub mod login_path;

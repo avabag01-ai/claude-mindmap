@@ -146,7 +146,7 @@ impl GitPanel {
         Ok(Run { code: status.code().unwrap_or(-1), stdout, stderr })
     }
 
-    fn git(&self, cwd: &str, args: &[&str]) -> Result<String> {
+    pub(crate) fn git(&self, cwd: &str, args: &[&str]) -> Result<String> {
         self.git_o(cwd, args, Opts::default())
     }
 
@@ -304,7 +304,7 @@ impl GitPanel {
         }
     }
 
-    fn gh_json(&self, root: &str, path: &str, empty: &str) -> Result<Value> {
+    pub(crate) fn gh_json(&self, root: &str, path: &str, empty: &str) -> Result<Value> {
         let out = self.gh(root, &["api", path], Opts::default())?;
         let text = if out.is_empty() { empty } else { &out };
         serde_json::from_str(text).map_err(|e| err(e.to_string()))
