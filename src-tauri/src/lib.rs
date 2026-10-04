@@ -7,6 +7,7 @@ pub mod app_dir;
 pub mod approvals;
 pub mod browser_bridge;
 pub mod center_web;
+pub mod chrome_places;
 pub mod claude_app;
 pub mod claude_app_ax;
 pub mod claude_dock;
@@ -47,6 +48,7 @@ pub fn run() {
             center_web::web_hide,
             center_web::web_go,
             center_web::web_url,
+            chrome_places::chrome_places,
             translate_web::web_translate,
             claude_dock::claude_dock
         ])
