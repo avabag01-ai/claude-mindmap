@@ -180,6 +180,28 @@ ipcMain.on('sessions:move', (event, { root, id, toRoot, parentId } = {}) => {
     }
 });
 
+// 코드 보기: 세션 목록에 있는 폴더 안 글자 파일만, 512KB 까지
+ipcMain.on('read-file', (event, { path: file } = {}) => {
+    const path = require('path');
+    try {
+        let real;
+        try { real = fs.realpathSync(file); } catch { throw new Error('파일이 없어요 (지워졌거나 옮겨졌어요)'); }
+        const roots = [...(getSessionIndexer().lastRoots || [])];
+        const inside = roots.some(r => { try { const rr = fs.realpathSync(r); return real === rr || real.startsWith(rr + path.sep); } catch { return false; } });
+        if (!inside) throw new Error('세션 폴더 밖 파일은 열지 않아요');
+        const st = fs.statSync(real);
+        if (!st.isFile()) throw new Error('파일이 아니에요');
+        const MAX = 512 * 1024;
+        const fd = fs.openSync(real, 'r');
+        const buf = Buffer.alloc(Math.min(st.size, MAX));
+        try { fs.readSync(fd, buf, 0, buf.length, 0); } finally { fs.closeSync(fd); }
+        if (buf.includes(0)) throw new Error('글자 파일이 아니에요');
+        event.reply('read-file-result', { path: file, text: buf.toString('utf8'), size: st.size, truncated: st.size > MAX });
+    } catch (error) {
+        event.reply('read-file-result', { path: file, error: error.message });
+    }
+});
+
 // 허용 묻기: 대화창에서 보낸 claude 가 물을 도구를 쓰려 할 때 (scripts/mindmap-approve-mcp.js)
 ipcMain.on('approval:list', event => event.reply('approval:list-result', { items: require('./src/core/Approvals.js').list() }));
 ipcMain.on('approval:answer', (event, { id, allow, always } = {}) => {

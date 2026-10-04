@@ -1,4 +1,5 @@
-// 마인드맵 도구: 자리 되돌리기 옆 − / ＋ 확대 버튼, 세션 노드 우클릭 → 세션 지우기 (앱 휴지통으로).
+// 마인드맵 도구: 자리 되돌리기 옆 − / ＋ 확대 버튼, 세션 노드 우클릭 → 세션 지우기 (앱 휴지통으로),
+// 위 "코드 보기" 켜기/끄기(코드 파일 노드), 파일 노드의 "코드 보기" → 코드 창.
 // SessionMindMap 이 화면을 만든 뒤 SessionMindMap.addTools(this) 로 부른다.
 (function () {
     if (typeof SessionMindMap === 'undefined' || typeof document === 'undefined') return;
@@ -15,7 +16,17 @@
         .smm-menu button { display:block; width:100%; text-align:left; background:transparent; border:0; border-radius:5px; padding:6px 10px; cursor:pointer; color:var(--smm-ink, #d7dde4); }
         .smm-menu button:hover { background:var(--smm-line, #323943); }
         .smm-menu .smm-menu-danger { color:#f47067; }
-        .smm-menu p { margin:4px 10px 6px; color:var(--smm-muted, #8a95a1); max-width:220px; }`;
+        .smm-menu p { margin:4px 10px 6px; color:var(--smm-muted, #8a95a1); max-width:220px; }
+        .smm-codebtn[aria-pressed=true] { background:var(--smm-accent, #4ec9b0); color:#0b1512; border-color:var(--smm-accent, #4ec9b0); font-weight:600; }
+        .smm-code { position:absolute; z-index:30; left:12px; right:12px; top:var(--smm-code-top, 48px); bottom:12px; display:flex; flex-direction:column;
+          background:var(--smm-panel, #1f2329); border:1px solid var(--smm-line, #323943); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.5); }
+        .smm-code-head { display:flex; gap:8px; align-items:center; padding:8px 10px; border-bottom:1px solid var(--smm-line, #323943); min-width:0; }
+        .smm-code-name { font-weight:700; white-space:nowrap; }
+        .smm-code-path { color:var(--smm-muted, #8a95a1); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; direction:rtl; text-align:left; }
+        .smm-code-body { flex:1; overflow:auto; margin:0; padding:8px 0; font:12px/1.55 ui-monospace, Menlo, monospace; color:var(--smm-ink, #d7dde4); counter-reset:ln; user-select:text; }
+        .smm-code-body span { display:block; padding:0 12px 0 0; white-space:pre; }
+        .smm-code-body span::before { counter-increment:ln; content:counter(ln); display:inline-block; width:4.2em; padding-right:12px; text-align:right; color:var(--smm-muted, #8a95a1); opacity:.6; user-select:none; }
+        .smm-code-msg { padding:16px; color:var(--smm-muted, #8a95a1); }`;
         document.head.appendChild(style);
     }
 
@@ -59,8 +70,49 @@
         });
     }
 
+    // 코드 창: 파일 노드 → 정보 패널 "코드 보기" → 'read-file' → 'read-file-result'
+    function showCode(map, r) {
+        const esc = SessionMindMap._esc;
+        let box = map.container.querySelector('.smm-code');
+        if (!box) {
+            box = document.createElement('div');
+            box.className = 'smm-code';
+            box.setAttribute('role', 'dialog');
+            map.container.querySelector('.smm-root').appendChild(box);
+            box.addEventListener('click', e => { if (e.target.closest('[data-act=code-close]')) box.remove(); });
+        }
+        box.style.setProperty('--smm-code-top', `${map._toolbarBottom ? map._toolbarBottom() : 48}px`);
+        const name = SessionMindMap._base ? SessionMindMap._base(r.path || '') : r.path;
+        const body = r.loading ? '<div class="smm-code-msg">읽는 중…</div>'
+            : r.error ? `<div class="smm-code-msg">${esc(r.error)}</div>`
+            : `<pre class="smm-code-body">${String(r.text).split('\n').map(l => `<span>${esc(l) || ' '}</span>`).join('')}</pre>${r.truncated ? '<div class="smm-code-msg">512KB 까지만 보여요</div>' : ''}`;
+        box.innerHTML = `<div class="smm-code-head"><span class="smm-code-name">${esc(name)}</span><span class="smm-code-path" title="${esc(r.path || '')}">${esc(r.path || '')}</span>
+            <button class="smm-btn" data-act="code-close" aria-label="코드 창 닫기">닫기</button></div>${body}`;
+    }
+
     SessionMindMap.addTools = function (map) {
         injectStyle();
+        // 위 "코드 보기": 켜야 코드(파일) 노드가 나온다. 켜면 "파일 모두"도 같이 보인다
+        const allFiles = map.container.querySelector('.smm-allfiles');
+        const allLabel = allFiles && allFiles.closest('label');
+        if (allLabel && !map.container.querySelector('.smm-codebtn')) {
+            allLabel.insertAdjacentHTML('beforebegin', '<button class="smm-btn smm-codebtn" aria-pressed="false" title="세션이 고친 코드 파일 노드 보이기">코드 보기</button>');
+            const btn = map.container.querySelector('.smm-codebtn');
+            allLabel.hidden = true;
+            btn.addEventListener('click', () => {
+                map.showCode = !map.showCode;
+                btn.setAttribute('aria-pressed', String(map.showCode));
+                allLabel.hidden = !map.showCode;
+                if (!map.showCode) { const box = map.container.querySelector('.smm-code'); if (box) box.remove(); }
+                map._fitPending = true;
+                map.render();
+            });
+        }
+        if (map.ipc) map.ipc.on('read-file-result', (e, r) => { if (r && map.container.querySelector('.smm-code')) showCode(map, r); });
+        map.container.addEventListener('click', e => {
+            const b = e.target.closest('[data-act=open-code]');
+            if (b && map.ipc) showCode(map, { path: b.dataset.path, loading: true });
+        }, true);
         const reset = map.resetBtn;
         if (reset && !map.container.querySelector('.smm-zoom')) {
             reset.insertAdjacentHTML('afterend',

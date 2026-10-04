@@ -29,6 +29,7 @@ class SessionMindMap {
         this.period = '7d';
         this.query = '';
         this.showAllFiles = false;
+        this.showCode = false;      // 코드(파일) 노드 보이기
         this.expanded = new Set();   // 파일이 펼쳐진 세션 키
         this.fold = new Map();       // 노드 키 → 펼침(true)/접힘(false). 없으면 기본값 (_isOpen)
         this.pins = SessionMindMap._loadPins(); // 끌어다 놓은 자리: 보기 → { 노드 키: [x, y] }
@@ -229,6 +230,7 @@ class SessionMindMap {
     }
 
     _fileNodes(p, s, sKey, color, onlyMatching) {
+        if (!this.showCode) return []; // 코드(파일) 노드는 위 "코드 보기"를 켤 때만 (MindMapTools.js)
         const q = this.query;
         return s.files
             .filter(f => !onlyMatching || !q || (f.rel || f.path).toLowerCase().includes(q))
@@ -1051,7 +1053,7 @@ class SessionMindMap {
                 <dt>고친 파일 ${s.files.length}개</dt><dd>${files ? `<ul class="smm-list smm-files">${files}</ul>` : '<span class="smm-muted">파일 수정 없음</span>'}</dd>
                 <dt>${s.remote ? `${esc(s.machine)} 에서 열기` : '이어서 하기'}</dt><dd><code class="smm-cmd">${esc(resume)}</code></dd></dl>
                 <div class="smm-actions"><button class="smm-btn" data-act="copy" data-text="${esc(resume)}">명령 복사</button>
-                ${s.files.length ? `<button class="smm-btn" data-act="toggle-files" data-key="${esc(n.key)}">${this.expanded.has(n.key) || this.showAllFiles ? '파일 접기' : '파일 펼치기'}</button>` : ''}</div>`;
+                ${s.files.length && this.showCode ? `<button class="smm-btn" data-act="toggle-files" data-key="${esc(n.key)}">${this.expanded.has(n.key) || this.showAllFiles ? '파일 접기' : '파일 펼치기'}</button>` : ''}</div>`;
         } else if (n.kind === 'file') {
             const f = n.data;
             const sessions = (this._sessionsByPath().get(f.path) || [])

@@ -151,6 +151,12 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
                 ctx.emit("sessions:run-exit", json!({ "runId": run_id, "code": null, "stopped": false, "error": e.to_string() }));
             }
         }
+        // --- 코드 보기: 세션 목록에 있는 폴더 안 글자 파일만 ---
+        "read-file" => {
+            let path = s(&p, "path").unwrap_or("").to_string();
+            let roots: Vec<String> = INDEXER.lock().unwrap().last_roots.iter().cloned().collect();
+            ctx.emit("read-file-result", read_code_file(&path, &roots).unwrap_or_else(|e| json!({ "path": path, "error": e.to_string() })));
+        }
         // --- 허용 묻기 (scripts/mindmap-approve-mcp.js) ---
         "approval:list" => ctx.emit("approval:list-result", json!({ "items": approvals::list_in(&approvals::dir()) })),
         "approval:answer" => {
@@ -292,6 +298,28 @@ fn build_session_index() -> anyhow::Result<Value> {
     let merged = MachineSync::merge(&index, &others, now_ms());
     // 클로드 앱 사이드바 구조(그룹·제목·보관) — 왼쪽 목록 "클로드 앱" 보기용, 읽기만
     Ok(spread(merged, json!({ "machine": machine, "syncDir": SYNC.dir(), "claudeApp": claude_app::read() })))
+}
+
+const CODE_MAX: u64 = 512 * 1024;
+
+/// 코드 보기: 세션 폴더 안 파일만, 글자 파일만, 512KB 까지
+fn read_code_file(path: &str, roots: &[String]) -> anyhow::Result<Value> {
+    use std::io::Read;
+    let real = std::fs::canonicalize(path).map_err(|_| anyhow::anyhow!("파일이 없어요 (지워졌거나 옮겨졌어요)"))?;
+    let inside = roots.iter().any(|r| std::fs::canonicalize(r).map(|r| real.starts_with(&r)).unwrap_or(false));
+    if !inside {
+        anyhow::bail!("세션 폴더 밖 파일은 열지 않아요");
+    }
+    let meta = std::fs::metadata(&real)?;
+    if !meta.is_file() {
+        anyhow::bail!("파일이 아니에요");
+    }
+    let mut buf = Vec::new();
+    std::fs::File::open(&real)?.take(CODE_MAX).read_to_end(&mut buf)?;
+    if buf.contains(&0) {
+        anyhow::bail!("글자 파일이 아니에요");
+    }
+    Ok(json!({ "path": path, "text": String::from_utf8_lossy(&buf), "size": meta.len(), "truncated": meta.len() > CODE_MAX }))
 }
 
 fn git_reply(ctx: &Ctx, channel: &str, base: Value, r: anyhow::Result<Value>) {
