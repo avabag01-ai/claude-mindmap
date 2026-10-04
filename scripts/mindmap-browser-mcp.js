@@ -49,6 +49,8 @@ const TOOLS = [
       run: (b, a) => b.type(a.target, a.text, { submit: !!a.submit }).then(r => { if (!r.ok) throw new Error(r.error); return '입력했어요'; }) },
     { name: 'browser_navigate', description: '뒤로 · 앞으로 · 새로고침', inputSchema: { type: 'object', properties: { action: { type: 'string', enum: ['back', 'forward', 'reload'] }, ...browserArg }, required: ['action'] },
       run: (b, a) => b.navigate(a.action).then(() => `했어요: ${a.action}`) },
+    { name: 'browser_snap', description: '지금 화면을 그림으로 본다 (글로 안 읽히는 이미지·배치·그래프 확인용). app-github · app-web 이면 앱 안 웹 화면 자리만, 그 밖이면 그 브라우저 앞 창. 화면 기록 권한 필요', inputSchema: { type: 'object', properties: { max: { type: 'integer', default: 1600, description: '긴 변 최대 픽셀' }, ...browserArg } },
+      run: (b, a) => b.snap({ max: a.max || 1600 }).then(r => ({ image: r.data, text: `${r.width}×${r.height}${r.url ? ` · ${r.url}` : ''}` })) },
     { name: 'browser_eval', description: '앞 창 보이는 탭에서 자바스크립트를 실행하고 결과를 돌려준다 (마지막 식의 값)', inputSchema: { type: 'object', properties: { js: { type: 'string' }, ...browserArg }, required: ['js'] },
       run: (b, a) => b.eval(a.js).then(r => r === '' ? '(값 없음)' : String(r)) }
 ];
@@ -73,8 +75,12 @@ async function handle(msg) {
         try {
             const name = pickBrowser(args.browser);
             const bridge = AppWebBridge.TARGETS[name] ? new AppWebBridge({ browser: name }) : new BrowserBridge({ browser: name });
-            const text = await tool.run(bridge, args);
-            return send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
+            const out = await tool.run(bridge, args);
+            // 그림이면 image + 설명 글
+            if (out && typeof out === 'object' && out.image) {
+                return send({ jsonrpc: '2.0', id, result: { content: [{ type: 'image', data: out.image, mimeType: 'image/png' }, { type: 'text', text: out.text || '' }] } });
+            }
+            return send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: out }] } });
         } catch (e) {
             return send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: e.message }], isError: true } });
         }

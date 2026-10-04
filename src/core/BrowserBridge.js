@@ -218,6 +218,12 @@ return { ok: true };`);
         return this.eval(`${js}; 'ok'`).then(() => ({ ok: true, action }));
     }
 
+    /** 이 브라우저의 앞 창을 그림으로 { data(base64 png), width, height } — WindowSnap.js */
+    snap({ max = 1600, snapper } = {}) {
+        const WindowSnap = require('./WindowSnap.js');
+        return (snapper || new WindowSnap()).snapBase64({ owner: this.b.app, max });
+    }
+
     static normalizeUrl(url) {
         const u = String(url || '').trim();
         if (!u) throw new Error('주소가 비었어요');

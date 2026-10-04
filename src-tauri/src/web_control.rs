@@ -1,7 +1,8 @@
 //! 앱 안 웹 화면(가운데 GitHub·브라우저 탭, center_web.rs)을 Claude 가 조종하는 통로.
 //! - 127.0.0.1 의 아무 포트에서만 듣는다 (맥 바깥에서 못 들어옴). 포트와 열쇠는 ~/.claude-mindmap/web-control.json (0600)
 //! - 한 줄 JSON 요청 → 한 줄 JSON 답. 열쇠가 다르면 거절.
-//!   { token, label: "github"|"web", op: "status"|"eval"|"open"|"back"|"forward"|"reload", js?, url? }
+//!   { token, label: "github"|"web", op: "status"|"rect"|"eval"|"open"|"back"|"forward"|"reload", js?, url? }
+//! - rect 는 웹 화면이 창 안 어디에 있는지(물리 픽셀) — 창 스냅샷에서 그 자리만 잘라 볼 때 (AppWebBridge.snap)
 //! - eval 은 그 웹 화면에서 스크립트를 돌리고 마지막 식의 값을 JSON 문자열로 돌려준다.
 //! - open 은 화면에 알려(center-web:open) 그 탭으로 바꾸고 주소를 연다 — 사용자가 보는 화면과 같은 곳.
 //! 쓰는 쪽: src/core/AppWebBridge.js (scripts/mindmap-browser-mcp.js 의 browser: app-github · app-web)
@@ -66,7 +67,7 @@ pub fn check(token: &str, req: &Value) -> Result<(String, String), String> {
     let label = s("label");
     if !LABELS.contains(&label.as_str()) { return Err(format!("모르는 웹 화면: {label} (github · web)")); }
     let op = s("op");
-    if !["status", "eval", "open", "back", "forward", "reload"].contains(&op.as_str()) { return Err(format!("모르는 동작: {op}")); }
+    if !["status", "rect", "eval", "open", "back", "forward", "reload"].contains(&op.as_str()) { return Err(format!("모르는 동작: {op}")); }
     Ok((label, op))
 }
 
@@ -90,6 +91,13 @@ fn handle(app: &AppHandle, token: &str, req: &Value) -> Value {
                 return json!({ "ok": false, "error": format!("앱에서 가운데 {} 탭이 아직 안 열렸어요 (open 으로 열 수 있어요)", if tab == "github" { "GitHub" } else { "브라우저" }) });
             };
             match op.as_str() {
+                "rect" => {
+                    let (p, z, w) = (v.position(), v.size(), v.window().inner_size());
+                    match (p, z, w) {
+                        (Ok(p), Ok(z), Ok(w)) => json!({ "ok": true, "x": p.x, "y": p.y, "w": z.width, "h": z.height, "winW": w.width, "winH": w.height }),
+                        _ => json!({ "ok": false, "error": "웹 화면 자리를 못 읽었어요" }),
+                    }
+                }
                 "reload" => v.reload().map(|_| json!({ "ok": true })).unwrap_or_else(|e| json!({ "ok": false, "error": e.to_string() })),
                 "back" | "forward" => {
                     let _ = v.eval(if op == "back" { "history.back()" } else { "history.forward()" });

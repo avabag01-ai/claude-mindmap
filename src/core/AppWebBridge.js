@@ -10,6 +10,7 @@
 const fs = require('fs');
 const net = require('net');
 const BrowserBridge = require('./BrowserBridge.js');
+const WindowSnap = require('./WindowSnap.js');
 const appDir = require('./appDir.js');
 
 const TARGETS = { 'app-github': 'github', 'app-web': 'web' };
@@ -86,6 +87,15 @@ class AppWebBridge extends BrowserBridge {
         let v;
         try { v = JSON.parse(r.result); } catch { v = r.result; }
         return v == null ? '' : typeof v === 'string' ? v : JSON.stringify(v);
+    }
+
+    /** 앱 창을 찍어 이 웹 화면 자리만 잘라 돌려준다 { data(base64 png), width, height, url } */
+    async snap({ max = 1600, snapper } = {}) {
+        const r = await this._call('rect');
+        const { pid } = AppWebBridge.info();
+        const shot = await (snapper || new WindowSnap()).snapBase64({ pid, crop: { x: r.x, y: r.y, w: r.w, h: r.h, winW: r.winW }, max });
+        const st = await this._call('status').catch(() => ({}));
+        return { ...shot, url: st.url || '' };
     }
 
     async navigate(action) {
