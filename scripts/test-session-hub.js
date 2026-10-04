@@ -204,4 +204,16 @@ assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
     assert.strictEqual(ClaudeApp.focus('local_a; rm'), false);
     assert.strictEqual(ClaudeApp.handOff('', 'x', 'nope'), false);
 }
+// 툰으로 이어가기(HubToonApp.js): 답에서 첫 메시지·제목 뽑기, 새로 생긴 세션 찾기
+{
+    global.SessionHub = SessionHub;
+    global.SessionMindMap = SMM;
+    require('../src/modules/HubToonApp.js');
+    const r = SessionHub.toonNextFrom('저장했어요\n```toon-next\n붙이기 손보기 — 툰 불러와 — root: /a, topic: chat\n```', '/a');
+    assert.strictEqual(r.title, '붙이기 손보기');
+    assert.ok(r.prompt.startsWith('붙이기 손보기 — 툰 불러와'));
+    const projects = [{ root: '/a', sessions: [{ id: 'old', firstPrompt: '붙이기 손보기 — 툰 불러와' }, { id: 'n1', firstPrompt: '다른 일' }, { id: 'n2', firstPrompt: '붙이기 손보기 — 툰 불러와 — root: /a' }] }];
+    assert.strictEqual(SessionHub.findContinued(projects, new Set(['old']), '붙이기 손보기').s.id, 'n2', '시작 전에 있던 세션은 빼고 제목으로 찾음');
+    assert.strictEqual(SessionHub.findContinued(projects, new Set(['old', 'n2']), '붙이기 손보기'), null);
+}
 console.log('SessionHub: 모든 테스트 통과');

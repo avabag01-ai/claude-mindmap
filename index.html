@@ -97,6 +97,10 @@
         body.claude-docked #hub-chat-head, body.claude-docked #hub-composer { background: var(--bg); }
         body.claude-docked #hub-messages, body.claude-docked #hub-attach, body.claude-docked #hub-input { display: none; }
         #hub-claude-hole { display: none; }
+        /* 붙인 동안 아래 '보내기' 자리에 '툰으로 이어가기' (HubToonApp.js) */
+        .hub-toon-bottom { display: none; white-space: nowrap; }
+        body.claude-docked .hub-toon-bottom { display: inline-block; }
+        body.claude-docked #hub-send { display: none !important; }
         body.claude-docked #hub-claude-hole { display: block; flex: 1; min-height: 200px; outline: 1px solid var(--line); outline-offset: -1px; }
         .hub-claude-dock { margin-left: auto; -webkit-app-region: no-drag; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
         .hub-claude-dock[aria-pressed=true] { color: var(--ink); border-color: var(--accent); }
@@ -462,6 +466,7 @@
     <script src="src/modules/HubAppList.js"></script>
     <script src="src/modules/HubAppLink.js"></script>
     <script src="src/modules/HubClaudeDock.js"></script>
+    <script src="src/modules/HubToonApp.js"></script>
     <script>
         // 미리보기 페이지(?preview)는 IPC 없이 window.HUB_PREVIEW_DATA 로 그린다
         window.sessionHub = new SessionHub(window.HUB_PREVIEW_DATA ? { ipc: null, now: window.HUB_PREVIEW_NOW, transcripts: window.HUB_PREVIEW_TRANSCRIPTS, hubs: window.HUB_PREVIEW_HUBS, previewFs: window.HUB_PREVIEW_FS, previewMemos: window.HUB_PREVIEW_MEMOS, usage: window.HUB_PREVIEW_USAGE } : {});
