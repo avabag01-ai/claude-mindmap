@@ -3,19 +3,22 @@ topic: side-tabs
 title: 왼쪽 탭
 parent: claude-mindmap
 updated: 2026-10-04
-latest_session: .toon/side-tabs/SESSION_20261004c.toon
+latest_session: .toon/side-tabs/SESSION_20261004d.toon
 files: src/modules/HubPanels.js · src/modules/HubCenterTabs.js · src/modules/HubSidebar.js · src/modules/HubResize.js · src/core/GitPanel.js · src/core/MemoStore.js · src/core/BrowserBridge.js · scripts/flowcode-browser-mcp.js
 
 ## SCOPE
 - 파인더, 메모(키체인 비밀 메모), GitHub(git·gh), 브라우저(크롬·사파리 애플스크립트, MCP 등록)
 
 ## NEXT
+- 브라우저 탭 '기록·즐겨찾기' 손 시험 (목록·찾기·열기·닫기 후 웹 복귀)
 - NEXT 000008g 진짜 앱 손 시험: 사이드바 단추(신호등 옆)·⌘B, 대화창 너비 끌기, 가운데 GitHub·브라우저 탭, 사용량 쓴 %
 - NEXT 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 마인드맵 탭 복귀 · 더블클릭 접기
 - NEXT 000000 맥에서 키체인 메모·크롬 조종 실측
 - (보류) 가운데 브라우저 탭이 불편하면 → 진짜 크롬 창을 가운데 칸 자리·크기에 맞춰 띄우기 (애플스크립트 bounds). 지금은 앱 안 WebKit 웹뷰로 써 보는 중 (10-04 사용자)
 
 ## DECISIONS
+- 2026-10-04 [확인] 가운데 웹 탭은 마지막 주소(localStorage cw.url.<tab>)로 열고, 크롬 기록·즐겨찾기는 읽기만(History 복사본+sqlite3) — 사용자 확인 '이제 나온다' (SESSION_20261004d)
+- 2026-10-04 [확인] 워크트리 세션은 원래 저장소 묶음에 넣는다 — 툰 이어가기 새 세션(본 폴더)과 한 줄기 (ab61517)
 - 2026-10-04 [확인] 가운데 GitHub·브라우저 탭 = 앱 안 WebKit 자식 웹뷰(center_web.rs, HubCenterWeb.js). 크롬은 다른 앱 창 안에 못 넣음 (7bf1221)
 - 2026-10-04 [확인] GitHub·브라우저는 가운데 탭(마인드맵 | GitHub | 브라우저), 왼쪽은 세션·파인더·메모만 — 사용자 요청 (SESSION_20261004c)
 - 2026-10-04 [확인] 새 세션 폴더 빠짐은 첫 메시지 부탁(move_sessions + change_directory)으로 우회 — 손 시험 통과 (SESSION_20261004c)
@@ -26,3 +29,4 @@ files: src/modules/HubPanels.js · src/modules/HubCenterTabs.js · src/modules/H
 - .toon/side-tabs/SESSION_20261004.toon | 2026-10-04 | NEXT 000008 GitHub 마인드맵 | GitHub 맵·더블클릭 접기·그룹 중심(확인)·새 세션 워크트리 오류 고침·가운데 ＋·툰 이어가기 앱 안 새 세션+그룹 부탁 | c754c72
 - .toon/side-tabs/SESSION_20261004b.toon | 2026-10-04 | NEXT 000008c 그룹 손 시험 | 그룹 넣기 통과·폴더 빠짐 우회·앱 세션 넘기기·폴더 옮긴 세션 묶기·그룹 가지 유지 | 5ba9d48
 - .toon/side-tabs/SESSION_20261004c.toon | 2026-10-04 | NEXT 000008d·e·f 손 시험 + 요청 | 손 시험 셋 통과 · GitHub·브라우저 가운데 탭·사이드바 닫기(⌘B)·대화창 너비 끌기·사용량 쓴 % · 앱 교체 | 29c121d
+- .toon/side-tabs/SESSION_20261004d.toon | 2026-10-04 | 브라우저 이어보기·툰 빠르게 | 워크트리 잇기·toon_save.py(복원 비교 통과)·마지막 주소·크롬 기록 269/500 · 앱 교체 | 60a0fe0

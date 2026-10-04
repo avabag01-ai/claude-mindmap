@@ -1,0 +1,80 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: side-tabs
+session: 툰 이어가기 실전 확인·워크트리 잇기·툰 저장 스크립트·브라우저 탭 마지막 주소·크롬 기록·즐겨찾기
+hub_task: 가운데 브라우저 탭 이어보기 + 크롬 기록·즐겨찾기, 툰 저장 빠르게, 툰 이어가기 실전 결과 확인
+prev_session: .toon/side-tabs/SESSION_20261004d.toon
+head: 60a0fe0   dirty: yes
+compression: ~92%
+
+## DICTIONARY
+$1=~/.claude/skills/toon-save/toon_save.py
+$2=src/modules/HubCenterWeb.js
+$3=src-tauri/src/chrome_places.rs
+$4=~/.claude-mindmap/session-links.json
+$5=/Applications/클로드 마인드맵.app
+$6=local_2e91c399 "마인드맵 세션 선택을 클로드 앱 화면과 연동" (원래 세션, jsonl 0c600a96, cwd /Users/kim/logic-pro-mcp/.claude/worktrees/zealous-murdock-c57604)
+
+## STANDING_CONSTRAINTS
+- see HUB
+- 사용자에게 보이는 글은 중간 알림까지 전부 한국어 (10-04 두 번 지적 → ~/.claude/CLAUDE.md 맨 위 '언어' 규칙 + logic-pro-mcp 메모리 always-korean)
+
+## STATE
+### goal
+툰으로 이어가기 실전 결과 확인·고치기, 툰 저장 빠르게(기계적 부분 스크립트), 가운데 브라우저 탭 이어보기 + 크롬 기록·즐겨찾기.
+
+### architecture
+- [확인] 툰으로 이어가기 실전(10-04 19:13~19:30): 툰 저장 5분(10:13:19Z→10:18:17Z; 세션 툰 12KB Write ~40초, 허브 6KB 통째 다시 쓰기 3분 반) + 저장 끝→새 세션 12분(새 세션 10:30:33Z; [가설] '작업 공간 신뢰' 창을 사람이 누르길 기다림 — 기록 없음)
+- [확인] 실전에서 제목은 jsonl custom-title 로 들어갔으나 클로드 앱 사이드바는 앱 자체 제목("브라우저 이어보기 및 툰 저장") — 앱은 local_*.json title 을 씀
+- [확인][변경] 붙이기 실패 원인 = 원래 세션은 워크트리 cwd, 새 세션은 mainRoot(본 폴더) → set_meta "같은 폴더의 세션만" 거절. 고침: project_root(Rust)·_projectRoot(JS) 가 /.claude/worktrees/ 앞을 루트로 → 워크트리 세션이 원래 저장소 묶음에 들어감 (ab61517)
+- [확인] 이 세션은 $4 prev["/Users/kim/logic-pro-mcp::fbfd0d19-…"]=0c600a96 로 손으로 이음 → 인덱서 결과 prevId 0c600a96·topic side-tabs·제목 "브라우저 이어보기·툰 빠르게", 워크트리 프로젝트 따로 0개
+- [확인] 툰 저장 빠른 길 = $1: prep(루트·워크트리→원래 트리·파일명 접미사·prev·HEAD·제외·허브 섹션) / apply(본문에 DECODER·META 붙임, 비밀 가리기, 허브 줄 단위 패치: replace·prepend·append·remove_match·replace_line·insert_after·after(새 섹션 자리)·field(머리줄), updated·latest_session·인덱스 자동, 찾을 글이 여러 줄이면 오류). SKILL.md 에 '빠른 길' 절 추가. TOON_INDEX 환경변수로 시험용 인덱스
+- [확인] 가운데 웹 탭(GitHub·브라우저) 마지막 주소 = localStorage cw.url.<tab>; 이 화면에서 처음 띄울 때(v.opened) 그 주소로, 연 주소는 바로 저장, 떠나는 탭은 web_url 읽어 저장 (0373b74, 60a0fe0)
+- [확인] 기록·즐겨찾기 = $3 chrome_places 명령(Local State 마지막 프로필, Bookmarks JSON 평평하게+폴더 경로, History 를 임시 폴더로 복사→/usr/bin/sqlite3 -readonly -json 최근 500, 복사본 바로 지움) + $2 브라우저 탭 단추: 웹뷰 숨기고 자리에 목록(즐겨찾기|방문 기록, 찾기, Enter=첫 항목, Esc=닫기), 60초 캐시 (a5e3926, 0373b74)
+
+### changes_this_session
+- ab61517 워크트리 세션을 원래 저장소에 묶기 · a5e3926 chrome_places · 0373b74 브라우저 탭 마지막 주소·기록·즐겨찾기 · 60a0fe0 연 주소 바로·떠날 때 저장. 모두 origin/main 푸시(사용자 실행)
+- $1 새로 만듦, ~/.claude/skills/toon-save/SKILL.md '빠른 길' (git 밖)
+- $5 두 번 교체(60a0fe0 빌드, 고정 서명 확인)
+
+### results
+- [확인] cargo test --lib 49 통과(3 ignored), npm test 12개 통과, release 빌드 경고 0
+- [확인] 진짜 크롬 읽기(live_load): Default 즐겨찾기 269 · 기록 500
+- [확인] 사용자: 앱 교체 후 마지막 주소 "이제 나온다"
+- [확인] 복원 비교: 지난 저장(f48bfd2)을 f48bfd2^ 상태에서 $1 로 재현 → 세션 툰 글자까지 같음(root·head 줄 제외), 프로젝트 허브 글자까지 같음, 주제 허브 줄 내용 모두 같고 머리줄 files: 위치만 2줄 차이. 패치 4.3KB vs 허브 통째 8KB
+
+### rejected
+- set_field 없는 키를 1번째 줄에 넣기 — '## ' 로 시작하는 허브에서 맨 위에 들어감 → head_block 끝(첫 빈 줄 앞)으로
+- 새 섹션 after 없이 parts[0](이름 None) 과 맞춰 맨 위에 넣던 것 — op 에 after 가 있을 때만
+
+### open_issues
+- [가설] 저장→새 세션 12분은 '작업 공간 신뢰' 창 대기 — 다음 이어가기 때 시각 기록으로 확인
+- [확인] 클로드 앱 사이드바 제목은 마인드맵 rename 이 못 바꿈 (앱 local_*.json title)
+- [가설] 같은 실행 중 탭을 다시 눌러 구글로 가던 원인 미확인 — 앱 재시작 때로 추정, 마지막 주소 기억으로 덮음
+- 기록·즐겨찾기 단추 앱 화면 손 시험 전
+
+### next_action
+1. 앱에서 브라우저 탭 '기록·즐겨찾기' 손 시험: 목록 뜸·찾기·누르면 열림·닫기 후 웹 화면 복귀
+2. 다음 툰 저장에서 빠른 길 시간 재기(prep→apply 까지 목표 1분 안)
+3. 툰 이어가기 저장→새 세션 사이 시각을 HubToonApp 알림/로그로 남겨 12분 원인 확인
+4. 그 밖 side-tabs NEXT(000008g·000008b)
+
+## ARTIFACTS
+- $1 — 툰 저장 스크립트 — 실행: python3 $1 prep --root <폴더> --topic <주제> / apply <패치.json>
+- 복원 비교 다시 하기: git archive f48bfd2^ .toon 을 임시 저장소에 풀고 같은 패치로 apply → diff (패치는 세션 스크래치패드라 사라짐, 이 툰 results 참고)
+
+## VERIFY_ON_LOAD
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 60a0fe0 이거나 그 뒤
+- `grep -c "/.claude/worktrees/" /Users/kim/claude-mindmap/src-tauri/src/session_indexer.rs` → 1 이상
+- `ls /Users/kim/claude-mindmap/src-tauri/src/chrome_places.rs ~/.claude/skills/toon-save/toon_save.py` → 둘 다 있음
+- `grep -c "빠른 길" ~/.claude/skills/toon-save/SKILL.md` → 1 이상
+- `cd /Users/kim/claude-mindmap && npm test 2>&1 | grep -c 통과` → 12
