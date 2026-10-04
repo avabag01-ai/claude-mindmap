@@ -8,6 +8,7 @@ pub mod approvals;
 pub mod browser_bridge;
 pub mod center_web;
 pub mod claude_app;
+pub mod claude_app_ax;
 pub mod claude_runner;
 pub mod git_panel;
 pub mod github_map;

@@ -116,12 +116,37 @@ pub fn new_in_app(folder: &str, prompt: &str) -> bool {
     std::process::Command::new("open").arg(new_session_url(folder, prompt)).status().map_or(false, |s| s.success())
 }
 
-/// 클로드 앱 세션에 보낼 글: 글을 클립보드에 넣고 그 세션을 앱 앞으로 연다 (붙여넣고 Enter 는 사람이).
-/// 마인드맵이 claude --resume 으로 따로 돌리면 앱 화면과 앱 세션은 그 대화를 모른다.
-pub fn hand_off(cli_id: &str, text: &str) -> bool {
-    if cli_id.is_empty() || !cli_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
-        return false;
+/// 앱 세션 기록(local_<id>.json)의 지금 제목. 앱이 제목을 바꾸면 여기도 바뀐다
+pub fn app_title(app_id: &str) -> Option<String> {
+    app_title_in(&app_dir_path(), app_id)
+}
+
+pub fn app_title_in(dir: &Path, app_id: &str) -> Option<String> {
+    if !crate::claude_app_ax::valid_app_id(app_id) {
+        return None;
     }
+    let base = dir.join("claude-code-sessions");
+    for acct in fs::read_dir(&base).ok()?.flatten() {
+        for org in fs::read_dir(acct.path()).into_iter().flatten().flatten() {
+            if let Some(r) = read_json(&org.path().join(format!("{app_id}.json"))) {
+                return r["title"].as_str().map(str::to_string);
+            }
+        }
+    }
+    None
+}
+
+/// (보내기를 못 할 때) 클로드 앱 세션에 보낼 글: 글을 클립보드에 넣고 그 세션을 앱 앞으로 연다 (붙여넣고 Enter 는 사람이).
+/// 마인드맵이 claude --resume 으로 따로 돌리면 앱 화면과 앱 세션은 그 대화를 모른다.
+/// app_id 가 있으면 앱 세션으로 바로 가는 링크(code/continue), 없으면 가져오기 링크(resume)
+pub fn hand_off(cli_id: &str, app_id: &str, text: &str) -> bool {
+    let url = if crate::claude_app_ax::valid_app_id(app_id) {
+        crate::claude_app_ax::continue_url(app_id)
+    } else if !cli_id.is_empty() && cli_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        format!("claude://resume?session={cli_id}")
+    } else {
+        return false;
+    };
     use std::io::Write;
     let copied = std::process::Command::new("pbcopy")
         .stdin(std::process::Stdio::piped())
@@ -131,7 +156,7 @@ pub fn hand_off(cli_id: &str, text: &str) -> bool {
             c.wait()
         })
         .map_or(false, |s| s.success());
-    let opened = std::process::Command::new("open").arg(format!("claude://resume?session={cli_id}")).status().map_or(false, |s| s.success());
+    let opened = std::process::Command::new("open").arg(url).status().map_or(false, |s| s.success());
     copied && opened
 }
 
@@ -204,6 +229,9 @@ mod tests {
         assert_eq!(v["sessions"]["cli-b"]["adopted"], false, "들여온 표시가 없으면 앱에서 만든 세션");
         assert_eq!(v["sessions"]["cli-b"]["group"], Value::Null);
         assert_eq!(read_from(&d.join("없음"))["ok"], false);
+        assert_eq!(app_title_in(&d, "local_a").as_deref(), Some("가"));
+        assert_eq!(app_title_in(&d, "local_zz"), None);
+        assert_eq!(app_title_in(&d, "../x"), None, "id 가 아니면 읽지 않음");
     }
 
     #[test]

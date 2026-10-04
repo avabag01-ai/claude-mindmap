@@ -7,7 +7,7 @@ use crate::machine_sync::MachineSync;
 use crate::memo_store::MemoStore;
 use crate::session_indexer::{self as si, MetaPatch, SessionIndexer};
 use crate::usage_meter::UsageMeter;
-use crate::{app_dir, approvals, browser_bridge, claude_app, claude_runner, login_path};
+use crate::{app_dir, approvals, browser_bridge, claude_app, claude_app_ax, claude_runner, login_path};
 use once_cell::sync::Lazy;
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
@@ -239,8 +239,23 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
         "gh:repos" => git_reply(ctx, "gh:repos-result", json!({}), crate::github_map::repos(&GIT, &p["roots"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect::<Vec<_>>())),
         "gh:repo-detail" => git_reply(ctx, "gh:repo-detail-result", json!({ "slug": p.get("slug") }), crate::github_map::detail(&GIT, s(&p, "slug").unwrap_or(""))),
         "claude-app:handoff" => {
-            let ok = claude_app::hand_off(s(&p, "id").unwrap_or(""), s(&p, "text").unwrap_or(""));
+            let ok = claude_app::hand_off(s(&p, "id").unwrap_or(""), s(&p, "appId").unwrap_or(""), s(&p, "text").unwrap_or(""));
             ctx.emit("claude-app:handoff-result", json!({ "ok": ok }));
+        }
+        // 마인드맵에서 고른 앱 세션으로 클로드 앱 화면을 바꾼다 (앞으로 가져오지 않음)
+        "claude-app:focus" => {
+            let ok = claude_app_ax::focus(s(&p, "appId").unwrap_or(""));
+            ctx.emit("claude-app:focus-result", json!({ "ok": ok, "appId": p.get("appId") }));
+        }
+        // 앱 세션에 글 보내기: 그 세션이 보이는지 확인하고 빈 입력칸에만 넣어 보낸다. 못 하면 reason
+        "claude-app:send" => {
+            let app_id = s(&p, "appId").unwrap_or("");
+            let title = claude_app::app_title(app_id).unwrap_or_default();
+            let r = claude_app_ax::send(app_id, &title, s(&p, "text").unwrap_or(""));
+            ctx.emit("claude-app:send-result", match r {
+                Ok(()) => json!({ "ok": true, "id": p.get("id"), "appId": app_id }),
+                Err(why) => json!({ "ok": false, "id": p.get("id"), "appId": app_id, "reason": why, "message": claude_app_ax::reason_text(why) }),
+            });
         }
         "claude-app:new" => {
             let ok = claude_app::new_in_app(s(&p, "folder").unwrap_or(""), s(&p, "prompt").unwrap_or(""));
