@@ -42,6 +42,19 @@ fn place(win: &Window, h: Hole) -> Option<(f64, f64)> {
     claude_app_ax::place_window(ox + h.x, oy + h.y, h.w, h.h).map(|(_, _, w, hh)| (w, hh))
 }
 
+/// 초록 단추를 확대로(붙인 동안) / 전체 화면으로(뗀 뒤)
+fn set_fullscreen_allowed(win: &Window, allowed: bool) {
+    if allowed == false && win.is_fullscreen().unwrap_or(false) {
+        let _ = win.set_fullscreen(false);
+    }
+    let w = win.clone();
+    let _ = win.run_on_main_thread(move || {
+        if let Ok(ns) = w.ns_window() {
+            claude_app_ax::allow_fullscreen(ns, allowed);
+        }
+    });
+}
+
 /// 마우스가 구멍 위면 마인드맵이 클릭을 흘려보내게 (클로드 창이 받음)
 fn watch_cursor(win: Window, gen: u64) {
     std::thread::spawn(move || {
@@ -76,6 +89,7 @@ pub fn claude_dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Resul
     if !on {
         *DOCK.lock().unwrap() = None;
         let _ = win.set_ignore_cursor_events(false);
+        set_fullscreen_allowed(&win, true);
         return Ok(json!({ "ok": true, "on": false }));
     }
     let hole = hole.ok_or("구멍 자리가 없어요")?;
@@ -96,6 +110,7 @@ pub fn claude_dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Resul
     *st = Some(Dock { hole, gen });
     drop(st);
     if start {
+        set_fullscreen_allowed(&win, false);
         watch_cursor(win, gen);
     }
     Ok(json!({ "ok": true, "on": true, "width": w, "height": h }))

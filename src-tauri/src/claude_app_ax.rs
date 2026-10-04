@@ -42,7 +42,7 @@ pub fn reason_text(reason: &str) -> &'static str {
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{ask_permission, focus, focus_back, place_window, raise_window, send, shown_title};
+pub use mac::{allow_fullscreen, ask_permission, focus, focus_back, place_window, raise_window, send, shown_title};
 
 #[cfg(not(target_os = "macos"))]
 pub fn focus(_app_id: &str) -> bool {
@@ -68,6 +68,8 @@ pub fn raise_window() -> bool {
 pub fn ask_permission() -> bool {
     false
 }
+#[cfg(not(target_os = "macos"))]
+pub fn allow_fullscreen(_ns_window: *mut std::ffi::c_void, _allowed: bool) {}
 
 /// 기다리기: f 가 Some 을 주거나 시간이 다 될 때까지
 fn wait_for<T>(limit: Duration, mut f: impl FnMut() -> Option<T>) -> Option<T> {
@@ -429,6 +431,20 @@ mod mac {
     /// 손쉬운 사용 권한이 있는지. 없으면 맥이 허용 창을 띄운다 (켜는 건 사용자가)
     pub fn ask_permission() -> bool {
         trusted(true)
+    }
+
+    /// 초록 단추: 전체 화면(새 화면 공간) 또는 확대(화면 꽉 채우기). 붙인 동안엔 확대 — 전체 화면이면 클로드 창이 다른 공간에 남는다.
+    /// 메인 스레드에서 부른다 (NSWindow collectionBehavior: FullScreenPrimary 1<<7, FullScreenNone 1<<9)
+    pub fn allow_fullscreen(ns_window: *mut c_void, allowed: bool) {
+        if ns_window.is_null() {
+            return;
+        }
+        unsafe {
+            let get: extern "C" fn(Id, Sel) -> usize = std::mem::transmute(objc_msgSend as *const c_void);
+            let set_b: extern "C" fn(Id, Sel, usize) = std::mem::transmute(objc_msgSend as *const c_void);
+            let cur = get(ns_window, sel("collectionBehavior")) & !((1 << 7) | (1 << 8) | (1 << 9));
+            set_b(ns_window, sel("setCollectionBehavior:"), cur | if allowed { 1 << 7 } else { 1 << 9 });
+        }
     }
 
     // --- 창 붙이기 (claude_dock.rs): 클로드 앱 창 자리·크기 ---
