@@ -309,7 +309,10 @@ let gitHubMap = null;
 const getGitHubMap = () => gitHubMap || (gitHubMap = new (require('./src/core/GitHubMap.js'))({ gitPanel: getGitPanel() }));
 ipcMain.on('gh:repos', (event, { roots } = {}) => gitReply(event, 'gh:repos-result', {}, getGitHubMap().repos(roots || [])));
 ipcMain.on('gh:repo-detail', (event, { slug } = {}) => gitReply(event, 'gh:repo-detail-result', { slug }, getGitHubMap().detail(slug)));
-ipcMain.on('claude-app:handoff', (event, { id, text } = {}) => event.reply('claude-app:handoff-result', { ok: require('./src/core/ClaudeApp.js').handOff(id, text) }));
+ipcMain.on('claude-app:handoff', (event, { id, text, appId } = {}) => event.reply('claude-app:handoff-result', { ok: require('./src/core/ClaudeApp.js').handOff(id, text, appId) }));
+ipcMain.on('claude-app:focus', (event, { appId } = {}) => event.reply('claude-app:focus-result', { ok: require('./src/core/ClaudeApp.js').focus(appId), appId }));
+// AX 보내기는 Tauri 판만 — 여기서는 복사로 넘기게 한다
+ipcMain.on('claude-app:send', (event, { id, appId } = {}) => event.reply('claude-app:send-result', { ok: false, id, appId, reason: 'unsupported' }));
 ipcMain.on('claude-app:new', (event, { folder, prompt } = {}) => event.reply('claude-app:new-result', { ok: require('./src/core/ClaudeApp.js').newInApp(folder, prompt) }));
 // 웹 주소는 기본 브라우저로 (http/https 만)
 ipcMain.on('open-external', (event, { url } = {}) => {

@@ -90,12 +90,26 @@ function newInApp(folder, prompt) {
     return true;
 }
 
-/** 클로드 앱 세션에 보낼 글: 클립보드에 넣고 그 세션을 앱 앞으로 연다 (붙여넣고 Enter 는 사람이) */
-function handOff(cliId, text) {
-    if (!/^[0-9a-f-]+$/i.test(cliId || '')) return false;
-    try { require('child_process').execFileSync('pbcopy', { input: String(text) }); } catch { return false; }
-    require('child_process').execFile('open', [`claude://resume?session=${cliId}`], () => {});
+const validAppId = id => /^local_[A-Za-z0-9-]{1,64}$/.test(id || '');
+const continueUrl = appId => `claude://code/continue?session=${appId}`;
+
+/** 마인드맵에서 고른 앱 세션으로 클로드 앱 화면을 바꾼다 (Electron 판: 링크만, 앞으로 돌리기·보내기는 Tauri 판 claude_app_ax.rs) */
+function focus(appId) {
+    if (!validAppId(appId)) return false;
+    require('child_process').execFile('open', ['-g', continueUrl(appId)], () => {});
     return true;
 }
 
-module.exports = { read, importSession, titleFrom, appDirPath, newSessionUrl, newInApp, handOff };
+/** 클로드 앱 세션에 보낼 글: 클립보드에 넣고 그 세션을 앱 앞으로 연다 (붙여넣고 Enter 는 사람이). appId 가 있으면 앱 세션 링크 */
+function handOff(cliId, text, appId) {
+    const url = validAppId(appId) ? continueUrl(appId) : /^[0-9a-f-]+$/i.test(cliId || '') ? `claude://resume?session=${cliId}` : null;
+    if (!url) return false;
+    try { require('child_process').execFileSync('pbcopy', { input: String(text) }); } catch { return false; }
+    require('child_process').execFile('open', [url], () => {});
+    return true;
+}
+
+// 마인드맵에서 돌린 세션을 클로드 앱에도 보이게 (가져오기 링크)
+const showInApp = importSession;
+
+module.exports = { read, importSession, showInApp, titleFrom, appDirPath, newSessionUrl, newInApp, handOff, focus, continueUrl, validAppId };
