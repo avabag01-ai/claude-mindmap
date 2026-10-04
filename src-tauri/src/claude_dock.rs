@@ -46,6 +46,9 @@ pub fn claude_dock(window: WebviewWindow, on: bool, width: f64) -> Result<Value,
     if st.is_some() {
         return Ok(json!({ "ok": true, "on": true }));
     }
+    if !claude_app_ax::ask_permission() {
+        return Err("마인드맵에 손쉬운 사용 권한이 필요해요. 맥이 띄운 창에서 허용한 뒤 다시 눌러 주세요".into());
+    }
     let claude_w = width.max(420.0);
     let (x, y, w, h) = frame(&win).ok_or("마인드맵 창 크기를 못 읽었어요")?;
     // 화면 오른쪽 끝을 넘으면 마인드맵을 왼쪽으로 민다

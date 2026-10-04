@@ -42,7 +42,7 @@ pub fn reason_text(reason: &str) -> &'static str {
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{focus, focus_back, place_window, raise_window, send, shown_title};
+pub use mac::{ask_permission, focus, focus_back, place_window, raise_window, send, shown_title};
 
 #[cfg(not(target_os = "macos"))]
 pub fn focus(_app_id: &str) -> bool {
@@ -62,6 +62,10 @@ pub fn place_window(_x: f64, _y: f64, _w: f64, _h: f64) -> Option<(f64, f64, f64
 }
 #[cfg(not(target_os = "macos"))]
 pub fn raise_window() -> bool {
+    false
+}
+#[cfg(not(target_os = "macos"))]
+pub fn ask_permission() -> bool {
     false
 }
 
@@ -420,6 +424,11 @@ mod mac {
             }
         }
         shown
+    }
+
+    /// 손쉬운 사용 권한이 있는지. 없으면 맥이 허용 창을 띄운다 (켜는 건 사용자가)
+    pub fn ask_permission() -> bool {
+        trusted(true)
     }
 
     // --- 창 붙이기 (claude_dock.rs): 클로드 앱 창 자리·크기 ---
