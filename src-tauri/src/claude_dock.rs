@@ -82,9 +82,33 @@ fn watch_cursor(win: Window, gen: u64) {
     });
 }
 
+/// 붙이기 기록: 무엇이 왜 안 됐는지 나중에 볼 수 있게 (~/.claude-mindmap/dock.log, 200줄까지)
+fn log(line: &str) {
+    use std::io::Write;
+    let p = crate::app_dir::settings_file("dock.log");
+    let old = std::fs::read_to_string(&p).unwrap_or_default();
+    let keep: Vec<&str> = old.lines().rev().take(199).collect::<Vec<_>>().into_iter().rev().collect();
+    if let Ok(mut f) = std::fs::File::create(&p) {
+        for l in keep {
+            let _ = writeln!(f, "{l}");
+        }
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let _ = writeln!(f, "{t} {line}");
+    }
+}
+
 /// 화면 버튼: on = 붙이기(hole 자리에), off = 떼기. 답의 width·height = 클로드 창 실제 크기
 #[tauri::command]
 pub fn claude_dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Result<Value, String> {
+    let r = dock(window, on, hole);
+    match &r {
+        Ok(v) => log(&format!("ok on={on} hole={hole:?} {v}")),
+        Err(e) => log(&format!("err on={on} hole={hole:?} {e}")),
+    }
+    r
+}
+
+fn dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Result<Value, String> {
     let win = window.as_ref().window();
     if !on {
         *DOCK.lock().unwrap() = None;

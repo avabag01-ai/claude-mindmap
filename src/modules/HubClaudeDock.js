@@ -22,6 +22,15 @@
         document.body.classList.toggle('claude-docked', on);
     }
 
+    /** 실패는 단추에 보인다 — 알림(toast)은 마인드맵 탭에서만 보여서 GitHub·브라우저 탭에서는 안 보였다 */
+    function fail(b, m) {
+        toast(m);
+        b.textContent = '붙이기 실패';
+        b.title = m;
+        clearTimeout(b._failT);
+        b._failT = setTimeout(() => { if (!docked()) render(b, false); }, 8000);
+    }
+
     const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     const chatCol = () => document.querySelector('.hub > section.col[aria-label="대화"]');
@@ -57,7 +66,7 @@
             try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* 미리보기 */ }
         } catch (e) {
             render(b, false);
-            toast(String(e && e.message || e));
+            fail(b, String(e && e.message || e));
         }
     }
 
