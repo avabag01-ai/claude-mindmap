@@ -90,6 +90,12 @@
         .hub-sidebar-toggle:hover { background: var(--panel-2); color: var(--ink); }
         body.left-hidden .hub-left { display: none; }
         body.left-hidden .hub { grid-template-columns: minmax(0, 1fr) var(--chat-w); }
+        /* 클로드 앱 붙이기 (HubClaudeDock.js): 대화창 자리에 클로드 앱 창이 붙으니 대화창은 숨긴다 */
+        body.claude-docked .hub { grid-template-columns: 270px minmax(0, 1fr); }
+        body.claude-docked.left-hidden .hub { grid-template-columns: minmax(0, 1fr); }
+        body.claude-docked .hub > section.col[aria-label="대화"], body.claude-docked .chat-resizer { display: none; }
+        .hub-claude-dock { margin-left: auto; -webkit-app-region: no-drag; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+        .hub-claude-dock[aria-pressed=true] { color: var(--ink); border-color: var(--accent); }
         .hub-tabs { display: flex; gap: 2px; padding: 34px 10px 0; border-bottom: 1px solid var(--line); -webkit-app-region: drag; }
         .hub-tabs button { -webkit-app-region: no-drag; background: transparent; border: 0; border-bottom: 2px solid transparent; padding: 6px 10px; cursor: pointer; color: var(--muted); }
         .hub-tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
@@ -292,7 +298,7 @@
         .hub-more { align-self: flex-start; justify-self: start; font-size: 11px; padding: 2px 9px; }
         .hub-mode { justify-self: start; background: var(--accent); color: #0b1512; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 0 6px; }
 
-        @media (max-width: 1100px) { .hub { --chat-w: 340px; grid-template-columns: 220px minmax(0, 1fr) var(--chat-w); } }
+        @media (max-width: 1100px) { .hub { --chat-w: 340px; grid-template-columns: 220px minmax(0, 1fr) var(--chat-w); } body.claude-docked .hub { grid-template-columns: 220px minmax(0, 1fr); } }
         /* 좁은 화면(폰·작은 창): 목록 → 맵 → 대화 순으로 쌓는다 */
         @media (max-width: 860px) {
             html, body { height: auto; }
@@ -450,6 +456,7 @@
     <script src="src/modules/HubApprovals.js"></script>
     <script src="src/modules/HubAppList.js"></script>
     <script src="src/modules/HubAppLink.js"></script>
+    <script src="src/modules/HubClaudeDock.js"></script>
     <script>
         // 미리보기 페이지(?preview)는 IPC 없이 window.HUB_PREVIEW_DATA 로 그린다
         window.sessionHub = new SessionHub(window.HUB_PREVIEW_DATA ? { ipc: null, now: window.HUB_PREVIEW_NOW, transcripts: window.HUB_PREVIEW_TRANSCRIPTS, hubs: window.HUB_PREVIEW_HUBS, previewFs: window.HUB_PREVIEW_FS, previewMemos: window.HUB_PREVIEW_MEMOS, usage: window.HUB_PREVIEW_USAGE } : {});
