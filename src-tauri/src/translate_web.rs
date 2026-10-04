@@ -14,6 +14,25 @@ use tauri::{AppHandle, Emitter, Manager, Webview};
 use crate::login_path;
 
 static CACHE: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+/// 짧은 메뉴 낱말은 앞뒤 글이 없어 Google 이 엉뚱하게 옮긴다 (Feed → "밥을 먹이다"). GitHub 에서 흔한 것은 정해 둔 말로.
+/// 여기 있는 글 조각은 Google 에 묻지 않는다 (정확히 같은 글자만).
+const GLOSSARY: &[(&str, &str)] = &[
+    ("Home", "홈"), ("Feed", "피드"), ("Dashboard", "대시보드"), ("Explore", "탐색"), ("Notifications", "알림"),
+    ("Code", "코드"), ("Issues", "이슈"), ("Issue", "이슈"), ("Pull requests", "풀 리퀘스트"), ("Pull request", "풀 리퀘스트"),
+    ("Actions", "액션"), ("Projects", "프로젝트"), ("Wiki", "위키"), ("Security", "보안"), ("Insights", "인사이트"),
+    ("Settings", "설정"), ("Overview", "개요"), ("Repositories", "저장소"), ("Repository", "저장소"), ("Packages", "패키지"),
+    ("Stars", "별표"), ("Star", "별표"), ("Starred", "별표함"), ("Unstar", "별표 빼기"), ("Fork", "포크"), ("Forks", "포크"),
+    ("Watch", "지켜보기"), ("Unwatch", "그만 보기"), ("Watching", "지켜보는 중"),
+    ("Commits", "커밋"), ("commits", "커밋"), ("Commit", "커밋"), ("Branches", "브랜치"), ("Branch", "브랜치"), ("branches", "브랜치"),
+    ("Tags", "태그"), ("tags", "태그"), ("Releases", "릴리스"), ("Contributors", "기여자"), ("Languages", "언어"), ("About", "소개"),
+    ("Readme", "README"), ("Activity", "활동"), ("Public", "공개"), ("Private", "비공개"), ("Open", "열림"), ("Closed", "닫힘"),
+    ("Merged", "병합됨"), ("Draft", "초안"), ("Files changed", "바뀐 파일"), ("Conversation", "대화"), ("Checks", "검사"),
+    ("Sign in", "로그인"), ("Sign up", "가입"), ("Sign out", "로그아웃"), ("Search", "검색"), ("Filters", "필터"),
+    ("Top repositories", "자주 쓰는 저장소"), ("Recent activity", "최근 활동"), ("Go to file", "파일로 가기"), ("Add file", "파일 추가"),
+    ("New", "새로 만들기"), ("New repository", "새 저장소"), ("New issue", "새 이슈"), ("Edit", "고치기"), ("Delete", "지우기"),
+    ("Labels", "라벨"), ("Milestones", "마일스톤"), ("Assignees", "담당자"), ("Reviewers", "리뷰어"), ("Discussions", "토론"),
+    ("Copilot", "Copilot"), ("Gists", "Gist"), ("Your profile", "내 프로필"), ("Your repositories", "내 저장소"),
+];
 const CHUNK_ITEMS: usize = 80;
 const CHUNK_CHARS: usize = 3500;
 const PARALLEL: usize = 4;
@@ -41,6 +60,11 @@ document.documentElement.setAttribute('data-mm-tr','ko'); return c;}})({d})"#)
 
 const RESTORE_JS: &str = r#"(function(){var st=window.__mmTr, c=0; if(st) st.nodes.forEach(function(n){ if(n.__mmOrig!==undefined){ n.nodeValue=n.__mmOrig; delete n.__mmOrig; c++; } });
 document.documentElement.removeAttribute('data-mm-tr'); return c;})()"#;
+
+/// 기억의 첫 내용 = 정해 둔 말
+pub fn glossary() -> HashMap<String, String> {
+    GLOSSARY.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect()
+}
 
 /// 웹 화면에서 스크립트를 돌리고 값(JSON) 받기
 fn eval_value(v: &Webview, js: &str) -> Result<Value, String> {
@@ -105,7 +129,7 @@ fn translate(app: &AppHandle, label: &str) -> Result<usize, String> {
     // 기억에 있는 것부터 바로
     let (known, todo): (HashMap<String, String>, Vec<String>) = {
         let mut g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-        let c = g.get_or_insert_with(HashMap::new);
+        let c = g.get_or_insert_with(glossary);
         let known = items.iter().filter_map(|s| c.get(s).map(|k| (s.clone(), k.clone()))).collect();
         (known, items.iter().filter(|s| !c.contains_key(*s)).cloned().collect())
     };
@@ -129,7 +153,7 @@ fn translate(app: &AppHandle, label: &str) -> Result<usize, String> {
     for r in rx {
         match r {
             Ok(dict) => {
-                CACHE.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).extend(dict.clone());
+                CACHE.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(glossary).extend(dict.clone());
                 done += eval_value(&v, &apply_js(&dict)).ok().and_then(|x| x.as_u64()).unwrap_or(0) as usize;
                 emit(app, label, "working", done, None);
             }
@@ -171,6 +195,14 @@ mod tests {
         assert_eq!(parse_google(r#"["코드"]"#, 1).unwrap(), vec!["코드"]);
         assert!(parse_google(r#"[["하나","en"]]"#, 2).is_err());
         assert!(parse_google("<html>", 1).is_err());
+    }
+
+    #[test]
+    fn menu_words_fixed() {
+        let g = glossary();
+        assert_eq!(g["Feed"], "피드");
+        assert_eq!(g["Home"], "홈");
+        assert_eq!(g["Pull requests"], "풀 리퀘스트");
     }
 
     #[test]
