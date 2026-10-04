@@ -183,6 +183,7 @@
             if (trOn(tab0)) setTimeout(() => { if (this._cwOn === tab0) translate(this, tab0, true); }, 1500);
             loop(this);
         };
+        const ev = window.__TAURI__ && window.__TAURI__.event;
         // 번역 진행 (translate_web.rs)
         if (ev) ev.listen('center-web:translate', e => {
             const hub = window.sessionHub, p = e.payload || {};
@@ -195,7 +196,6 @@
             else if (p.state === 'error') { trButton(v, trOn(tab) ? '원문' : '번역', trOn(tab)); hub.map._toast(`번역 못 했어요: ${p.error || ''}`); }
         });
         // Claude 가 앱 화면에 주소를 열면 (web_control.rs → center-web:open) 그 탭으로 바꾸고 연다 — 사용자도 같이 본다
-        const ev = window.__TAURI__ && window.__TAURI__.event;
         if (ev) ev.listen('center-web:open', e => {
             const hub = window.sessionHub, p = e.payload || {};
             if (!hub || !VIEWS[p.tab]) return;
