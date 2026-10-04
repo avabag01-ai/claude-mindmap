@@ -109,6 +109,7 @@
         // 이 화면에서 처음 띄울 때는 마지막 주소로 (웹뷰가 이미 있으면 같은 주소라 그대로 보임)
         if (!url && !v.opened) url = lastUrl(tab);
         v.opened = true;
+        if (url) setLastUrl(tab, url); // 열자마자 다른 탭으로 가도 기억 (웹뷰 주소는 조금 뒤에 바뀜)
         placesOff(v);
         const r = v.slot.getBoundingClientRect();
         v.rect = [r.left, r.top, r.width, r.height].map(Math.round).join(',');
@@ -264,7 +265,12 @@
             this._cwOn = VIEWS[tab] && mode(tab) === 'web' ? tab : null;
             for (const [t, v] of Object.entries(cw)) {
                 v.box.hidden = t !== this._cwOn;
-                if (t !== this._cwOn && (prev === t || v.rect)) { v.rect = ''; invoke('web_hide', { label: v.label }).catch(() => {}); }
+                if (t !== this._cwOn && (prev === t || v.rect)) {
+                    v.rect = '';
+                    // 떠나는 탭의 지금 주소를 기억해 두고 숨긴다
+                    invoke('web_url', { label: v.label }).then(u => setAddr(v, u)).catch(() => {});
+                    invoke('web_hide', { label: v.label }).catch(() => {});
+                }
             }
             if (!this._cwOn) return;
             // 예전 칸들은 숨긴다 (GitHub 맵은 MindMapGitHub 가 켜 두지만 안 보임)
