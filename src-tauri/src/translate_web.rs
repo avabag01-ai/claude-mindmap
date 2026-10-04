@@ -31,6 +31,14 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("Top repositories", "자주 쓰는 저장소"), ("Recent activity", "최근 활동"), ("Go to file", "파일로 가기"), ("Add file", "파일 추가"),
     ("New", "새로 만들기"), ("New repository", "새 저장소"), ("New issue", "새 이슈"), ("Edit", "고치기"), ("Delete", "지우기"),
     ("Labels", "라벨"), ("Milestones", "마일스톤"), ("Assignees", "담당자"), ("Reviewers", "리뷰어"), ("Discussions", "토론"),
+    ("General", "일반"), ("Access", "접근"), ("Collaborators", "협업자"), ("Moderation", "관리"), ("Moderation options", "관리 설정"),
+    ("Agents", "에이전트"), ("Rulesets", "규칙 세트"), ("Webhooks", "웹훅"), ("Environments", "환경"), ("Codespaces", "코드스페이스"),
+    ("Pages", "페이지"), ("Deploy keys", "배포 키"), ("Secrets and variables", "비밀 값과 변수"), ("Advanced Security", "고급 보안"),
+    ("Default branch", "기본 브랜치"), ("Danger Zone", "위험 구역"), ("Change visibility", "공개 범위 바꾸기"),
+    ("Change repository visibility", "저장소 공개 범위 바꾸기"), ("Archive this repository", "저장소 보관"),
+    ("Delete this repository", "저장소 지우기"), ("Transfer ownership", "소유권 넘기기"), ("Social preview", "소셜 미리보기"),
+    ("Footer", "바닥글"), ("Footer navigation", "바닥글 메뉴"), ("Repository name", "저장소 이름"), ("Rename", "이름 바꾸기"),
+    ("Template repository", "템플릿 저장소"), ("Features", "기능"), ("Archives", "보관"), ("Pushes", "푸시"),
     ("Copilot", "Copilot"), ("Gists", "Gist"), ("Your profile", "내 프로필"), ("Your repositories", "내 저장소"),
 ];
 const CHUNK_ITEMS: usize = 80;
@@ -46,6 +54,7 @@ var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:f
   var p=n.parentElement; if(!p||p.closest(SKIP)) return 2;
   var s=t.trim(); if(s.length>3000) return 2;
   if(/^[\w.\-\/@#:+~]+$/.test(s) && /[\/._@#:~]|[a-z]-[a-z]|\d/.test(s)) return 2;
+  if(/^[a-z0-9][\w.\-\/]*$/.test(s) && !/^(commits?|branch(es)?|tags?|stars?|forks?|watching|contributors?|ago|issues?|now)$/.test(s)) return 2;
   return 1;}});
 var n; while((n=w.nextNode())){ st.nodes.push(n); var s=n.nodeValue.trim(); if(!seen[s]){seen[s]=1; out.push(s);} }
 return out;})()"#;
