@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{WebviewWindow, Window};
+use tauri::Window;
 
 /// 구멍 자리: 웹 화면 왼쪽 위 기준 CSS px (= 점)
 #[derive(Clone, Copy, Deserialize, Debug, PartialEq)]
@@ -98,8 +98,10 @@ fn log(line: &str) {
 }
 
 /// 화면 버튼: on = 붙이기(hole 자리에), off = 떼기. 답의 width·height = 클로드 창 실제 크기
+/// 창(Window)으로 받는다 — 가운데 GitHub·브라우저 웹뷰를 띄우면 창에 웹뷰가 여럿이라 WebviewWindow 로는 못 받는다
+/// ("current webview is not a WebviewWindow", 10-04 최대화 뒤 붙이기 실패)
 #[tauri::command]
-pub fn claude_dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Result<Value, String> {
+pub fn claude_dock(window: Window, on: bool, hole: Option<Hole>) -> Result<Value, String> {
     let r = dock(window, on, hole);
     match &r {
         Ok(v) => log(&format!("ok on={on} hole={hole:?} {v}")),
@@ -108,8 +110,7 @@ pub fn claude_dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Resul
     r
 }
 
-fn dock(window: WebviewWindow, on: bool, hole: Option<Hole>) -> Result<Value, String> {
-    let win = window.as_ref().window();
+fn dock(win: Window, on: bool, hole: Option<Hole>) -> Result<Value, String> {
     if !on {
         *DOCK.lock().unwrap() = None;
         let _ = win.set_ignore_cursor_events(false);
