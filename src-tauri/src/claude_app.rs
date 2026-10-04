@@ -1,4 +1,5 @@
-//! 클로드 데스크톱 앱 코드 탭의 사이드바 구조를 읽기만 한다 (쓰지 않음). JS 쪽은 src/core/ClaudeApp.js.
+//! 클로드 데스크톱 앱 코드 탭의 사이드바 구조를 읽는다. JS 쪽은 src/core/ClaudeApp.js.
+//! 쓰는 것은 하나: 마인드맵에서 새로 만든 세션의 기록(local_<uuid>.json)을 넣어 클로드 앱 사이드바에도 보이게 (register)
 //! - 세션 기록: ~/Library/Application Support/Claude/claude-code-sessions/<계정>/<조직>/local_*.json
 //!   (cliSessionId = ~/.claude/projects 의 세션 id, title, isArchived, createdAt)
 //! - 그룹: claude_desktop_config.json → preferences.epitaxyPrefs
@@ -77,6 +78,56 @@ pub fn read_from(dir: &Path) -> Value {
     })
 }
 
+/// 마인드맵에서 새로 만든 세션을 클로드 앱 기록에 넣는다. 이미 있으면 그대로 둔다.
+/// 클로드 앱은 켤 때 기록 폴더를 읽는다 → 켜져 있으면 다시 켜야 보일 수 있다.
+pub fn register(cli_id: &str, cwd: &str, title: &str, permission_mode: &str) -> Value {
+    register_in(&app_dir_path(), cli_id, cwd, title, permission_mode, now_ms())
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// 제목: 첫 메시지 첫 줄, 40자까지
+pub fn title_from(text: &str) -> String {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    let mut t: String = line.chars().take(40).collect();
+    if line.chars().count() > 40 {
+        t.push('…');
+    }
+    t
+}
+
+pub fn register_in(dir: &Path, cli_id: &str, cwd: &str, title: &str, permission_mode: &str, now: u64) -> Value {
+    if cli_id.is_empty() || cwd.is_empty() {
+        return json!({ "ok": false, "error": "세션 id 나 폴더가 없어요" });
+    }
+    let cfg = read_json(&dir.join("claude_desktop_config.json")).map(|c| c["preferences"]["epitaxyPrefs"].clone()).unwrap_or(Value::Null);
+    let base = dir.join("claude-code-sessions");
+    let scope = cfg["dframe-code-sections"].as_object().and_then(|m| m.keys().next().cloned()).or_else(|| first_scope(&base));
+    let Some(scope) = scope else {
+        return json!({ "ok": false, "error": "클로드 앱 기록 폴더가 없어요" });
+    };
+    let rec_dir = base.join(&scope);
+    if let Some(r) = read_from(dir)["sessions"].get(cli_id) {
+        return json!({ "ok": true, "existed": true, "appId": r["appId"] });
+    }
+    let app_id = format!("local_{}", uuid::Uuid::new_v4());
+    let rec = json!({
+        "sessionId": app_id, "cliSessionId": cli_id, "cwd": cwd, "originCwd": cwd,
+        "createdAt": now, "lastActivityAt": now, "isArchived": false,
+        "title": title, "titleSource": "manual", "permissionMode": permission_mode,
+    });
+    // 반쯤 쓴 파일을 앱이 읽지 않게 임시 파일에 쓰고 이름을 바꾼다
+    let path = rec_dir.join(format!("{app_id}.json"));
+    let tmp = rec_dir.join(format!(".{app_id}.tmp"));
+    let res = fs::create_dir_all(&rec_dir).and_then(|_| fs::write(&tmp, rec.to_string())).and_then(|_| fs::rename(&tmp, &path));
+    match res {
+        Ok(()) => json!({ "ok": true, "existed": false, "appId": app_id }),
+        Err(e) => json!({ "ok": false, "error": e.to_string() }),
+    }
+}
+
 fn first_scope(base: &Path) -> Option<String> {
     let acct = fs::read_dir(base).ok()?.flatten().find(|e| e.path().is_dir())?;
     let org = fs::read_dir(acct.path()).ok()?.flatten().find(|e| e.path().is_dir())?;
@@ -119,5 +170,25 @@ mod tests {
         assert_eq!(v["sessions"]["cli-b"]["pinned"], true);
         assert_eq!(v["sessions"]["cli-b"]["group"], Value::Null);
         assert_eq!(read_from(&d.join("없음"))["ok"], false);
+    }
+
+    #[test]
+    fn registers_new_session_once() {
+        let d = std::env::temp_dir().join(format!("mm-claude-app-reg-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(d.join("claude-code-sessions/acct/org")).unwrap();
+        let r = register_in(&d, "cli-new", "/tmp", "새 세션", "auto", 5);
+        assert_eq!(r["ok"], true);
+        assert_eq!(r["existed"], false);
+        let v = read_from(&d);
+        assert_eq!(v["sessions"]["cli-new"]["title"], "새 세션");
+        assert_eq!(v["sessions"]["cli-new"]["createdAt"], 5);
+        let again = register_in(&d, "cli-new", "/tmp", "다른 제목", "auto", 6);
+        assert_eq!(again["existed"], true);
+        assert_eq!(again["appId"], r["appId"]);
+        assert_eq!(fs::read_dir(d.join("claude-code-sessions/acct/org")).unwrap().count(), 1);
+        assert_eq!(register_in(&d.join("없음"), "x", "/tmp", "", "auto", 1)["ok"], false);
+        assert_eq!(title_from("\n  첫 줄\n둘째"), "첫 줄");
+        assert_eq!(title_from(&"가".repeat(45)).chars().count(), 41);
     }
 }
