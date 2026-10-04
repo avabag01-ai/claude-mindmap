@@ -28,7 +28,10 @@ head: f78a248   dirty: no
 - 맵 그룹 누르기 = 그룹 중심 보기 src/modules/MindMapGroupFocus.js (map.groupFocus, 보기 이름 group:<fold>) — 사용자 '그룹 누르면 노드 하나만 나옴'
 - 왼쪽 목록 그룹 제목 누르기도 그룹 중심 (화살표는 목록 접기) (07d77dd)
 - 툰 이어가기 첫 메시지 맨 앞에 세션 제목 SessionHub.withTitle (사용자 지시: 시작 메시지는 제목 먼저 — 메모리·toon 스킬에도 반영)
+- [확인] 오류 원인: 사용자가 시작 메시지를 마인드맵 새 세션에 붙여 넣음 → 폴더가 이 세션 워크트리(.claude/worktrees/relaxed-leakey-15bb94)로 잡혀 클로드 앱이 같은 브랜치를 또 열려다 '브랜치가 다른 폴더에 체크아웃' 오류 + toonStartPrompt 가 한 번 더 감싸 '툰 불러와' 두 번 (세션 bad90f4b·cb4adbaa). 고침: SessionHub.mainRoot(워크트리 → 원래 저장소), 붙여 넣은 '툰 불러와'는 안 감쌈 (34b0bd1)
+- 세션 중심 가운데 카드에 ＋ (하위 세션) src/modules/MindMapCenterAdd.js (39ad325)
 ### open_issues
+- [확인] 마인드맵 새 세션은 클로드 앱 그룹 밖에 생김. 그룹 넣기는 클로드 앱 안 세션의 mcp__ccd_sidebar__move_sessions 로만 됨 (claude:// 링크엔 그룹 인자 없음, SESSION_20261004d). 방법 미정 — 사용자에게 물음
 - [가설] 89개가 한 고리에 다 펼쳐지면 빽빽할 수 있음
 - [가설] 세션 폴더와 이어지는 저장소가 적어 대부분 언어 묶음일 것
 ### next_action
