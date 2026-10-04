@@ -25,6 +25,8 @@ assert.strictEqual(SessionHub.mainRoot('/u/m/.claude/worktrees/x/'), '/u/m');
 assert.strictEqual(SessionHub.mainRoot('/u/m'), '/u/m');
 assert.strictEqual(SessionHub.withGroup('a — 툰 불러와', null), 'a — 툰 불러와');
 assert.ok(SessionHub.withGroup('a — 툰 불러와', { id: 'cg-1', name: '클로드마인드맵' }).endsWith('move_sessions(session_ids ["self"], group_id "cg-1") 로 이 세션을 클로드 앱 그룹 "클로드마인드맵" 에 넣어줘.'));
+assert.ok(SessionHub.withGroup('a', { id: 'cg-1', name: 'g' }, '/u/m').endsWith('넣어줘. 작업 폴더가 /u/m 가 아니면 mcp__ccd_directory__change_directory(path "/u/m") 로 먼저 옮겨줘.'));
+assert.strictEqual(SessionHub.withGroup('a', null, '/u/m'), 'a\n\n작업 폴더가 /u/m 가 아니면 mcp__ccd_directory__change_directory(path "/u/m") 로 먼저 옮겨줘.');
 const CA = require('../src/core/ClaudeApp.js');
 assert.strictEqual(CA.newSessionUrl('/Users/kim/a b', '툰 — x&y'), 'claude://code/new?folder=%2FUsers%2Fkim%2Fa%20b&q=%ED%88%B0%20%E2%80%94%20x%26y', 'Rust 와 같은 주소');
 assert.strictEqual(SessionHub.withTitle('맵 고치기 — 툰 불러와 — root: /a', 'x'), '맵 고치기 — 툰 불러와 — root: /a');

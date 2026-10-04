@@ -628,9 +628,12 @@ class SessionHub {
     }
 
     /** 클로드 앱 안 새 세션 첫 메시지 끝에: 시작 전에 이 세션을 원래 그룹에 넣으라는 부탁 (앱 안 세션만 그룹 도구가 있다) */
-    static withGroup(prompt, group) {
-        if (!group) return prompt;
-        return `${prompt}\n\n시작하기 전에 mcp__ccd_sidebar__move_sessions(session_ids ["self"], group_id "${group.id}") 로 이 세션을 클로드 앱 그룹 "${group.name}" 에 넣어줘.`;
+    static withGroup(prompt, group, folder) {
+        const asks = [];
+        if (group) asks.push(`시작하기 전에 mcp__ccd_sidebar__move_sessions(session_ids ["self"], group_id "${group.id}") 로 이 세션을 클로드 앱 그룹 "${group.name}" 에 넣어줘.`);
+        // 앱이 폴더를 확인하는 동안 Enter 를 누르면 폴더 없이(임시 폴더) 시작된다 → 세션이 스스로 옮겨 가게
+        if (folder) asks.push(`작업 폴더가 ${folder} 가 아니면 mcp__ccd_directory__change_directory(path "${folder}") 로 먼저 옮겨줘.`);
+        return asks.length ? `${prompt}\n\n${asks.join(' ')}` : prompt;
     }
 
     /** 새 세션 폴더: 다른 세션의 워크트리(.claude/worktrees/…)면 원래 저장소 폴더 (같은 브랜치를 두 폴더에서 못 연다) */
@@ -1062,7 +1065,8 @@ class SessionHub {
         if (app && app.ok && this.ipc) {
             const a = app.sessions[flow.fromId];
             const group = a && app.groups.find(g => g.id === a.group);
-            this.ipc.send('claude-app:new', { folder: SessionHub.mainRoot(flow.cwd), prompt: SessionHub.withGroup(prompt, group) });
+            const folder = SessionHub.mainRoot(flow.cwd);
+            this.ipc.send('claude-app:new', { folder, prompt: SessionHub.withGroup(prompt, group, folder) });
             this.toonFlow = null;
             this.map._toast(`클로드 앱에 새 세션을 열었어요${group ? ` (그룹 ${group.name})` : ''}. Enter 를 누르면 시작해요`);
             return;
