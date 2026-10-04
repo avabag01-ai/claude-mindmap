@@ -8,8 +8,9 @@ files: src/modules/HubPanels.js · src/core/GitPanel.js · src/core/MemoStore.js
 - 파인더, 메모(키체인 비밀 메모), GitHub(git·gh), 브라우저(크롬·사파리 애플스크립트, MCP 등록)
 
 ## NEXT
+- NEXT 000008c 툰 이어가기 → 클로드 앱 새 세션 Enter → 원래 그룹에 들어가는지 손 시험
 - NEXT 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 세션 탭 복귀 · 더블클릭 접기
 - NEXT 000000 맥에서 키체인 메모·크롬 조종 실측
 
 ## SESSIONS
-- .toon/side-tabs/SESSION_20261004.toon | 2026-10-04 | NEXT 000008 GitHub 마인드맵 | GitHub 맵(묶음 접어 둠)·더블클릭 접기·그룹 중심 보기(사용자 확인) | f78a248
+- .toon/side-tabs/SESSION_20261004.toon | 2026-10-04 | NEXT 000008 GitHub 마인드맵 | GitHub 맵·더블클릭 접기·그룹 중심(확인)·새 세션 워크트리 오류 고침·가운데 ＋·툰 이어가기 앱 안 새 세션+그룹 부탁 | c754c72
