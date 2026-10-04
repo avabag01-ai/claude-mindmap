@@ -52,6 +52,7 @@ class SessionHub {
             onDropSession: (src, target) => this._onDrop(src, target),
             onSelect: n => this._onMapSelect(n)
         });
+        this.map.appHub = this;    // MindMapAppGroups.js: "클로드 앱" 보기면 마인드맵도 앱 그룹대로
         this.attachments = [];     // 대화창에 첨부한 파일 경로
         this.leftTab = 'sessions';
         this._bind();
@@ -1108,6 +1109,7 @@ class SessionHub {
                 const k = fold.dataset.fold;
                 if (this.folded.has(k)) this.folded.delete(k); else this.folded.add(k);
                 try { localStorage.setItem('hub.folded', JSON.stringify([...this.folded])); } catch { /* 미리보기 */ }
+                this.map.render();
                 return this._renderList();
             }
             const chain = e.target.closest('.hub-chain-toggle');
@@ -1132,6 +1134,8 @@ class SessionHub {
             try { localStorage.setItem('hub.group', this.group); } catch { /* 미리보기 */ }
             document.querySelectorAll('.hub-group-toggle button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
             this._renderList();
+            this.map._fitPending = true;
+            this.map.render();
         }));
         this.el('hub-new').addEventListener('click', () => this.newSession());
         this.el('hub-refresh').addEventListener('click', () => this.refresh());
