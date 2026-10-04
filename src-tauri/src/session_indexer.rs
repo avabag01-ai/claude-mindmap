@@ -43,6 +43,7 @@ re!(TOON_DIR_RE, r"[\\/]\.toon[\\/]");
 re!(TITLE_RE, r"(?m)^title:\s*(.+)$");
 re!(NEXT_RE, r"NEXT");
 re!(CMD_TEXT_RE, r"^<(command-|local-command|system-reminder)");
+re!(REMINDER_RE, r"(?s)<system-reminder>.*?</system-reminder>");
 re!(WS_RE, r"\s+");
 re!(LINE_SPLIT_RE, r"\r\n|\n|\r");
 re!(ISO_RE, r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d+))?)?)?\s*(Z|[+-]\d{2}:?\d{2})?$");
@@ -1199,7 +1200,8 @@ pub fn read_transcript(file: &str, limit: Option<usize>) -> Result<Transcript> {
                 }
                 _ => {}
             }
-            let text = text.trim().to_string();
+            // 클로드 앱이 보낸 메시지는 앞에 <system-reminder> 안내가 붙는다 → 안내만 빼고 사람 글은 남긴다
+            let text = REMINDER_RE.replace_all(&text, "").trim().to_string();
             if text.is_empty() || CMD_TEXT_RE.is_match(&text) {
                 continue;
             }
@@ -1537,6 +1539,7 @@ mod tests {
             user("2026-10-03T10:00:00Z", &repo_s, json!("첫 질문"))
                 + &line(json!({"type":"user","timestamp":"2026-10-03T10:00:01Z","isMeta":true,"message":{"content":"메타"}}))
                 + &line(json!({"type":"user","timestamp":"2026-10-03T10:00:02Z","message":{"content":"<command-name>/clear</command-name>"}}))
+                + &line(json!({"type":"user","timestamp":"2026-10-03T10:00:03Z","message":{"content":[{"type":"text","text":"<system-reminder>\n앱 안내\n</system-reminder>\n"},{"type":"text","text":"앱에서 보낸 말"}]}}))
                 + &line(json!({"type":"assistant","timestamp":"2026-10-03T10:00:03Z","message":{"content":[{"type":"text","text":"보고 있어"}]}}))
                 + &line(json!({"type":"assistant","timestamp":"2026-10-03T10:00:04Z","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls -la"}}]}}))
                 + &line(json!({"type":"user","timestamp":"2026-10-03T10:00:05Z","message":{"content":[{"type":"tool_result","content":"x"}]}}))
@@ -1556,10 +1559,11 @@ mod tests {
             got,
             [
                 ("user".to_string(), "첫 질문".to_string(), vec![]),
+                ("user".to_string(), "앱에서 보낸 말".to_string(), vec![]),
                 ("assistant".to_string(), "보고 있어\n\n끝".to_string(), vec!["Bash:ls -la".to_string()]),
                 ("user".to_string(), "두 번째".to_string(), vec![]),
             ],
-            "메타·명령·도구 결과·하위 에이전트는 빼고, 이어진 assistant 는 합친다"
+            "메타·명령·도구 결과·하위 에이전트는 빼고(앱 안내 <system-reminder> 는 그 부분만), 이어진 assistant 는 합친다"
         );
         let t2 = read_transcript(&tf, Some(2)).unwrap();
         assert!(t2.truncated);

@@ -590,7 +590,8 @@ SessionIndexer.readTranscript = async function (file, { limit = 300 } = {}) {
                 if (content.some(b => b && b.type === 'tool_result')) continue;
                 text = content.filter(b => b && b.type === 'text').map(b => b.text).join('\n');
             }
-            text = text.trim();
+            // 클로드 앱이 보낸 메시지는 앞에 <system-reminder> 안내가 붙는다 → 안내만 빼고 사람 글은 남긴다
+            text = text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '').trim();
             if (!text || /^<(command-|local-command|system-reminder)/.test(text)) continue;
             messages.push({ role: 'user', text, tools: [], at });
             continue;
