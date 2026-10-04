@@ -97,6 +97,25 @@ pub fn import_session(cli_id: &str) -> bool {
     std::process::Command::new("open").args(["-g", &format!("claude://resume?session={cli_id}")]).status().map_or(false, |s| s.success())
 }
 
+/// 클로드 앱 안에서 새 코드 세션을 연다: claude://code/new?folder=…&q=… (폴더와 첫 메시지를 채워 둘 뿐, 보내기는 사람이)
+/// 앱 안 세션이라 그룹 넣기 도구(ccd_sidebar move_sessions)를 쓸 수 있다. 앞으로 띄워서 바로 Enter 를 누르게 한다.
+pub fn new_session_url(folder: &str, prompt: &str) -> String {
+    let enc = |t: &str| -> String {
+        t.bytes()
+            .map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") })
+            .collect()
+    };
+    let q: String = prompt.chars().take(14000).collect();
+    format!("claude://code/new?folder={}&q={}", enc(folder), enc(&q))
+}
+
+pub fn new_in_app(folder: &str, prompt: &str) -> bool {
+    if folder.is_empty() || !Path::new(folder).is_dir() {
+        return false;
+    }
+    std::process::Command::new("open").arg(new_session_url(folder, prompt)).status().map_or(false, |s| s.success())
+}
+
 /// 제목: 첫 메시지에서 내용을 알 수 있는 부분, max 자까지.
 /// 마인드맵이 띄운 "툰 불러와 — 하위 세션, root: …, hub_task: NEXT 000005 할 일" 은 다 같아 보이니 할 일만 쓴다.
 pub fn title_from(text: &str, max: usize) -> String {
@@ -126,6 +145,12 @@ fn first_scope(base: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_session_link() {
+        assert_eq!(new_session_url("/Users/kim/a b", "툰 — x&y"), "claude://code/new?folder=%2FUsers%2Fkim%2Fa%20b&q=%ED%88%B0%20%E2%80%94%20x%26y");
+        assert!(!new_in_app("/없는/폴더", "x"));
+    }
 
     #[test]
     fn reads_groups_and_sessions() {

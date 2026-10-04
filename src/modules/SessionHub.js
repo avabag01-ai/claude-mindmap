@@ -627,6 +627,12 @@ class SessionHub {
         return SessionHub.withTitle(`툰 불러와 — 하위 세션, root: ${cwd}${topic ? `, topic: ${topic}` : ''}, hub_task: ${task}`, task);
     }
 
+    /** 클로드 앱 안 새 세션 첫 메시지 끝에: 시작 전에 이 세션을 원래 그룹에 넣으라는 부탁 (앱 안 세션만 그룹 도구가 있다) */
+    static withGroup(prompt, group) {
+        if (!group) return prompt;
+        return `${prompt}\n\n시작하기 전에 mcp__ccd_sidebar__move_sessions(session_ids ["self"], group_id "${group.id}") 로 이 세션을 클로드 앱 그룹 "${group.name}" 에 넣어줘.`;
+    }
+
     /** 새 세션 폴더: 다른 세션의 워크트리(.claude/worktrees/…)면 원래 저장소 폴더 (같은 브랜치를 두 폴더에서 못 연다) */
     static mainRoot(p) {
         return String(p || '').replace(/\/\.claude\/worktrees\/[^/]+\/?$/, '');
@@ -1051,6 +1057,16 @@ class SessionHub {
             return;
         }
         const prompt = SessionHub.withTitle(SessionHub.nextPrompt(all, `툰 불러와 — root: ${flow.cwd}`), `${SessionMindMap._base(flow.cwd)} 이어서`);
+        // 클로드 앱 안에서 새 세션을 연다 (앱 안 세션이라 원래 세션의 그룹에 스스로 들어간다). 첫 메시지는 채워만 두니 Enter 는 사람이
+        const app = this.data && this.data.claudeApp;
+        if (app && app.ok && this.ipc) {
+            const a = app.sessions[flow.fromId];
+            const group = a && app.groups.find(g => g.id === a.group);
+            this.ipc.send('claude-app:new', { folder: SessionHub.mainRoot(flow.cwd), prompt: SessionHub.withGroup(prompt, group) });
+            this.toonFlow = null;
+            this.map._toast(`클로드 앱에 새 세션을 열었어요${group ? ` (그룹 ${group.name})` : ''}. Enter 를 누르면 시작해요`);
+            return;
+        }
         flow.stage = 'start';
         flow.prompt = prompt;
         // 새 세션 자리로 옮겨 가서 시작 과정을 보여준다

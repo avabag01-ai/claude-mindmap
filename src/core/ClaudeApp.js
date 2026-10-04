@@ -77,4 +77,16 @@ function importSession(cliId) {
     return true;
 }
 
-module.exports = { read, importSession, titleFrom, appDirPath };
+/** 클로드 앱 안에서 새 코드 세션: 폴더와 첫 메시지만 채운다 (보내기는 사람이). 그룹 넣기 도구를 쓸 수 있는 앱 안 세션이 된다 */
+function newSessionUrl(folder, prompt) {
+    const enc = t => Array.from(Buffer.from(String(t), 'utf8')).map(b => /[A-Za-z0-9\-_.~]/.test(String.fromCharCode(b)) ? String.fromCharCode(b) : '%' + b.toString(16).toUpperCase().padStart(2, '0')).join('');
+    return `claude://code/new?folder=${enc(folder)}&q=${enc([...String(prompt)].slice(0, 14000).join(''))}`;
+}
+
+function newInApp(folder, prompt) {
+    if (!folder || !fs.existsSync(folder)) return false;
+    require('child_process').execFile('open', [newSessionUrl(folder, prompt)], () => {});
+    return true;
+}
+
+module.exports = { read, importSession, titleFrom, appDirPath, newSessionUrl, newInApp };
