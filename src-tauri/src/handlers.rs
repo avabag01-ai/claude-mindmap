@@ -238,6 +238,10 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
         "gh:list" => git_reply(ctx, "gh:list-result", json!({ "root": p.get("root"), "what": p.get("what") }), GIT.gh_list(s(&p, "root").unwrap_or(""), s(&p, "what").unwrap_or(""))),
         "gh:repos" => git_reply(ctx, "gh:repos-result", json!({}), crate::github_map::repos(&GIT, &p["roots"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect::<Vec<_>>())),
         "gh:repo-detail" => git_reply(ctx, "gh:repo-detail-result", json!({ "slug": p.get("slug") }), crate::github_map::detail(&GIT, s(&p, "slug").unwrap_or(""))),
+        "claude-app:handoff" => {
+            let ok = claude_app::hand_off(s(&p, "id").unwrap_or(""), s(&p, "text").unwrap_or(""));
+            ctx.emit("claude-app:handoff-result", json!({ "ok": ok }));
+        }
         "claude-app:new" => {
             let ok = claude_app::new_in_app(s(&p, "folder").unwrap_or(""), s(&p, "prompt").unwrap_or(""));
             ctx.emit("claude-app:new-result", json!({ "ok": ok }));

@@ -795,6 +795,7 @@ class SessionHub {
     askDetail() {
         const s = this._selSession();
         if (!s || s.remote || !this.ipc || (this.run && !this.run.done)) return;
+        if (this._handOff(s, SessionHub.DETAIL_TEXT)) return;
         this._startRun({ cwd: s.cwd, sessionId: s.id, root: this.sel.root, text: SessionHub.DETAIL_TEXT, permissionMode: this.permission, answerMode: 'detail' });
     }
 
@@ -805,6 +806,12 @@ class SessionHub {
         const text = SessionHub.withAttachments(typed, this.attachments);
         const s = this._selSession();
         if (s && s.remote) return; // 다른 기기 세션에는 보낼 수 없다
+        if (s && this._handOff(s, text)) {
+            input.value = '';
+            this.attachments = [];
+            this._renderAttachments();
+            return;
+        }
         const folderSel = this.el('hub-folder');
         const cwd = s ? s.cwd : SessionHub.mainRoot(folderSel ? folderSel.value : this.newFolder);
         if (!cwd) return;
@@ -817,6 +824,20 @@ class SessionHub {
         input.value = '';
         this.attachments = [];
         this._renderAttachments();
+    }
+
+    /** 클로드 앱 세션이면 여기서 따로 돌리지 않고 앱으로 넘긴다 (따로 돌리면 앱 화면·앱 세션이 그 대화를 모른다) */
+    _handOff(s, text) {
+        if (!SessionHub.inApp(this.data && this.data.claudeApp, s.id) || !this.ipc) return false;
+        this.ipc.send('claude-app:handoff', { id: s.id, text });
+        if (this.map && this.map._toast) this.map._toast('클로드 앱 세션이라 앱에서 이어가요. 글을 복사해 뒀으니 붙여넣고 Enter 하세요');
+        return true;
+    }
+
+    /** 클로드 앱에서 만들어 앱이 돌리는(보관 안 한) 세션인지. 마인드맵·터미널에서 만들어 들여온 세션(adopted)은 여기서 보낸다 */
+    static inApp(app, id) {
+        const a = app && app.ok && app.sessions && app.sessions[id];
+        return !!(a && !a.archived && !a.adopted);
     }
 
     _startRun({ cwd, sessionId, root, text, permissionMode, label, answerMode, meta }) {

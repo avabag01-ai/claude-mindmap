@@ -1,7 +1,7 @@
 /**
  * 클로드 데스크톱 앱 코드 탭의 사이드바 구조를 읽는다. Rust 쪽은 src-tauri/src/claude_app.rs.
  * 새로 만든 세션은 앱의 가져오기 링크로 넣는다 (importSession) — 파일은 직접 쓰지 않는다
- * 돌려주는 모양: { ok, groups: [{ id, name }], sessions: { <cliSessionId>: { appId, title, group, archived, createdAt, pinned } } }
+ * 돌려주는 모양: { ok, groups: [{ id, name }], sessions: { <cliSessionId>: { appId, title, group, archived, createdAt, pinned, adopted } } }
  */
 const fs = require('fs');
 const os = require('os');
@@ -48,7 +48,8 @@ function read(dir = appDirPath()) {
         sessions[r.cliSessionId] = {
             appId: r.sessionId, title: r.title === undefined ? null : r.title, group: assignments[`code:${r.sessionId}`] || null,
             archived: !!r.isArchived, createdAt: r.createdAt === undefined ? null : r.createdAt,
-            pinned: pinned.some(p => p === r.sessionId || p.endsWith(r.sessionId))
+            pinned: pinned.some(p => p === r.sessionId || p.endsWith(r.sessionId)),
+            adopted: r.adoptedFromOtherSurface === true // 마인드맵·터미널에서 만들어 앱에 들여온 세션
         };
     }
     return { ok: true, groups: groups.map(({ id, name }) => ({ id, name })), sessions };
@@ -89,4 +90,12 @@ function newInApp(folder, prompt) {
     return true;
 }
 
-module.exports = { read, importSession, titleFrom, appDirPath, newSessionUrl, newInApp };
+/** 클로드 앱 세션에 보낼 글: 클립보드에 넣고 그 세션을 앱 앞으로 연다 (붙여넣고 Enter 는 사람이) */
+function handOff(cliId, text) {
+    if (!/^[0-9a-f-]+$/i.test(cliId || '')) return false;
+    try { require('child_process').execFileSync('pbcopy', { input: String(text) }); } catch { return false; }
+    require('child_process').execFile('open', [`claude://resume?session=${cliId}`], () => {});
+    return true;
+}
+
+module.exports = { read, importSession, titleFrom, appDirPath, newSessionUrl, newInApp, handOff };

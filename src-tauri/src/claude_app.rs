@@ -4,7 +4,7 @@
 //!   (cliSessionId = ~/.claude/projects 의 세션 id, title, isArchived, createdAt)
 //! - 그룹: claude_desktop_config.json → preferences.epitaxyPrefs
 //!   dframe-code-sections(순서·이름) · dframe-group-scopes(assignments: "code:local_…" → 그룹 id) · starred-local-code-sessions(고정)
-//! 돌려주는 모양: { ok, groups: [{ id, name }], sessions: { <cliSessionId>: { appId, title, group, archived, createdAt, pinned } } }
+//! 돌려주는 모양: { ok, groups: [{ id, name }], sessions: { <cliSessionId>: { appId, title, group, archived, createdAt, pinned, adopted } } }
 
 use crate::app_dir;
 use serde_json::{json, Map, Value};
@@ -68,7 +68,7 @@ pub fn read_from(dir: &Path) -> Value {
         let is_pinned = pinned.iter().any(|p| p == app_id || p.ends_with(app_id));
         sessions.insert(
             cli.to_string(),
-            json!({ "appId": app_id, "title": r["title"], "group": group, "archived": r["isArchived"].as_bool().unwrap_or(false), "createdAt": r["createdAt"], "pinned": is_pinned }),
+            json!({ "appId": app_id, "title": r["title"], "group": group, "archived": r["isArchived"].as_bool().unwrap_or(false), "createdAt": r["createdAt"], "pinned": is_pinned, "adopted": r["adoptedFromOtherSurface"].as_bool().unwrap_or(false) }),
         );
     }
     json!({
@@ -114,6 +114,25 @@ pub fn new_in_app(folder: &str, prompt: &str) -> bool {
         return false;
     }
     std::process::Command::new("open").arg(new_session_url(folder, prompt)).status().map_or(false, |s| s.success())
+}
+
+/// 클로드 앱 세션에 보낼 글: 글을 클립보드에 넣고 그 세션을 앱 앞으로 연다 (붙여넣고 Enter 는 사람이).
+/// 마인드맵이 claude --resume 으로 따로 돌리면 앱 화면과 앱 세션은 그 대화를 모른다.
+pub fn hand_off(cli_id: &str, text: &str) -> bool {
+    if cli_id.is_empty() || !cli_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+        return false;
+    }
+    use std::io::Write;
+    let copied = std::process::Command::new("pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .and_then(|mut c| {
+            c.stdin.take().map(|mut i| i.write_all(text.as_bytes())).transpose()?;
+            c.wait()
+        })
+        .map_or(false, |s| s.success());
+    let opened = std::process::Command::new("open").arg(format!("claude://resume?session={cli_id}")).status().map_or(false, |s| s.success());
+    copied && opened
 }
 
 /// 제목: 첫 메시지에서 내용을 알 수 있는 부분, max 자까지.
@@ -182,6 +201,7 @@ mod tests {
         assert_eq!(v["sessions"]["cli-a"]["title"], "가");
         assert_eq!(v["sessions"]["cli-b"]["archived"], true);
         assert_eq!(v["sessions"]["cli-b"]["pinned"], true);
+        assert_eq!(v["sessions"]["cli-b"]["adopted"], false, "들여온 표시가 없으면 앱에서 만든 세션");
         assert_eq!(v["sessions"]["cli-b"]["group"], Value::Null);
         assert_eq!(read_from(&d.join("없음"))["ok"], false);
     }

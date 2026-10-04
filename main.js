@@ -309,6 +309,7 @@ let gitHubMap = null;
 const getGitHubMap = () => gitHubMap || (gitHubMap = new (require('./src/core/GitHubMap.js'))({ gitPanel: getGitPanel() }));
 ipcMain.on('gh:repos', (event, { roots } = {}) => gitReply(event, 'gh:repos-result', {}, getGitHubMap().repos(roots || [])));
 ipcMain.on('gh:repo-detail', (event, { slug } = {}) => gitReply(event, 'gh:repo-detail-result', { slug }, getGitHubMap().detail(slug)));
+ipcMain.on('claude-app:handoff', (event, { id, text } = {}) => event.reply('claude-app:handoff-result', { ok: require('./src/core/ClaudeApp.js').handOff(id, text) }));
 ipcMain.on('claude-app:new', (event, { folder, prompt } = {}) => event.reply('claude-app:new-result', { ok: require('./src/core/ClaudeApp.js').newInApp(folder, prompt) }));
 // 웹 주소는 기본 브라우저로 (http/https 만)
 ipcMain.on('open-external', (event, { url } = {}) => {

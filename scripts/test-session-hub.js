@@ -27,6 +27,11 @@ assert.strictEqual(SessionHub.withGroup('a — 툰 불러와', null), 'a — 툰
 assert.ok(SessionHub.withGroup('a — 툰 불러와', { id: 'cg-1', name: '클로드마인드맵' }).endsWith('move_sessions(session_ids ["self"], group_id "cg-1") 로 이 세션을 클로드 앱 그룹 "클로드마인드맵" 에 넣어줘.'));
 assert.ok(SessionHub.withGroup('a', { id: 'cg-1', name: 'g' }, '/u/m').endsWith('넣어줘. 작업 폴더가 /u/m 가 아니면 mcp__ccd_directory__change_directory(path "/u/m") 로 먼저 옮겨줘.'));
 assert.strictEqual(SessionHub.withGroup('a', null, '/u/m'), 'a\n\n작업 폴더가 /u/m 가 아니면 mcp__ccd_directory__change_directory(path "/u/m") 로 먼저 옮겨줘.');
+assert.strictEqual(SessionHub.inApp({ ok: true, sessions: { s1: { archived: false } } }, 's1'), true, '앱 세션');
+assert.strictEqual(SessionHub.inApp({ ok: true, sessions: { s1: { archived: true } } }, 's1'), false, '보관한 앱 세션은 여기서');
+assert.strictEqual(SessionHub.inApp({ ok: true, sessions: {} }, 's1'), false, '앱 밖 세션은 여기서');
+assert.strictEqual(SessionHub.inApp({ ok: true, sessions: { s1: { adopted: true } } }, 's1'), false, '마인드맵에서 만들어 앱에 들여온 세션은 여기서');
+assert.strictEqual(SessionHub.inApp(null, 's1'), false);
 const CA = require('../src/core/ClaudeApp.js');
 assert.strictEqual(CA.newSessionUrl('/Users/kim/a b', '툰 — x&y'), 'claude://code/new?folder=%2FUsers%2Fkim%2Fa%20b&q=%ED%88%B0%20%E2%80%94%20x%26y', 'Rust 와 같은 주소');
 assert.strictEqual(SessionHub.withTitle('맵 고치기 — 툰 불러와 — root: /a', 'x'), '맵 고치기 — 툰 불러와 — root: /a');
@@ -164,7 +169,7 @@ assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
     fs.writeFileSync(path.join(rec, 'local_b.json'), '깨진 파일');
     const r = ClaudeApp.read(d);
     assert.deepStrictEqual(r.groups, [{ id: 'g1', name: 'valveforge' }, { id: 'g2', name: '작곡' }]);
-    assert.deepStrictEqual(r.sessions['cli-a'], { appId: 'local_a', title: '가', group: 'g1', archived: false, createdAt: 1, pinned: false });
+    assert.deepStrictEqual(r.sessions['cli-a'], { appId: 'local_a', title: '가', group: 'g1', archived: false, createdAt: 1, pinned: false, adopted: false });
     assert.strictEqual(ClaudeApp.read(path.join(d, '없음')).ok, false);
 }
 console.log('SessionHub: 모든 테스트 통과');
