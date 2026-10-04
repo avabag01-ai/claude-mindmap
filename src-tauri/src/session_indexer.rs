@@ -929,7 +929,7 @@ impl SessionIndexer {
             s.first_at = s.last_at;
         }
         if s.title.is_empty() {
-            s.title = if !s.first_prompt.is_empty() { utf16_head(&s.first_prompt, 60) } else { utf16_head(&s.id, 8) };
+            s.title = if !s.first_prompt.is_empty() { crate::claude_app::title_from(&s.first_prompt, 60) } else { utf16_head(&s.id, 8) };
         }
         edit_order.sort_by(|a, b| b.1.cmp(&a.1)); // 안정 정렬 = JS 와 같다
         s.files = edit_order

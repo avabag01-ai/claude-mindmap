@@ -88,11 +88,21 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// 제목: 첫 메시지 첫 줄, 40자까지
-pub fn title_from(text: &str) -> String {
-    let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
-    let mut t: String = line.chars().take(40).collect();
-    if line.chars().count() > 40 {
+/// 제목: 첫 메시지에서 내용을 알 수 있는 부분, max 자까지.
+/// 마인드맵이 띄운 "툰 불러와 — 하위 세션, root: …, hub_task: NEXT 000005 할 일" 은 다 같아 보이니 할 일만 쓴다.
+pub fn title_from(text: &str, max: usize) -> String {
+    let body = match text.find("hub_task:") {
+        Some(i) => {
+            let t = text[i + "hub_task:".len()..].trim_start();
+            // 앞의 "NEXT 000005" 번호는 뺀다
+            let t = t.strip_prefix("NEXT").map(|r| r.trim_start().trim_start_matches(|c: char| c.is_ascii_digit())).unwrap_or(t);
+            t
+        }
+        None => text,
+    };
+    let line = body.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    let mut t: String = line.chars().take(max).collect();
+    if line.chars().count() > max {
         t.push('…');
     }
     t
@@ -188,7 +198,9 @@ mod tests {
         assert_eq!(again["appId"], r["appId"]);
         assert_eq!(fs::read_dir(d.join("claude-code-sessions/acct/org")).unwrap().count(), 1);
         assert_eq!(register_in(&d.join("없음"), "x", "/tmp", "", "auto", 1)["ok"], false);
-        assert_eq!(title_from("\n  첫 줄\n둘째"), "첫 줄");
-        assert_eq!(title_from(&"가".repeat(45)).chars().count(), 41);
+        assert_eq!(title_from("\n  첫 줄\n둘째", 40), "첫 줄");
+        assert_eq!(title_from("툰 불러와 — 하위 세션, root: ~/a, topic: b, hub_task: NEXT 000005 클로드 앱 자동 등록\n둘째", 40), "클로드 앱 자동 등록");
+        assert_eq!(title_from("툰 불러와 logic-pro-mcp", 40), "툰 불러와 logic-pro-mcp");
+        assert_eq!(title_from(&"가".repeat(45), 40).chars().count(), 41);
     }
 }

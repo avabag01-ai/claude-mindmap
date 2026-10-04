@@ -144,7 +144,7 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
                 // 새 세션이면 첫 session_id 가 오는 순간 클로드 앱 기록에도 넣는다 (클로드 앱 사이드바에 보이게)
                 let new_session = req.session_id.as_deref().map_or(true, str::is_empty);
                 let registered = std::sync::atomic::AtomicBool::new(!new_session);
-                let (cwd, title, mode) = (req.cwd.clone(), claude_app::title_from(&req.text), req.permission_mode.clone().unwrap_or_else(|| "auto".into()));
+                let (cwd, title, mode) = (req.cwd.clone(), claude_app::title_from(&req.text, 40), req.permission_mode.clone().unwrap_or_else(|| "auto".into()));
                 claude_runner::run(
                     &req,
                     move |ev| {

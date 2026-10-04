@@ -434,7 +434,7 @@ class SessionIndexer {
         if (!s.cwd && !s.firstAt) return null; // 대화가 없는 기록
         if (!s.lastAt) s.lastAt = mtimeMs;
         if (!s.firstAt) s.firstAt = s.lastAt;
-        if (!s.title) s.title = s.firstPrompt ? s.firstPrompt.slice(0, 60) : s.id.slice(0, 8);
+        if (!s.title) s.title = s.firstPrompt ? require('./ClaudeApp.js').titleFrom(s.firstPrompt, 60) : s.id.slice(0, 8);
 
         s.files = [...edits.entries()]
             .sort((a, b) => b[1] - a[1])

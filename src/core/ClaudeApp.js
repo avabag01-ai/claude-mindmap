@@ -54,11 +54,17 @@ function read(dir = appDirPath()) {
     return { ok: true, groups: groups.map(({ id, name }) => ({ id, name })), sessions };
 }
 
-/** 제목: 첫 메시지 첫 줄, 40자까지 */
-function titleFrom(text = '') {
-    const line = String(text).split('\n').map(l => l.trim()).find(Boolean) || '';
+/**
+ * 제목: 첫 메시지에서 내용을 알 수 있는 부분, max 자까지.
+ * 마인드맵이 띄운 "툰 불러와 — 하위 세션, root: …, hub_task: NEXT 000005 할 일" 은 다 같아 보이니 할 일만 쓴다.
+ */
+function titleFrom(text = '', max = 40) {
+    text = String(text);
+    const i = text.indexOf('hub_task:');
+    const body = i >= 0 ? text.slice(i + 'hub_task:'.length).trimStart().replace(/^NEXT\s*\d*/, '') : text;
+    const line = body.split('\n').map(l => l.trim()).find(Boolean) || '';
     const chars = [...line];
-    return chars.length > 40 ? chars.slice(0, 40).join('') + '…' : line;
+    return chars.length > max ? chars.slice(0, max).join('') + '…' : line;
 }
 
 /** 마인드맵에서 새로 만든 세션을 클로드 앱 기록에 넣는다. 이미 있으면 그대로 둔다. 클로드 앱은 켤 때 읽으므로 다시 켜야 보일 수 있다 */
