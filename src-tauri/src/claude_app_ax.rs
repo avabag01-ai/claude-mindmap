@@ -37,12 +37,13 @@ pub fn reason_text(reason: &str) -> &'static str {
         "no-title" => "앱 세션 제목을 몰라서 확인할 수 없어요",
         "not-taken" => "입력칸이 글을 받지 않았어요",
         "not-sent" => "입력칸에 글은 넣었는데 보내기가 안 됐어요. 앱에서 Enter 를 눌러 주세요",
+        "trust" => "클로드 앱이 '작업 공간 신뢰'를 묻고 있어요. 앱에서 확인한 뒤 Enter 를 눌러 주세요",
         _ => "보내지 못했어요",
     }
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{allow_fullscreen, ask_permission, focus, focus_back, place_window, raise_window, send, shown_title};
+pub use mac::{allow_fullscreen, ask_permission, press_new_send, focus, focus_back, place_window, raise_window, send, shown_title};
 
 #[cfg(not(target_os = "macos"))]
 pub fn focus(_app_id: &str) -> bool {
@@ -67,6 +68,10 @@ pub fn raise_window() -> bool {
 #[cfg(not(target_os = "macos"))]
 pub fn ask_permission() -> bool {
     false
+}
+#[cfg(not(target_os = "macos"))]
+pub fn press_new_send(_limit: Duration) -> Result<(), &'static str> {
+    Err("no-app")
 }
 #[cfg(not(target_os = "macos"))]
 pub fn allow_fullscreen(_ns_window: *mut std::ffi::c_void, _allowed: bool) {}
@@ -444,6 +449,37 @@ mod mac {
             let set_b: extern "C" fn(Id, Sel, usize) = std::mem::transmute(objc_msgSend as *const c_void);
             let cur = get(ns_window, sel("collectionBehavior")) & !((1 << 7) | (1 << 8) | (1 << 9));
             set_b(ns_window, sel("setCollectionBehavior:"), cur | if allowed { 1 << 7 } else { 1 << 9 });
+        }
+    }
+
+    /// 새 세션 화면(claude://code/new?q=…, 웹 영역 제목 "Claude")에 채워진 첫 메시지를 보낸다.
+    /// 앱이 '작업 공간 신뢰'를 물으면 누르지 않고 "trust" (보안 확인은 사람이)
+    pub fn press_new_send(limit: Duration) -> Result<(), &'static str> {
+        if !trusted(false) {
+            return Err("no-permission");
+        }
+        let app = app_element(claude_pid().ok_or("no-app")?);
+        let t0 = Instant::now();
+        loop {
+            if let Some(web) = web_area(&app, Some("Claude")) {
+                if find(&web, &|e| get_str(e, "AXTitle").contains("신뢰하시겠습니까") || get_str(e, "AXTitle").contains("Trust")).is_some() {
+                    return Err("trust");
+                }
+                let input = find(&web, &|e| role_is(e, "AXTextArea") && desc_in(e, &["프롬프트", "Prompt"]));
+                let btn = find(&web, &|e| role_is(e, "AXButton") && desc_in(e, &["보내기", "Send"]));
+                if let (Some(input), Some(btn)) = (input, btn) {
+                    if !get_str(&input, "AXValue").trim().is_empty() {
+                        if !press(&btn) {
+                            return Err("not-sent");
+                        }
+                        return wait_for(Duration::from_secs(5), || web_area(&app, Some("Claude")).is_none().then_some(())).ok_or("not-sent");
+                    }
+                }
+            }
+            if t0.elapsed() >= limit {
+                return Err("not-shown");
+            }
+            std::thread::sleep(Duration::from_millis(200));
         }
     }
 

@@ -160,6 +160,48 @@ pub fn hand_off(cli_id: &str, app_id: &str, text: &str) -> bool {
     copied && opened
 }
 
+/// 툰 이어가기: 앱 세션 기록(jsonl)의 offset 바이트 뒤에 쓰인 답에서 ```toon-next 블록이 닫힐 때까지 기다린다.
+/// 찾으면 그 답 글 전부 (시작 메시지 뽑기는 화면의 SessionHub.nextPrompt). limit 이 지나면 None
+pub fn wait_toon_next(file: &Path, offset: u64, limit: std::time::Duration) -> Option<String> {
+    let re = regex::Regex::new(r"```toon-next[^\n]*\n[\s\S]*?```").ok()?;
+    let t0 = std::time::Instant::now();
+    loop {
+        if let Some(text) = assistant_text_after(file, offset) {
+            if re.is_match(&text) {
+                return Some(text);
+            }
+        }
+        if t0.elapsed() >= limit {
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+}
+
+/// offset 바이트 뒤 줄들 중 클로드 답(assistant)의 글만 이어 붙인다
+pub fn assistant_text_after(file: &Path, offset: u64) -> Option<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = fs::File::open(file).ok()?;
+    f.seek(SeekFrom::Start(offset)).ok()?;
+    let mut buf = String::new();
+    f.read_to_string(&mut buf).ok()?;
+    let mut out = Vec::new();
+    for line in buf.lines() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+        if v["type"] != "assistant" {
+            continue;
+        }
+        for b in v["message"]["content"].as_array().into_iter().flatten() {
+            if b["type"] == "text" {
+                if let Some(t) = b["text"].as_str() {
+                    out.push(t.to_string());
+                }
+            }
+        }
+    }
+    Some(out.join("\n\n"))
+}
+
 /// 제목: 첫 메시지에서 내용을 알 수 있는 부분, max 자까지.
 /// 마인드맵이 띄운 "툰 불러와 — 하위 세션, root: …, hub_task: NEXT 000005 할 일" 은 다 같아 보이니 할 일만 쓴다.
 pub fn title_from(text: &str, max: usize) -> String {
@@ -241,5 +283,24 @@ mod tests {
         assert_eq!(title_from("툰 불러와 logic-pro-mcp", 40), "툰 불러와 logic-pro-mcp");
         assert_eq!(title_from(&"가".repeat(45), 40).chars().count(), 41);
         assert!(!import_session("x; rm -rf"), "id 가 아니면 열지 않음");
+    }
+
+    #[test]
+    fn toon_next_after_offset() {
+        let d = std::env::temp_dir().join(format!("mm-toon-next-{}.jsonl", std::process::id()));
+        let line = |t: &str| json!({ "type": "assistant", "message": { "content": [{ "type": "text", "text": t }] } }).to_string() + "\n";
+        let old = line("예전 답\n```toon-next\n예전 — 툰 불러와\n```");
+        fs::write(&d, &old).unwrap();
+        let off = old.len() as u64;
+        let mut all = old.clone();
+        all += &json!({ "type": "user", "message": { "content": "툰 저장해줘" } }).to_string();
+        all += "\n";
+        all += &line("저장했어요\n```toon-next\n새 제목 — 툰 불러와 — root: /a\n```");
+        fs::write(&d, &all).unwrap();
+        let t = wait_toon_next(&d, off, std::time::Duration::from_millis(10)).unwrap();
+        assert!(t.contains("새 제목") && !t.contains("예전"), "offset 앞의 예전 답은 안 봄");
+        fs::write(&d, &old).unwrap();
+        assert_eq!(wait_toon_next(&d, off, std::time::Duration::from_millis(10)), None);
+        let _ = fs::remove_file(&d);
     }
 }

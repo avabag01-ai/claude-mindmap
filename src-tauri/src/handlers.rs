@@ -259,7 +259,25 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
         }
         "claude-app:new" => {
             let ok = claude_app::new_in_app(s(&p, "folder").unwrap_or(""), s(&p, "prompt").unwrap_or(""));
-            ctx.emit("claude-app:new-result", json!({ "ok": ok }));
+            // send: 채워진 첫 메시지를 AX 로 보내기까지 (툰 이어가기)
+            let sent = if ok && p["send"].as_bool() == Some(true) { Some(claude_app_ax::press_new_send(std::time::Duration::from_secs(12))) } else { None };
+            ctx.emit("claude-app:new-result", match sent {
+                Some(Err(why)) => json!({ "ok": ok, "sent": false, "reason": why, "message": claude_app_ax::reason_text(why) }),
+                Some(Ok(())) => json!({ "ok": ok, "sent": true }),
+                None => json!({ "ok": ok }),
+            });
+        }
+        // 툰 이어가기: 앱 세션 기록에서 offset 뒤 답의 ```toon-next 를 기다린다 (최대 20분)
+        "claude-app:wait-toon" => {
+            let file = PathBuf::from(s(&p, "file").unwrap_or(""));
+            let offset = p["offset"].as_u64().unwrap_or(0);
+            let text = claude_app::wait_toon_next(&file, offset, std::time::Duration::from_secs(20 * 60));
+            ctx.emit("claude-app:wait-toon-result", json!({ "ok": text.is_some(), "file": p.get("file"), "text": text }));
+        }
+        // 기록 파일의 지금 크기 (툰 이어가기: 이 뒤에 오는 답만 본다)
+        "claude-app:file-size" => {
+            let size = std::fs::metadata(s(&p, "file").unwrap_or("")).map(|m| m.len()).unwrap_or(0);
+            ctx.emit("claude-app:file-size-result", json!({ "file": p.get("file"), "size": size }));
         }
         "open-external" => {
             if let Some(url) = s(&p, "url").filter(|u| u.starts_with("http://") || u.starts_with("https://")) {
