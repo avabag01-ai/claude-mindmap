@@ -36,7 +36,7 @@ latest_session: .toon/side-tabs/SESSION_20261004.toon
 - 2026-10-04 · .toon/side-tabs/SESSION_20261004.toon · 하위(side-tabs) · GitHub 마인드맵·더블클릭 접기·그룹 중심·툰 이어가기 앱 안 새 세션·앱 교체 · c754c72
 
 ## NEXT
-- [완료 10-04 side-tabs] GitHub 마인드맵·노드 더블클릭 접기·그룹 중심 보기(사용자 확인)·툰 이어가기 앱 안 새 세션+그룹 넣기 (c754c72) · 그룹 넣기 손 시험 남음
+- [완료 10-04 side-tabs] GitHub 마인드맵·노드 더블클릭 접기·그룹 중심 보기(사용자 확인)·툰 이어가기 앱 안 새 세션+그룹 넣기 (c754c72) · 그룹 넣기 손 시험 통과(10-04), 폴더 빠짐 → 스스로 옮기게 고침, 다시 손 시험 남음 (000008d)
 - claude-mindmap: NEXT 000007 맵 '앱 밖 세션 47' → 그룹 7개 다 보이게
 - claude-mindmap: NEXT 000006 ⊕ 새 세션 → 앱 도구(move_sessions)로 그룹 넣기 (조사 끝)
 - [완료 10-04d] 그룹 넣기 길 찾음·47개 정리·맵 −/＋ 단계 접기 (6ba14de)

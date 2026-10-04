@@ -8,7 +8,8 @@ files: src/modules/HubPanels.js · src/core/GitPanel.js · src/core/MemoStore.js
 - 파인더, 메모(키체인 비밀 메모), GitHub(git·gh), 브라우저(크롬·사파리 애플스크립트, MCP 등록)
 
 ## NEXT
-- NEXT 000008c 툰 이어가기 → 클로드 앱 새 세션 Enter → 원래 그룹에 들어가는지 손 시험
+- [완료 10-04] 000008c 그룹 넣기 손 시험 통과. 단 폴더 없이(임시 폴더) 시작됨 → 첫 메시지에 change_directory 부탁 추가, 앱 교체
+- NEXT 000008d 다시 툰 이어가기 → 새 세션이 ~/claude-mindmap 으로 옮겨 가는지 손 시험
 - NEXT 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 세션 탭 복귀 · 더블클릭 접기
 - NEXT 000000 맥에서 키체인 메모·크롬 조종 실측
 
