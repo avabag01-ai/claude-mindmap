@@ -22,7 +22,9 @@
             const left = document.querySelector('.hub-left');
             const leftW = left && left.offsetParent ? left.getBoundingClientRect().width : 0;
             const max = window.innerWidth - hubLeft - leftW - MIN_CENTER;
-            return Math.round(Math.max(MIN, Math.min(w, max)));
+            // 클로드 앱을 붙인 동안엔 클로드 창 최소 폭보다 좁히지 않는다 (HubClaudeDock.js 가 window.HUB_CHAT_MIN 을 넣음)
+            const min = Math.max(MIN, window.HUB_CHAT_MIN || 0);
+            return Math.round(Math.max(min, Math.min(w, Math.max(max, min))));
         };
         const apply = w => hub.style.setProperty('--chat-w', `${w}px`);
         const save = w => { try { w ? localStorage.setItem(KEY, String(w)) : localStorage.removeItem(KEY); } catch { /* 미리보기 */ } };
