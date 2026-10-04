@@ -1,7 +1,7 @@
 ## TOPIC_HUB v3.1
 topic: claude-mindmap
 title: 전체 (관제)
-latest_session: .toon/claude-mindmap/SESSION_20261004.toon
+latest_session: .toon/claude-mindmap/SESSION_20261004b.toon
 updated: 2026-10-04
 
 ## DECISIONS
@@ -18,7 +18,10 @@ updated: 2026-10-04
 - 2026-10-04 [확인] 본판 = Tauri v2 + Rust(src-tauri, src/core 1:1 이식, main.js → handlers.rs). 화면 코드는 그대로. Electron(npm start) 도 남김. /Applications 에 Tauri 판 6 MB (SESSION_20261004)
 - 2026-10-04 [확인] flowcode 에서 독립: 설정 ~/.claude-mindmap, MINDMAP_* 환경변수, MCP mindmap-browser, flowcode PR #1 닫음
 - 2026-10-04 [확인] 다른 폴더로 = 이동(id 그대로, 작업 중 10분 거절) 또는 복사. 왼쪽 목록에서도 끌기
-- 2026-10-04 사이드바 그룹 → 폴더 보이기는 안 함(사용자가 실제 폴더 쓰기로)
+- 2026-10-04 [모순] 사이드바 그룹 → 폴더 보이기는 안 함 → 뒤집힘: 사용자가 "구조를 클로드앱과 맞춰줘" → 왼쪽 "클로드 앱" 보기(기본) = 고정 → 그룹 → 세션 → 앱 밖, 앱 기록은 읽기만 (4bac35c, SESSION_20261004b)
+- 2026-10-04 [확인] 물을 도구 = 화면 허용 창(--permission-prompt-tool, scripts/mindmap-approve-mcp.js), 항상 허용 = <폴더>/.claude/settings.local.json. 권한 기본 = 자동(auto, 클로드 앱과 같음) (f0379c2, 814eda3)
+- 2026-10-04 [확인] 세션 지우기 = 앱 휴지통 ~/.claude-mindmap/trash 로 옮김 (2743037)
+- 2026-10-04 [확인] 코드 노드는 위 "코드 보기"를 켤 때만, 코드 창은 세션 폴더 안 글자 파일 512KB (33a85de)
 
 ## OPEN
 - 기기·git 표시: [연결됨 10-03] 맥·iCloud 실측 전
@@ -38,13 +41,17 @@ updated: 2026-10-04
   - 캐시 종류도 기록에 있음 (cache_creation.ephemeral_1h / 5m) → 세션마다 진짜 캐시 시간으로 타이머
   - 깜박 조건: 80% 넘음, 또는 50% 넘은 큰 세션 + 캐시 끝나기 5분 전(5분 캐시면 1분 전). 작은 세션은 안 깜박
   - 표시: 카드 아래 막대, 목록 %, 대화창 막대 + "툰 할 때 · …"
+- [가설] 클로드 앱에 세션 보이기: 클로드 앱 기록($C/claude-code-sessions/<계정>/<조직>/local_*.json)을 손으로 하나 넣음(이 세션) — 재시작 후 보이는지 확인 전
+- 화면 손 시험 전(10-04b): 코드 창, 우클릭 지우기, ＋/−, 엔터 두 번, 클로드 앱 보기
 - Tauri 판 손 시험 전: 보내기(claude), 툰 이어가기, 비밀 메모(키체인 허용 창), 브라우저 탭, 끌기·이동. Finder 파일 첨부는 Tauri 에서 아직 안 됨
 
 ## NEXT
+- NEXT 000005 마인드맵에서 만든 세션을 클로드 앱에도 자동 등록(local_*.json) — 완료 = 새 세션이 클로드 앱 사이드바에 뜸. 먼저 손으로 넣은 이 세션이 보이는지 확인
 - NEXT 000003 MCP: Claude 가 앱을 도구로 조종(세션 목록·보내기·이동) — 완료 = claude mcp 등록 후 도구 호출로 목록 받기
 - NEXT 000004 Tauri 판 손 시험(보내기·툰 이어가기·메모·브라우저·이동) + Finder 파일 끌어다 첨부
 - NEXT 000002 SNS 홍보 스킬 (초안까지 자동, 게시는 사람이 확인)
 - [완료 10-04] PR #1 머지 c38f1f9, flowcode 독립 735ca69, 목록 끌기·이동 49b2ac3, Tauri 이식 + 아이콘 6e78270 (약 19분, 소넷 4개 병렬)
 
 ## SESSIONS
+- .toon/claude-mindmap/SESSION_20261004b.toon | 2026-10-04 | 맥 하위(앱에서 지시): NEXT 000003 은 미착수 | 창 끌기·최근 색/빗금·＋/−·우클릭 지우기·허용 창·자동 모드·클로드 앱 목록·코드 보기 | 33a85de
 - .toon/claude-mindmap/SESSION_20261004.toon | 2026-10-04 | 맥 하위: NEXT 000000 | 머지·독립·이동·Tauri 이식·/Applications 교체, 메모리 165→115 MB | 6e78270

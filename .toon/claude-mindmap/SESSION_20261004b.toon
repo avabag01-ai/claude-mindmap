@@ -1,0 +1,83 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: claude-mindmap
+session: 마인드맵 앱에서 지시받은 하위 세션 — 창 끌기·최근 표시·확대·우클릭 지우기·허용 창·자동 모드·클로드 앱 목록·코드 보기
+hub_task: NEXT 000003 MCP 로 Claude 가 앱 조종 (브리핑만 했고 사용자가 다른 일을 줌 → 미착수)
+prev_session: .toon/claude-mindmap/SESSION_20261004.toon
+head: 33a85de   dirty: no (package-lock.json 미추적만)
+compression: ~85%
+
+## DICTIONARY
+$A=/Applications/클로드 마인드맵.app
+$C=~/Library/Application Support/Claude
+$S=$C/claude-code-sessions/a1fb2adf-3bc1-4123-9a13-8bdf7fbea83e/ca931e9b-3958-4b32-ac34-b802533eab0a
+$M=src/modules/
+$R=src-tauri/src/
+$B=npm run tauri:build -- --bundles app && rm -rf "$A" && cp -R "src-tauri/target/release/bundle/macos/클로드 마인드맵.app" /Applications/
+
+## STANDING_CONSTRAINTS
+- see HUB
+- 1,500줄 넘는 파일($M/SessionMindMap.js 1.58k, $R/session_indexer.rs 1.8k)에는 기능을 새 모듈로, 기존 파일엔 부르는 한 줄만
+
+## STATE
+### goal
+마인드맵 앱을 클로드 앱처럼 쓰기 편하게: 창 끌기, 세션 표시, 허용 창, 클로드 앱과 같은 목록 구조, 코드 보기.
+
+### architecture
+- [확인] 마인드맵 대화 = 클로드 앱이 아니라 claude CLI(`claude -p --resume`). 같은 계정·기록 파일(~/.claude/projects), 클로드 앱 고유 것(사이드바 기록·허용 창·커넥터)은 안 붙음
+- [확인] Tauri 는 CSS -webkit-app-region 무시 → src-tauri/tauriIpc.js 가 .col-head·.hub-tabs 빈칸 mousedown 에 startDragging, 두 번 = toggleMaximize. capabilities: core:window:allow-start-dragging·allow-toggle-maximize
+- [확인] 새 모듈: $M/MindMapRecent.js(가장 최근 만든 세션 색 채움·직전 빗금, firstAt 기준, 다른 기기 제외), $M/MindMapTools.js(−/＋ 1.25배, 세션 우클릭 지우기, 위 "코드 보기" 토글, 코드 창), $M/HubApprovals.js, $M/HubAppList.js
+- [확인] 세션 지우기 = ~/.claude-mindmap/trash/<ms>/ 로 옮김(10분 안 기록이면 거절, 묶기 정리). Rust $R/session_indexer/trash.rs(자식 모듈), JS SessionIndexer.trashSession, 채널 sessions:trash
+- [확인] 허용 창: claude 에 `--mcp-config {mindmap-approve} --permission-prompt-tool mcp__mindmap-approve__approve` (plan 제외). scripts/mindmap-approve-mcp.js 가 ~/.claude-mindmap/approvals/<id>.req.json 쓰고 .ans.json 기다림(10분→거절). 화면은 실행 중 1초마다 approval:list, 답 approval:answer. "이 폴더에서 항상 허용" = <cwd>/.claude/settings.local.json permissions.allow (Bash 는 Bash(<명령>)). Rust $R/approvals.rs, JS src/core/Approvals.js
+- [확인] 권한 메뉴: 자동(auto, 기본) / 권한 묻기 / 편집 자동 수락 / 계획 모드 — 클로드 앱은 auto (epitaxy-folder-permission-mode {"/Users/kim":"auto"})
+- [확인] 클로드 앱 구조($C, 읽기만): 세션 기록 $S/local_*.json {sessionId:"local_…", cliSessionId, cwd, title, isArchived, createdAt}. claude_desktop_config.json preferences.epitaxyPrefs: dframe-code-sections(고정·루틴·manual 그룹 순서·세션 kind sortBy created), dframe-group-scopes.assignments("code:local_…"→그룹 id), starred-local-code-sessions. 그룹 = 폴더 아님(valveforge 그룹에 /Users/kim 세션 6개). 그룹 3: valveforge·작곡·클로드마인드맵
+- [확인] 왼쪽 목록 "클로드 앱" 보기(기본): 고정됨 → 그룹(최근 순) → 세션(그룹 없음, 만든 순) → 앱 밖 세션, 보관 숨김, 앱 제목. 데이터 index.claudeApp ($R/claude_app.rs, src/core/ClaudeApp.js)
+- [확인] 코드 보기: 'read-file' 처리가 원래 없었음(flowcode 에서 빠짐) → Rust handlers read_code_file / main.js, 세션 폴더(last_roots) 안·글자 파일·512KB. 코드 노드는 map.showCode(기본 false)일 때만(_fileNodes 첫 줄)
+- [확인] 엔터 두 번(0.7초 안) = 보내기, 한글 조합 엔터도 첫 번으로 셈
+
+### changes_this_session
+- e24fd8c 창 끌기 / 2743037 최근 색칠·빗금, ＋/−, 우클릭 지우기 / f0379c2 허용 창·권한 이름·엔터 두 번 / 814eda3 자동 모드 기본 / 4bac35c 클로드 앱 보기 / 33a85de 코드 보기
+- $S/local_490732eb-9bba-4040-9438-4d8cba340444.json 손으로 만듦 = 이 세션(cd61a4c6-fd2e-42d3-a6c0-c58c5ff5e76c)을 클로드 앱에 보이게 하는 시험 (git 밖)
+- $A 를 33a85de 빌드로 교체
+
+### results
+- [확인] npm test 8개 통과, cargo test --lib 32개 통과(approvals 2, claude_app 1, approve_prompt_tool 1 추가)
+- [확인] 실제 클로드 앱 읽기: ok, 그룹 3, 세션 기록 178, 이 세션 title "마인드맵: 최근 표시·허용 창·클로드 앱 연동" group null
+- [확인] 허용 창 맥 실측: 명령마다 창이 떠서 사용자가 "자꾸 권한 허용하라고 나와" → auto 기본으로
+- [확인] 사용자 확인: 창 끌기·최근 색/빗금 "됐어"
+
+### rejected
+- .claude/settings.local.json 에 허락 미리 넣기 — 이 세션(default 모드 -p)에서는 설정 파일 쓰기도 막혀 불가 → 허용 창으로 해결
+- 맥 ~/.Trash 로 지우기 — TCC 걸릴 수 있어 앱 휴지통(~/.claude-mindmap/trash)으로
+
+### open_issues
+- [가설] 손으로 넣은 클로드 앱 기록(local_490732eb…)이 클로드 앱 재시작 후 사이드바에 보이는지 — 사용자 확인 전. 필수 필드 최소 집합도 미확인(읽기 시도를 사용자가 한 번 거절)
+- [가설] 마인드맵·클로드 앱에서 같은 세션에 동시에 보내면 기록이 갈라짐
+- [가설] 코드 창·우클릭 지우기·＋/−·엔터 두 번·클로드 앱 보기는 화면 손 시험 전
+- [확인] 목록은 최근 150 세션만(max_sessions) — 클로드 앱 그룹의 오래된 세션은 빠질 수 있음
+- [확인] read-file 은 세션 폴더 안이면 열림 — /Users/kim 이 세션 폴더라 홈 전체가 범위
+- NEXT 000003 MCP(앱 조종) 미착수
+
+### next_action
+1. 사용자에게 클로드 앱 재시작 후 이 세션이 보이는지 확인 → 보이면 마인드맵에서 새 세션 만들 때(첫 result 의 session_id) $S 에 local_<uuid>.json 자동 생성(Rust·JS), 안 보이면 기존 기록 하나를 통째로 읽어 필수 필드 찾기. 완료 = 마인드맵에서 만든 새 세션이 클로드 앱 사이드바에 뜸
+2. 화면 손 시험: 코드 보기 토글·코드 창, 우클릭 지우기, ＋/−, 엔터 두 번, 클로드 앱 보기 순서
+3. NEXT 000003 MCP: 앱을 도구로 조종(세션 목록·보내기·이동) — mindmap-approve 처럼 Node MCP 로
+
+## ARTIFACTS
+- scripts/mindmap-approve-mcp.js — 허용 묻기 MCP (앱이 --mcp-config 로 붙임, 등록 불필요)
+- 빌드·설치: $B
+
+## VERIFY_ON_LOAD
+- `git -C ~/claude-mindmap log --oneline -1` → 33a85de (또는 그 뒤)
+- `cd ~/claude-mindmap/src-tauri && cargo test --lib 2>&1 | grep "test result"` → 32 passed
+- `cd ~/claude-mindmap && node -e "const r=require('./src/core/ClaudeApp.js').read();console.log(r.ok,r.groups.map(g=>g.name))"` → true [ 'valveforge', '작곡', '클로드마인드맵' ]
+- `ls ~/claude-mindmap/src/modules/` → HubAppList.js HubApprovals.js MindMapRecent.js MindMapTools.js 있음
