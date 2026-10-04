@@ -1,0 +1,60 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: side-tabs
+session: 손 시험 3개 통과 — 툰 이어가기 새 세션 폴더·그룹, 앱 세션 넘기기, 그룹 가지 유지
+hub_task: NEXT 000008e + 000008f + 000008d 손 시험
+prev_session: .toon/side-tabs/SESSION_20261004b.toon
+head: 1152903   dirty: no (package-lock.json 미추적, 손대지 않음)
+compression: ~95%
+
+## DICTIONARY
+$1=cg-015421b2-4dce-4c88-a650-66e95f7d120e (클로드 앱 그룹 "클로드마인드맵")
+$2=local_06168fc0-e3c3-4926-978a-8ebfff075a3e (이 세션)
+
+## STANDING_CONSTRAINTS
+- see HUB
+
+## STATE
+### goal
+지난 세션(b)에서 만든 것들을 진짜 앱에서 손 시험. 코드 변경 없음.
+
+### architecture
+- 변경 없음 (SESSION_20261004b 참고)
+
+### changes_this_session
+- 코드 없음. 툰 기록만
+
+### results
+- [확인] 000008d: 툰 이어가기로 연 이 세션($2)이 또 임시 폴더(scratch-workspaces/...)로 시작함 → 첫 메시지 부탁대로 move_sessions($1) 성공(get_session group=클로드마인드맵), change_directory 로 ~/claude-mindmap 이동 성공(턴 끝에 작업 폴더 바뀜). get_session cwd 칸은 그 턴 안에서는 옛 임시 폴더로 보임
+- [확인] 000008e 앱 세션에 대화창 보내기 → 앱으로 넘기기: 사용자 손 시험 "잘 작동한다"
+- [확인] 000008f 그룹 보기에서 세션 클릭 시 그룹 가지 유지: 사용자 손 시험 "잘 작동한다"
+- [확인] npm test 9개 묶음 통과, VERIFY_ON_LOAD 4개 맞음
+
+### rejected
+- 없음
+
+### open_issues
+- [가설] 새 세션 폴더가 빠지는 원인은 여전히 모름 — 첫 메시지 부탁(우회)으로 충분히 돌아감
+- [확인] 000008e·000008f 는 사용자가 "잘 작동한다"고 한 것. 세부(마인드맵에서 만든 세션은 마인드맵에서 답) 따로 나눠 확인하지 않음
+
+### next_action
+1. 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 세션 탭 복귀
+2. 000000 맥에서 키체인 메모·크롬 조종 실측
+
+## ARTIFACTS
+- 없음
+
+## VERIFY_ON_LOAD
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 이 툰 저장 커밋이거나 그 뒤
+- `grep -c "_keepAll\|_markSession" /Users/kim/claude-mindmap/src/modules/MindMapGroupFocus.js` → 2 이상
+- `grep -ln "claude-app:handoff" /Users/kim/claude-mindmap/src-tauri/src/handlers.rs /Users/kim/claude-mindmap/main.js` → 둘 다
+- `cd /Users/kim/claude-mindmap && npm test` → 9개 통과
