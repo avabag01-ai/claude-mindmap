@@ -2,13 +2,32 @@
 topic: session-hub
 title: 세션 허브
 parent: claude-mindmap
-files: src/core/SessionIndexer.js · src/core/ClaudeRunner.js · src/modules/SessionHub.js · main.js(sessions:*)
+updated: 2026-10-04
+latest_session: .toon/session-hub/SESSION_20261004.toon
+files: src/core/SessionIndexer.js · src/core/ClaudeRunner.js · src/modules/SessionHub.js · main.js(sessions:*) · 클로드 앱 연동 = src-tauri/src/claude_app.rs · claude_app_ax.rs · claude_dock.rs · src/modules/HubAppLink.js · HubClaudeDock.js · HubToonApp.js
 
 ## SCOPE
 - 세션 기록 읽기(프로젝트 → 세션 → 파일), 왼쪽 세션 목록, 새 세션, 보내기(claude -p --resume)
+- 클로드 앱 연동: 고른 세션으로 앱 화면 바꾸기, 앱 세션에 AX 로 보내기, 앱 창 붙이기(대화창 구멍), 앱 안 툰 이어가기
+
+## TOPIC_CONSTRAINTS
+- 클로드 앱 '작업 공간 신뢰' 창은 누르지 않는다 (사람이)
+- 시험 보내기는 빈 시험 세션에서만 (사용자 10-04)
+
+## DECISIONS
+- 2026-10-04 [확인] 앱 화면 바꾸기 = 사이드바 세션 단추 AXPress(깜빡임 없음), 못 찾으면 continue 링크+앞 앱 되돌리기 (SESSION_20261004)
+- 2026-10-04 [확인] 앱 세션 보내기 = AX(제목 확인·빈 입력칸만), 못 하면 복사+앱 열기 (SESSION_20261004)
+- 2026-10-04 [확인] 앱 창 붙이기 = 투명 창의 대화창 가운데 구멍 + 뒤에 클로드 창, 위아래 버튼 유지 — 사용자 요청 (SESSION_20261004)
+- 2026-10-04 [확인] 고정 서명(자체 서명 인증서)으로 다시 빌드해도 권한 유지 (SESSION_20261004)
 
 ## OPEN
-- 맥 실측 전: 진짜 claude 보내기, 복사한 세션 --resume
+- 툰으로 이어가기(앱 세션) 실전 결과 미확인
+- 맥 실측 전: 복사한 세션 --resume
 
 ## NEXT
-- NEXT 000000 맥에서 보내기·새 세션 실측
+- 툰으로 이어가기 실전 결과 확인 (새 세션이 원래 세션 다음 칸·제목)
+- 붙인 상태 손 시험: 대화창 칸 끌기·창 빨리 끌기·떼기
+- "부모 노드 옆" = prevId(다음 칸)로 했음 — 하위 가지 원하면 parentId
+
+## SESSIONS
+- .toon/session-hub/SESSION_20261004.toon | 2026-10-04 | 클로드 앱 연동 (사용자 지시) | 사이드바 바꾸기·AX 보내기·구멍 붙이기·고정 서명·툰 이어가기 | 5e70e22

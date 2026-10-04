@@ -1,0 +1,83 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: session-hub
+session: 클로드 앱 연동 — 고른 세션 따라 바꾸기(사이드바 AX)·AX 보내기·클로드 앱 붙이기(투명 구멍)·고정 서명·툰으로 이어가기
+hub_task: none (사용자 직접 지시, logic-pro-mcp 워크트리 세션에서 작업)
+prev_session: .toon/side-tabs/SESSION_20261004c.toon
+head: 5e70e22   dirty: no (package-lock.json 미추적, 손대지 않음)
+compression: ~93%
+
+## DICTIONARY
+$1=src-tauri/src/claude_app_ax.rs
+$2=src-tauri/src/claude_dock.rs
+$3=src/modules/HubAppLink.js
+$4=src/modules/HubClaudeDock.js
+$5=src/modules/HubToonApp.js
+$6=/Applications/클로드 마인드맵.app
+$7=com.anthropic.claudefordesktop (클로드 앱 2.9939.4, /Users/kim/보관-앱/Claude.app)
+$8="Claude Mindmap Local Signing" (로그인 키체인 자체 서명 인증서, leaf H ea2688022e4e338fd33cc41ae6e927d385829dc8)
+
+## STANDING_CONSTRAINTS
+- see HUB
+- 클로드 앱 '작업 공간 신뢰' 창은 누르지 않는다 (보안 확인은 사람이) — 코드도 "trust" 로 멈춤
+
+## STATE
+### goal
+마인드맵에서 세션을 고르면 클로드 앱 대화창이 따라 바뀌고, 앱 대화창을 마인드맵 틀 안에서 쓰고, 툰 이어가기를 앱 안에서.
+
+### architecture
+- [확인] 화면 바꾸기 = $1 focus_back: 앱 제목(local_<id>.json title)이 이미 보이면 그만 → 사이드바 세션 단추(AXButton 제목 "<상태> <제목>", AXGroup '사이드바' 안) AXPress, 접혀 있으면 '사이드바 표시' 눌러 펼쳤다 다시 접음(세션 바뀐 뒤 요소를 새로 찾아야 함) → 못 찾으면 open -g claude://code/continue?session=local_<id> + AXFrontmost 로 앞 앱 되돌림
+- [확인] 보내기 = $1 send: 웹 영역 제목 "<제목> - Claude Code" 확인 → 입력칸(AXTextArea '프롬프트', ProseMirror/tiptap) 비었을 때만 AXValue 쓰기 → 읽기는 ~800ms 뒤 반영 → '보내기' AXPress. 이유 코드 typing/busy/not-shown/no-permission/not-taken/not-sent/trust. $3 이 고르기·보내기 연결, 실패 시 복사+앱 열기
+- [확인] 붙이기 = $2 + $4: 투명 창(tauri.conf transparent, macOSPrivateApi, Cargo feature macos-private-api). 붙이면 대화창 칸의 #hub-messages·#hub-input 숨기고 #hub-claude-hole(투명) → 클로드 창을 구멍 자리(창 inner_position + 구멍 CSS px)에 둠. 마우스가 구멍 위면 set_ignore_cursor_events(40ms 감시 스레드). Moved/Focused 에 따라감, 크기는 JS ResizeObserver→claude_dock 다시. 클로드 창 최소 폭 600 → window.HUB_CHAT_MIN(HubResize clamp). 붙인 동안 초록 단추 = 확대(collectionBehavior FullScreenNone)
+- [확인] 툰으로 이어가기(앱 세션) = $5: claude-app:file-size → send TOON_SAVE_TEXT(AX) → claude-app:wait-toon(jsonl offset 뒤 assistant 글에 닫힌 ```toon-next, 최대 20분) → claude-app:new {send:true}(press_new_send, 신뢰 창이면 trust) → 새 세션이 목록에 생기면(시작 전 없던 id + firstPrompt 가 제목으로 시작) sessions:meta prevId=원래 세션 + sessions:rename 제목. 붙인 동안 아래 '보내기' 자리에 #hub-toon-bottom(두 번 눌러 시작)
+- [확인] 고정 서명: tauri.conf bundle.macOS {signingIdentity $8, hardenedRuntime false}. designated = identifier com.avabag01.claude-mindmap + certificate leaf → 다시 빌드해도 손쉬운 사용 권한 유지. 다른 맥은 scripts/make-signing-cert.sh 한 번
+- [확인] Electron 판: ClaudeApp.showInApp(=importSession)·focus·handOff(appId) 메움, claude-app:send 는 unsupported → 복사로
+
+### changes_this_session
+- d50328c·4c1813d·2403a76 연동(Rust/Electron/화면) · 9aecdfd 사이드바 방식 · 49695ba·15221a1 붙이기 1판(옆에 붙이기) · 3f6add2 고정 서명 · 577300f 권한 창 · 4c0c451·24a63f6 구멍 방식 · 6db1d5e·95f6ef0 확대·끌기 최소 폭 · 3e95e6b·5e70e22 툰 이어가기. 모두 origin/main 푸시
+- $6 교체 여러 번(마지막 5e70e22 빌드)
+
+### results
+- [확인] npm test 12개 통과, cargo test --lib 46 통과(2 ignored = live_send/live_focus)
+- [확인] 실측(빈 시험 세션 local_57c492ef "마인드맵 AX 전송 테스트"): 뒤에 있는 앱에 여러 줄 글이 그대로 1번 감('둘' 답), 쓰던 글 있으면 typing 으로 멈추고 글 유지
+- [확인] 사이드바 방식: 두 세션 오가며 앞 창(Chrome) 그대로, 끝나면 사이드바 접힘
+- [확인] 구멍 붙이기 화면 캡처: 클로드 창이 칸 가운데에 딱 맞음, 위 머리줄·아래 버튼 줄 보임. 초록 단추 → 1920×996 확대, 클로드 창 x1320 w600 h856 따라감
+- [확인] 사용자: "연동 잘된다", "붙었네"
+
+### rejected
+- open -g claude://… 만으로 바꾸기 — 클로드 앱이 스스로 앞으로 나옴(-g 무시), 사용자 "사라졌다 나왔다"
+- NSRunningApplication activate 로 앞 앱 되돌리기 — macOS 15 에서 뒤 프로세스 요청 무시. NSWorkspace frontmostApplication 은 실행 고리 없는 스레드에서 안 바뀜 → AXFrontmost 읽기/쓰기로
+- 클로드 창을 마인드맵 위에 겹치기 — 마인드맵 누르면 뒤로 가려지고 AXRaise 로도 안 올라옴(z 순서 실측)
+- 옆에 붙이기(마인드맵 줄이고 오른쪽에) — 동작은 했으나 사용자가 위아래 버튼 유지 원해 구멍 방식으로
+- ad-hoc 서명 — 빌드마다 cdhash 바뀌어 권한 풀림. 권한 항목을 켜기만 하면 예전 cdhash 항목이 남음 → tccutil reset 후 다시 넣어야 했음
+
+### open_issues
+- [가설] 툰으로 이어가기(앱 세션) 전체 흐름 진짜 세션에서 아직 안 돌림 — 이 툰 저장 요청이 그 첫 실전일 수 있음
+- [확인] claude://code/new?folder=… 는 거의 매번 '작업 공간 신뢰' 창 → 자동 보내기 멈춤(trust), 사람이 확인
+- [가설] 마인드맵 빨리 끌 때 클로드 창이 늦게 따라와 틈 보임 / 다른 앱 창이 사이에 끼면 구멍으로 보임
+- [확인] 진짜 대화창 좌우 끌기 최소 폭은 사용자 손 시험 전
+
+### next_action
+1. 툰으로 이어가기 실전 결과 확인: 새 세션이 원래 세션 다음 칸에 붙고 제목이 달렸는지, 알림 문구, 실패 단계
+2. 붙인 상태 손 시험: 대화창 칸 끌기(600 아래 안 줄어듦), 창 빨리 끌기 틈, 떼기 후 원래대로
+3. "부모 노드 옆" 해석 확인 — 지금은 prevId(같은 줄기 다음 칸). 하위 가지(parentId)를 원하면 $5 sessions:meta 한 줄
+
+## ARTIFACTS
+- 시험용 AX 도구(swift) 는 세션 스크래치패드에만 — 다시 만들 필요 시 $1 의 live_send/live_focus 테스트 사용: MM_AX_APP_ID=local_… [MM_AX_TEXT=…] cargo test --lib live_send -- --ignored --nocapture
+- 빌드·설치: npx tauri build --bundles app → osascript quit → rm -rf $6 && cp -R src-tauri/target/release/bundle/macos/클로드\ 마인드맵.app /Applications/ && open $6
+
+## VERIFY_ON_LOAD
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 5e70e22 이거나 그 뒤
+- `ls /Users/kim/claude-mindmap/src-tauri/src/claude_app_ax.rs /Users/kim/claude-mindmap/src-tauri/src/claude_dock.rs /Users/kim/claude-mindmap/src/modules/HubToonApp.js` → 셋 다 있음
+- `security find-identity -p codesigning | grep -c "Claude Mindmap Local Signing"` → 1
+- `codesign -d -r- "/Applications/클로드 마인드맵.app" 2>&1 | grep -c "certificate leaf"` → 1
+- `cd /Users/kim/claude-mindmap && npm test` → 12개 통과
