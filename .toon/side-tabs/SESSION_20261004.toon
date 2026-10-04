@@ -31,11 +31,12 @@ head: f78a248   dirty: no
 - [확인] 오류 원인: 사용자가 시작 메시지를 마인드맵 새 세션에 붙여 넣음 → 폴더가 이 세션 워크트리(.claude/worktrees/relaxed-leakey-15bb94)로 잡혀 클로드 앱이 같은 브랜치를 또 열려다 '브랜치가 다른 폴더에 체크아웃' 오류 + toonStartPrompt 가 한 번 더 감싸 '툰 불러와' 두 번 (세션 bad90f4b·cb4adbaa). 고침: SessionHub.mainRoot(워크트리 → 원래 저장소), 붙여 넣은 '툰 불러와'는 안 감쌈 (34b0bd1)
 - 세션 중심 가운데 카드에 ＋ (하위 세션) src/modules/MindMapCenterAdd.js (39ad325)
 ### open_issues
-- [확인] 마인드맵 새 세션은 클로드 앱 그룹 밖에 생김. 그룹 넣기는 클로드 앱 안 세션의 mcp__ccd_sidebar__move_sessions 로만 됨 (claude:// 링크엔 그룹 인자 없음, SESSION_20261004d). 방법 미정 — 사용자에게 물음
+- [확인] 마인드맵 새 세션은 클로드 앱 그룹 밖에 생김. 그룹 넣기는 클로드 앱 안 세션의 mcp__ccd_sidebar__move_sessions 로만 됨 (claude:// 링크엔 그룹 인자 없음, SESSION_20261004d). → 사용자 1번 고름: 툰 이어가기 새 세션을 claude://code/new?folder=&q= 로 클로드 앱 안에서 열고(채우기만, 자동 보내기 없음·그룹 인자 없음 — 앱 번들 조사), 첫 메시지 끝에 move_sessions(session_ids ["self"], group_id 원래 그룹) 부탁 (b7b59c2). 그룹 id cg-… 는 list_groups 와 같음 [확인]. 진짜로 Enter 눌러 그룹에 들어가는지는 아직 [가설]. 단점: 마인드맵 줄기(prevId) 연결은 이 길에선 안 남음
 - [가설] 89개가 한 고리에 다 펼쳐지면 빽빽할 수 있음
 - [가설] 세션 폴더와 이어지는 저장소가 적어 대부분 언어 묶음일 것
 ### next_action
-1. 진짜 앱에서 세션 노드 더블클릭 접기·펼치기, 한 번 누르기 느낌(0.25초 지연) 손 시험
+1. 툰 이어가기 → 클로드 앱 새 세션 열림 → Enter → 원래 그룹에 들어가는지 확인
+2. 진짜 앱에서 세션 노드 더블클릭 접기·펼치기, 한 번 누르기 느낌(0.25초 지연) 손 시험
 2. (사용자가 GitHub 맵 보고 '빽빽하다' 함 → 묶음 접기 반영) 진짜 앱에서 GitHub ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀 확인
 
 ## VERIFY_ON_LOAD
