@@ -1,5 +1,6 @@
 // 가운데 GitHub·브라우저 탭에 진짜 웹 화면을 바로 띄운다 (Tauri 자식 웹뷰 = 맥 WebKit, src-tauri/src/center_web.rs).
 // - GitHub 탭: github.com (처음 한 번 이 안에서 로그인하면 기억). "저장소 맵" 단추로 예전 GitHub 맵·저장소 칸으로 바꿀 수 있다.
+// - 두 탭 모두 "대화창에" 단추: 지금 주소를 대화창 입력칸(커서 자리)에 넣는다.
 // - 브라우저 탭: 주소창 + 웹 화면. "크롬 조종" 단추로 예전 진짜 크롬·사파리 조종 칸으로.
 // - 웹 화면은 앱 화면 위에 떠 있는 따로 된 창이라, 자리(.cw-slot)가 움직이면 좌표를 다시 보낸다(보일 때만 매 프레임 확인).
 // - Electron 판·미리보기(Tauri 없음)에서는 예전 칸 그대로.
@@ -35,6 +36,7 @@
                 <button class="btn" data-cw="reload" title="새로고침">⟳</button><button class="btn" data-cw="home" title="${tab === 'github' ? '내 GitHub' : '처음 화면'}">⌂</button>
                 ${tab === 'github' ? '<button class="btn" data-cw="repo" title="고른 세션의 저장소">이 세션 저장소</button>' : ''}
                 <input type="text" class="cw-addr" placeholder="${esc(v.ph)}" aria-label="${esc(v.ph)}" spellcheck="false">
+                <button class="btn" data-cw="chat" title="지금 주소를 대화창에 넣기">대화창에</button>
                 <button class="btn" data-cw="chrome" title="지금 주소를 맥의 진짜 브라우저로 열기">크롬으로</button>
                 <button class="btn" data-cw="alt" title="${esc(v.altTitle)}">${esc(v.alt)}</button></div>
                 <div class="cw-slot"><p class="hub-empty">불러오는 중…</p></div>`;
@@ -89,6 +91,13 @@
     function act(hub, tab, what) {
         const v = hub._cw[tab];
         if (what === 'alt') { setMode(tab, 'app'); hub.setCenterTab(tab); return; }
+        if (what === 'chat') {
+            if (!v.url) return;
+            const input = hub.el('hub-input');
+            const before = input && input.value && !/\s$/.test(input.value.slice(0, input.selectionStart ?? input.value.length)) ? ' ' : '';
+            hub.insertText(`${before}${v.url} `);
+            return;
+        }
         if (what === 'chrome') { if (v.url) (realOpen || HubGitHub.openUrl).call(HubGitHub, hub, v.url); return; }
         if (what === 'repo') {
             const i = hub.github && hub.github.info;
