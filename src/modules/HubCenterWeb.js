@@ -15,12 +15,14 @@
     const esc = s => SessionMindMap._esc(s == null ? '' : s);
     // 가운데 탭 → 웹뷰 라벨, 예전 칸 단추 이름
     const VIEWS = {
-        github: { label: 'github', alt: '저장소 맵', altTitle: '예전 GitHub 맵과 저장소 칸 보기', ph: '주소나 GitHub 검색어', search: q => `https://github.com/search?q=${encodeURIComponent(q)}` },
+        // GitHub 맵(저장소 맵)은 숨김 — 사용자 10-04. alt 를 비우면 단추가 없고 늘 웹 화면
+        github: { label: 'github', alt: '', altTitle: '', ph: '주소나 GitHub 검색어', search: q => `https://github.com/search?q=${encodeURIComponent(q)}` },
         browser: { label: 'web', alt: '크롬 조종', altTitle: '맥의 진짜 크롬·사파리 탭 보기·조종', ph: '주소나 검색어', search: q => `https://www.google.com/search?q=${encodeURIComponent(q)}` }
     };
 
     function mode(tab) {
         if (!T()) return 'app';
+        if (!VIEWS[tab] || !VIEWS[tab].alt) return 'web';
         try { return localStorage.getItem(`cw.mode.${tab}`) || 'web'; } catch { return 'web'; }
     }
     // 번역 켜 둠 (탭마다 기억)
@@ -63,7 +65,7 @@
                 <button class="btn" data-cw="translate" title="한국어로 번역 (Google 번역, 코드는 그대로) · 켜 두면 다음 페이지도">번역</button>
                 <button class="btn" data-cw="chat" title="지금 주소를 대화창에 넣기">대화창에</button>
                 <button class="btn" data-cw="chrome" title="지금 주소를 맥의 진짜 브라우저로 열기">크롬으로</button>
-                <button class="btn" data-cw="alt" title="${esc(v.altTitle)}">${esc(v.alt)}</button></div>
+                ${v.alt ? `<button class="btn" data-cw="alt" title="${esc(v.altTitle)}">${esc(v.alt)}</button>` : ''}</div>
                 <div class="cw-slot"><p class="hub-empty">불러오는 중…</p></div>`;
             main.insertBefore(box, document.getElementById('hub-toon-panel'));
             cw[tab] = { tab, box, slot: box.querySelector('.cw-slot'), addr: box.querySelector('.cw-addr'), label: v.label, rect: '', url: '', opened: false, panel: false };
