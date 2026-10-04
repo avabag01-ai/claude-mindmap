@@ -10,6 +10,8 @@ files: src/modules/HubPanels.js · src/core/GitPanel.js · src/core/MemoStore.js
 ## NEXT
 - [완료 10-04] 000008c 그룹 넣기 손 시험 통과. 단 폴더 없이(임시 폴더) 시작됨 → 첫 메시지에 change_directory 부탁 추가, 앱 교체
 - NEXT 000008d 다시 툰 이어가기 → 새 세션이 ~/claude-mindmap 으로 옮겨 가는지 손 시험
+- [완료 10-04] 폴더 옮긴 세션이 맵에서 옛 임시 폴더에 붙던 것 고침 (기록 파일 자리와 맞는 cwd) · 앱에서 만든 세션에 대화창으로 보내면 앱으로 넘김(글 복사+세션 열기), 들여온 세션(adopted)은 그대로 · 앱 교체
+- NEXT 000008e 앱 세션 고르고 대화창 보내기 → 클로드 앱에 그 세션이 열리고 붙여넣기 되는지 손 시험
 - NEXT 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 세션 탭 복귀 · 더블클릭 접기
 - NEXT 000000 맥에서 키체인 메모·크롬 조종 실측
 
