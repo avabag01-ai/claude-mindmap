@@ -13,8 +13,10 @@ files: src/modules/HubPanels.js · src/modules/HubCenterTabs.js · src/modules/H
 - NEXT 000008g 진짜 앱 손 시험: 사이드바 단추(신호등 옆)·⌘B, 대화창 너비 끌기, 가운데 GitHub·브라우저 탭, 사용량 쓴 %
 - NEXT 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 마인드맵 탭 복귀 · 더블클릭 접기
 - NEXT 000000 맥에서 키체인 메모·크롬 조종 실측
+- (보류) 가운데 브라우저 탭이 불편하면 → 진짜 크롬 창을 가운데 칸 자리·크기에 맞춰 띄우기 (애플스크립트 bounds). 지금은 앱 안 WebKit 웹뷰로 써 보는 중 (10-04 사용자)
 
 ## DECISIONS
+- 2026-10-04 [확인] 가운데 GitHub·브라우저 탭 = 앱 안 WebKit 자식 웹뷰(center_web.rs, HubCenterWeb.js). 크롬은 다른 앱 창 안에 못 넣음 (7bf1221)
 - 2026-10-04 [확인] GitHub·브라우저는 가운데 탭(마인드맵 | GitHub | 브라우저), 왼쪽은 세션·파인더·메모만 — 사용자 요청 (SESSION_20261004c)
 - 2026-10-04 [확인] 새 세션 폴더 빠짐은 첫 메시지 부탁(move_sessions + change_directory)으로 우회 — 손 시험 통과 (SESSION_20261004c)
 - 2026-10-04 [확인] 앱에서 만든 세션(adopted 아님)에 대화창으로 보내면 앱으로 넘긴다(글 복사+세션 열기) — 따로 돌리면 앱이 모름, 넣는 deep link 없음 (SESSION_20261004b)
