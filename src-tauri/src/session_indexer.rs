@@ -1023,6 +1023,10 @@ fn project_root(cwd: &str) -> String {
     if cwd.is_empty() {
         return "(알 수 없음)".into();
     }
+    // 워크트리(<저장소>/.claude/worktrees/<이름>) 세션은 원래 저장소에 묶는다 — 툰 이어가기 새 세션(본 폴더)과 한 줄기로 잇게
+    if let Some(i) = cwd.find("/.claude/worktrees/") {
+        return cwd[..i].to_string();
+    }
     let mut dir = cwd.to_string();
     loop {
         if Path::new(&dir).join(".git").exists() {
@@ -1446,6 +1450,12 @@ mod tests {
     }
     fn err(r: Result<Value>) -> String {
         r.unwrap_err().to_string()
+    }
+
+    #[test]
+    fn worktree_sessions_join_main_repo() {
+        assert_eq!(project_root("/r/app/.claude/worktrees/zealous-x"), "/r/app");
+        assert_eq!(project_root("/r/app/.claude/worktrees/zealous-x/src"), "/r/app");
     }
 
     #[test]

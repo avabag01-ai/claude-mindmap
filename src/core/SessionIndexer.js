@@ -486,6 +486,9 @@ class SessionIndexer {
     // ---------------------------------------------------------------------
     _projectRoot(cwd) {
         if (!cwd) return '(알 수 없음)';
+        // 워크트리(<저장소>/.claude/worktrees/<이름>) 세션은 원래 저장소에 묶는다 (Rust project_root 와 같음)
+        const wt = cwd.indexOf('/.claude/worktrees/');
+        if (wt >= 0) return cwd.slice(0, wt);
         let dir = cwd;
         for (;;) {
             try {
