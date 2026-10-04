@@ -8,6 +8,7 @@
  *   claude mcp add --scope user mindmap-browser -- node /경로/claude-mindmap/scripts/mindmap-browser-mcp.js
  *
  * 쓸 브라우저: ~/.claude-mindmap/browser.json 의 { "browser": "chrome" } (브라우저 탭에서 고른 것)
+ *             app-github · app-web = 클로드 마인드맵 앱 안 웹 화면(가운데 GitHub·브라우저 탭, src/core/AppWebBridge.js)
  *             또는 MINDMAP_BROWSER 환경 변수, 또는 도구마다 browser 인자.
  *
  * 의존성 없음: MCP 는 줄 단위 JSON-RPC 2.0 이라 직접 처리한다.
@@ -18,6 +19,7 @@ const os = require('os');
 const path = require('path');
 const readline = require('readline');
 const BrowserBridge = require('../src/core/BrowserBridge.js');
+const AppWebBridge = require('../src/core/AppWebBridge.js');
 
 const VERSION = '1.0.0';
 const SETTINGS = require('../src/core/appDir.js').settingsFile('browser.json');
@@ -28,7 +30,7 @@ function pickBrowser(arg) {
     try { return JSON.parse(fs.readFileSync(SETTINGS, 'utf8')).browser || 'chrome'; } catch { return 'chrome'; }
 }
 
-const browserArg = { browser: { type: 'string', enum: Object.keys(BrowserBridge.BROWSERS), description: '쓸 브라우저 (생략하면 세션 허브에서 고른 것)' } };
+const browserArg = { browser: { type: 'string', enum: [...Object.keys(BrowserBridge.BROWSERS), ...Object.keys(AppWebBridge.TARGETS)], description: '쓸 브라우저 (생략하면 세션 허브에서 고른 것). app-github = 클로드 마인드맵 앱 가운데 GitHub 탭, app-web = 앱 가운데 브라우저 탭 (사용자가 앱에서 보고 있는 화면, 앱 안 로그인 그대로)' } };
 
 const TOOLS = [
     { name: 'browser_tabs', description: '열린 창과 탭 목록 (창 번호, 탭 번호, 보이는 탭인지, 제목, 주소)', inputSchema: { type: 'object', properties: { ...browserArg } },
@@ -69,7 +71,8 @@ async function handle(msg) {
         if (!tool) return send({ jsonrpc: '2.0', id, error: { code: -32602, message: `모르는 도구: ${params && params.name}` } });
         const args = (params && params.arguments) || {};
         try {
-            const bridge = new BrowserBridge({ browser: pickBrowser(args.browser) });
+            const name = pickBrowser(args.browser);
+            const bridge = AppWebBridge.TARGETS[name] ? new AppWebBridge({ browser: name }) : new BrowserBridge({ browser: name });
             const text = await tool.run(bridge, args);
             return send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text }] } });
         } catch (e) {
