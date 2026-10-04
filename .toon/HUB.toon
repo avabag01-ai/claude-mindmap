@@ -3,7 +3,7 @@ project: claude-mindmap (클로드 마인드맵)
 root: ~/claude-mindmap (맥) · GitHub: avabag01-ai/claude-mindmap (main)
 goal: Claude Code 세션을 한눈에 보고 지시하는 맥 앱. 왼쪽 탭(세션·파인더·메모·GitHub·브라우저) | 마인드맵 | 대화창
 updated: 2026-10-04
-latest_session: .toon/claude-mindmap/SESSION_20261004d.toon
+latest_session: .toon/side-tabs/SESSION_20261004.toon
 
 ## STANDING_CONSTRAINTS
 - GitHub 중심. 로컬도 같이 반영. force push·reset·브랜치 삭제 기능은 만들지 않는다
@@ -33,8 +33,10 @@ latest_session: .toon/claude-mindmap/SESSION_20261004d.toon
 - 2026-10-04 · .toon/claude-mindmap/SESSION_20261004c.toon · 클로드 앱에서 연 맥 세션 · 목록 자동 읽기·제목 바꾸기·접기·맵 앱 그룹 · 73460e3
 - 2026-10-04 · .toon/claude-mindmap/SESSION_20261004d.toon · 하위(앱으로 넘어옴) · 그룹 넣기 조사·47개 그룹 정리·맵 −/＋ 단계 접기·앱 교체 · 6ba14de
 - 2026-10-03 · .toon/claude-mindmap/SESSION_20261003c.toon · 하위 세션(클라우드) · 분량 % 창 크기, 마인드맵 폴더만·접기·겹침·끌기, + 폴더(빈 폴더 보임), 답 두 번 안 보임 · 맥 실측 대부분 통과
+- 2026-10-04 · .toon/side-tabs/SESSION_20261004.toon · 하위(side-tabs) · GitHub 마인드맵(계정→묶음→저장소→PR·브랜치)·앱 교체 · c640dc1
 
 ## NEXT
+- [완료 10-04 side-tabs] GitHub 탭 → GitHub 마인드맵 (c640dc1) · 진짜 앱 손 시험 남음
 - claude-mindmap: NEXT 000007 맵 '앱 밖 세션 47' → 그룹 7개 다 보이게
 - claude-mindmap: NEXT 000006 ⊕ 새 세션 → 앱 도구(move_sessions)로 그룹 넣기 (조사 끝)
 - [완료 10-04d] 그룹 넣기 길 찾음·47개 정리·맵 −/＋ 단계 접기 (6ba14de)

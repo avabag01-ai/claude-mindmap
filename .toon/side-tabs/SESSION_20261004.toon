@@ -1,0 +1,33 @@
+## DECODER_INSTRUCTION
+Compressed session log. Tags: [확인]=verified, [가설]=unverified. Rules in .toon/HUB.toon. Run VERIFY_ON_LOAD, resume from next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: side-tabs
+session: GitHub 탭 → 가운데 마인드맵을 GitHub 보기로
+hub_task: NEXT 000008 GitHub 마인드맵
+prev_session: .toon/claude-mindmap/SESSION_20261004d.toon
+head: c640dc1   dirty: no
+
+## STATE
+### architecture
+- [확인] 데이터: 'gh:repos' {roots} → {account, repos, local{폴더:"주인/이름"}}, 'gh:repo-detail' {slug} → {prs, branches(최근 8, 날짜는 앞 20개만 읽음), branchCount}. gh api REST만. Rust src-tauri/src/github_map.rs, Electron 짝 src/core/GitHubMap.js
+- [확인] 화면 src/modules/MindMapGitHub.js: SessionMindMap 메서드를 감싸 트리만 바꿈, 자리 기억 보기 이름 'github'. index.html 에서 MindMapTools.js 앞에 불러야 −/＋ 단계 접기가 걸림. SessionHub.setLeftTab·_applyCenter 도 이 파일 안에서 감쌈 (SessionHub.js 수정 0줄)
+- 묶음: 세션 폴더 origin → 그 세션들의 클로드 앱 그룹(최다), 없으면 언어. 색 = 푸시 하루/7일/30일/90일/그 외
+- 누르기: 저장소·PR·브랜치 → 정보 창 [PR·브랜치 펼치기][세션 맵 보기][GitHub 에서 열기(HubGitHub.openUrl → 진짜 크롬·사파리)]
+### changes_this_session
+- 데이터 (bef89a1), 화면 (c640dc1), main 푸시, /Applications/클로드 마인드맵.app 교체 (6.41 MiB)
+### results
+- [확인] cargo test 35개, npm test 9개 통과. 실제 gh 저장소 89개, 상세 1.4초
+- 진짜 앱에서 GitHub 탭 눌러 보기는 못 함 (앱 조종 권한 거절) — 맥 실측 전
+### open_issues
+- [가설] 89개가 한 고리에 다 펼쳐지면 빽빽할 수 있음
+- [가설] 세션 폴더와 이어지는 저장소가 적어 대부분 언어 묶음일 것
+### next_action
+1. 진짜 앱에서 GitHub 탭 → 맵 바뀜, ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀 확인
+
+## VERIFY_ON_LOAD
+- `git log --oneline -3 main` → c640dc1, bef89a1 포함
+- `node scripts/test-github-map.js` → GitHubMap: 모든 테스트 통과
