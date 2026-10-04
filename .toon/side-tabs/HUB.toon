@@ -2,19 +2,24 @@
 topic: side-tabs
 title: 왼쪽 탭
 parent: claude-mindmap
+updated: 2026-10-04
+latest_session: .toon/side-tabs/SESSION_20261004b.toon
 files: src/modules/HubPanels.js · src/core/GitPanel.js · src/core/MemoStore.js · src/core/BrowserBridge.js · scripts/flowcode-browser-mcp.js
 
 ## SCOPE
 - 파인더, 메모(키체인 비밀 메모), GitHub(git·gh), 브라우저(크롬·사파리 애플스크립트, MCP 등록)
 
 ## NEXT
-- [완료 10-04] 000008c 그룹 넣기 손 시험 통과. 단 폴더 없이(임시 폴더) 시작됨 → 첫 메시지에 change_directory 부탁 추가, 앱 교체
 - NEXT 000008d 다시 툰 이어가기 → 새 세션이 ~/claude-mindmap 으로 옮겨 가는지 손 시험
-- [완료 10-04] 폴더 옮긴 세션이 맵에서 옛 임시 폴더에 붙던 것 고침 (기록 파일 자리와 맞는 cwd) · 앱에서 만든 세션에 대화창으로 보내면 앱으로 넘김(글 복사+세션 열기), 들여온 세션(adopted)은 그대로 · 앱 교체
-- [완료 10-04] 그룹 보기에서 세션 눌러도 그룹 가지 그대로(그 세션만 강조) · 미리보기로 확인, 앱 교체
 - NEXT 000008e 앱 세션 고르고 대화창 보내기 → 클로드 앱에 그 세션이 열리고 붙여넣기 되는지 손 시험
+- NEXT 000008f 진짜 앱에서 그룹 보기 세션 클릭 → 그룹 가지 유지 확인
 - NEXT 000008b GitHub 맵 손 시험 남은 것: 저장소 ▸ PR·브랜치, GitHub 열기(진짜 브라우저), 세션 탭 복귀 · 더블클릭 접기
 - NEXT 000000 맥에서 키체인 메모·크롬 조종 실측
 
+## DECISIONS
+- 2026-10-04 [확인] 앱에서 만든 세션(adopted 아님)에 대화창으로 보내면 앱으로 넘긴다(글 복사+세션 열기) — 따로 돌리면 앱이 모름, 넣는 deep link 없음 (SESSION_20261004b)
+- 2026-10-04 [확인] 세션 폴더 = 기록 파일 자리와 맞는 cwd — 앱이 폴더를 바꾸면 jsonl 을 옮김 (SESSION_20261004b)
+
 ## SESSIONS
 - .toon/side-tabs/SESSION_20261004.toon | 2026-10-04 | NEXT 000008 GitHub 마인드맵 | GitHub 맵·더블클릭 접기·그룹 중심(확인)·새 세션 워크트리 오류 고침·가운데 ＋·툰 이어가기 앱 안 새 세션+그룹 부탁 | c754c72
+- .toon/side-tabs/SESSION_20261004b.toon | 2026-10-04 | NEXT 000008c 그룹 손 시험 | 그룹 넣기 통과·폴더 빠짐 우회·앱 세션 넘기기·폴더 옮긴 세션 묶기·그룹 가지 유지 | 5ba9d48

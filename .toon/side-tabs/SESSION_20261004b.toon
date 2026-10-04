@@ -1,0 +1,78 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: side-tabs
+session: 툰 이어가기 그룹 손 시험 → 폴더 빠짐 고침, 앱 세션 넘기기, 폴더 옮긴 세션 묶기, 그룹 가지 유지
+hub_task: NEXT 000008c 툰 이어가기 → 클로드 앱 새 세션 Enter → 원래 그룹에 들어가는지 손 시험
+prev_session: .toon/side-tabs/SESSION_20261004.toon
+head: 5ba9d48   dirty: no (package-lock.json 미추적, 손대지 않음)
+compression: ~90%
+
+## DICTIONARY
+$1=/Applications/클로드 마인드맵.app
+$2=src/modules/SessionHub.js
+$3=src/modules/MindMapGroupFocus.js
+$4=src-tauri/src/claude_app.rs
+$5=~/Library/Logs/Claude/main.log
+$6=/Applications/Claude.app/Contents/Resources/app.asar
+$7=adoptedFromOtherSurface
+
+## STANDING_CONSTRAINTS
+- see HUB
+
+## STATE
+### goal
+툰 이어가기로 연 클로드 앱 새 세션이 원래 그룹·폴더로 들어가고, 마인드맵과 클로드 앱이 같은 대화를 보게.
+
+### architecture
+- [확인] 클로드 앱 deep link claude://code/new 는 folder·q 를 받는다. folder 는 화면에서 selectFolderWithTrustCheck(비동기 신뢰 확인)로 넣음 ($6 읽어서 확인)
+- [확인] 열린 세션에 메시지를 넣는 deep link 는 없다. claude://resume?session=<cli> 는 그 세션으로 이동만 ("already belongs to local_…")
+- [확인] 마인드맵 대화창은 claude -p --resume 을 따로 띄운다 → 기록 jsonl 에만 덧붙고 클로드 앱 화면·앱 프로세스는 모름 (이 세션의 "야" 턴으로 확인)
+- [확인] 앱에서 폴더를 바꾸면 앱이 jsonl 을 새 폴더 자리(~/.claude/projects/<encode(새 cwd)>/)로 옮김. 앞줄 cwd 는 옛 값, Bash cd 때도 cwd 필드가 잠깐 바뀜
+- [확인] 앱 세션 기록 local_*.json: 터미널·마인드맵에서 들여온 세션은 $7: true
+- [변경] 세션 cwd = 기록 파일 자리(dir 이름)와 encode 가 맞는 첫 cwd, 없으면 첫 cwd (src-tauri/src/session_cwd.rs, src/core/SessionIndexer.js)
+
+### changes_this_session
+- $2 withGroup(prompt, group, folder): 첫 메시지 끝에 "작업 폴더가 X 가 아니면 change_directory 로 옮겨줘" (46ed0d6)
+- 세션 목록: 폴더 옮긴 세션을 새 폴더에 묶기 — session_cwd.rs 새 모듈, session_indexer.rs 는 호출만 (db6749f)
+- 대화창: 앱에서 만든 세션(보관 안 함, adopted 아님)에 보내면 글 pbcopy + claude://resume 앞으로 열기, 토스트. claude-app:handoff (Rust·Electron 둘 다), SessionHub.inApp, ClaudeApp read 에 adopted (7eed97c)
+- $3: 그룹 보기 전체 맵(center all, group app)에서 세션 누르면 가운데를 안 바꾸고 _markSession 으로 강조만 (7e3dc97)
+- 허브 기록 커밋 50f920d, ad42dc4, 5ba9d48. 매번 tauri build --bundles app 후 $1 교체
+
+### results
+- [확인] 000008c 그룹 넣기: move_sessions 성공, get_session group=클로드마인드맵
+- [확인] 새 세션이 임시 폴더로 시작됨: $5 12:23:46 checkTrust claude-mindmap → 12:23:49 saveTrust → 12:23:59 createScratchWorkspace
+- [확인] npm test 9개 묶음 통과, cargo test --lib 37 통과
+- [확인] 실제 기록으로 이 세션(bebded78) → root /Users/kim/claude-mindmap. inApp: bebded78 true, 178a2033(adopted) false
+- [확인] 미리보기(실제 데이터)로 세션 클릭: 맵·목록·그룹 중심 세 경우 group 5 / session 97 그대로, 선택만 바뀜
+
+### rejected
+- 앱 화면으로 폴더 채워지는지 보기 — computer-use 접근 거절됨, 앱 로그로 대신
+- 대화창에서 앱 세션에 그대로 보내기 + 경고만 — 사용자가 "앱으로 넘기기" 선택
+
+### open_issues
+- [가설] 폴더가 빠진 정확한 이유는 모름 (확인 끝나기 전 Enter, 또는 resume 링크와 겹침). 첫 메시지 부탁으로 우회
+- [확인] 진짜 앱에서 손 시험 안 함: 000008d, 000008e, 그룹 가지 유지
+
+### next_action
+1. 000008e: 마인드맵에서 앱 세션 골라 대화창 보내기 → 클로드 앱에 그 세션이 앞으로 열리고 Cmd+V 로 붙는지. 마인드맵에서 만든 세션은 그대로 마인드맵에서 답이 오는지
+2. 000008d: 툰 이어가기 → 새 세션이 첫 턴에 ~/claude-mindmap 으로 옮겨 가는지 (get_session cwd)
+3. 진짜 앱에서 그룹 보기 세션 클릭 시 그룹 가지 유지 확인
+
+## ARTIFACTS
+- 없음 (미리보기 페이지는 지움. 다시 만들 때: SessionIndexer.index()+ClaudeApp.read() 를 window.HUB_PREVIEW_DATA 로 넣고 index.html 앞에 붙여 python3 -m http.server)
+
+## VERIFY_ON_LOAD
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 5ba9d48 이거나 그 뒤
+- `ls /Users/kim/claude-mindmap/src-tauri/src/session_cwd.rs` → 있음
+- `grep -c "_keepAll\|_markSession" /Users/kim/claude-mindmap/src/modules/MindMapGroupFocus.js` → 2 이상
+- `grep -n "claude-app:handoff" /Users/kim/claude-mindmap/src-tauri/src/handlers.rs /Users/kim/claude-mindmap/main.js` → 둘 다 나옴
+- `cd /Users/kim/claude-mindmap && npm test` → 9개 통과
