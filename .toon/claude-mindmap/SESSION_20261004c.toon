@@ -1,0 +1,78 @@
+## DECODER_INSTRUCTION
+This is a compressed session log. Read DICTIONARY first to expand $N variables.
+Tags: [확인]=verified with evidence, [가설]=unverified hypothesis (test it, don't build on it),
+[변경]=changed since prev TOON, [모순]=contradicted reality at last load.
+Rules and decisions live in <root>/.toon/HUB.toon and the topic hub - read them first.
+Run VERIFY_ON_LOAD before trusting STATE. Resume from STATE.next_action.
+
+## META
+date: 2026-10-04
+project: claude-mindmap
+root: /Users/kim/claude-mindmap
+topic: claude-mindmap
+session: 클로드 앱에서 연 맥 세션 · 목록 자동 읽기·제목 바꾸기·왼쪽 접기·마인드맵 앱 그룹 보기
+hub_task: none
+prev_session: .toon/claude-mindmap/SESSION_20261004b.toon
+head: 73460e3   dirty: no (package-lock.json 미추적만)
+compression: ~92%
+
+## DICTIONARY
+$1=src/modules/SessionHub.js
+$2=src/modules/MindMapAppGroups.js
+$3=src-tauri/src/session_indexer/rename.rs
+$4=/Applications/클로드 마인드맵.app
+$5=npm run tauri:build
+$6=~/Library/Application Support/Claude
+
+## STANDING_CONSTRAINTS
+- see HUB
+- [이 세션] 사용자: "클로드 앱 데이터를 보고 활용, 따로 데이터 만들지 말 것" → 제목도 기록 파일 custom-title 줄로
+
+## STATE
+### goal
+마인드맵 앱을 클로드 앱과 똑같이 보이고 같이 움직이게 (목록·그룹·제목)
+
+### architecture
+- [확인] 연동 방식: 두 앱 다 ~/.claude/projects/*.jsonl 을 같이 씀. 마인드맵→앱 = claude://resume?session=<id> (open -g). 앱→마인드맵 = 알림 없음, 마인드맵이 다시 읽어야 함
+- [확인] 클로드 앱 그룹·고정·보관·제목 = $6/claude_desktop_config.json(epitaxyPrefs) + claude-code-sessions/<계정>/<조직>/local_*.json, 읽기만 (claude_app.rs)
+- [변경] 목록 자동 읽기: $1 _quietRefresh 10초마다 + 창 focus. 세션 id 묶음이 같으면 안 그림, 맵 보는 자리(_fitPending) 안 건드림 (2f2cec3)
+- [변경] 제목 바꾸기: 노드 우클릭 → 제목 바꾸기 → sessions:rename → 기록 끝에 {"type":"custom-title","customTitle",sessionId} (Claude Code /rename 형식). 마지막 custom-title 이 ai-title·앱 제목보다 먼저 (Session.customTitle). Rust $3, JS SessionIndexer.renameSession, main.js (65329cf)
+- [변경] 왼쪽 접기: 머리줄 ▾/▸, hub.folded(localStorage) "app:<pinned|g:id|loose|outside>" · "folder:<root>" (e1ef9f4)
+- [변경] 마인드맵 전체 보기 = 왼쪽이 "클로드 앱" 보기면 Claude → 그룹(kind 'group') → 세션 → 파일. 접기는 hub.folded 공유, 그룹 노드 눌러도 접힘. 끌어둔 자리 키 'all:app'. $2 가 SessionMindMap 원형을 감쌈, hub 가 map.appHub=this (73460e3)
+- [확인] session_indexer.rs 1820줄·SessionMindMap.js 1580줄 → 새 기능은 새 파일($3, $2)로
+
+### changes_this_session
+- $1: 자동 읽기, 접기, 그룹 바꿀 때 맵 다시 그림 (2f2cec3, e1ef9f4, 73460e3)
+- $3·session_indexer.rs·handlers.rs·SessionIndexer.js·main.js·HubAppList.js·MindMapTools.js: 제목 바꾸기 (65329cf)
+- $2 새 파일 + index.html script 태그 (73460e3)
+- 빌드 $5 → $4 교체 3번, main 푸시 73460e3
+
+### results
+- [확인] npm test 8개 통과, cargo test --lib 34 통과
+- [확인 맥 실측] 이 세션(클로드 앱에서 만든 것)이 새 빌드에서 목록에 뜸 (사용자 "떴다")
+- [확인 맥 실측] 왼쪽 valveforge 접기/펼치기, 마인드맵 그룹 노드 표시, 왼쪽에서 "세션" 접으면 맵도 ▸15
+- [확인 가짜 기록] renameSession: ai-title "AI 제목" → "새 제목", customTitle true, 끝 줄바꿈 없어도 붙음
+- [가설] 클로드 앱 사이드바 제목이 custom-title 을 따라 바뀌는지 모름
+
+### rejected
+- 클로드 앱 local_*.json·config 직접 쓰기 — 앱이 켜진 동안 메모리 값으로 덮어씀(2d81a70 때 resume 링크로 바꾼 이유)
+
+### open_issues
+- [확인] 마인드맵에서 만든 새 세션을 클로드 앱 "그룹"에 넣는 길 없음 (그룹 = 앱 config, 직접 쓰면 덮어씀). 그룹 노드에 ⊕ 도 없음
+- [확인] 앱 밖 세션 47개(7일) — 터미널·마인드맵에서 만든 것 중 앱에 안 들어간 것
+- 맵에서 그룹 노드 직접 눌러 접기는 손 확인 못함(클릭이 카드에 맞음)
+- 우클릭 제목 바꾸기 손 확인 전
+
+### next_action
+1. 사용자 요청 시연: 마인드맵 앱을 조작해 클로드마인드맵 폴더에 새 세션(툰 불러와) → 우클릭 제목 → 이어가기. 완료 = 새 세션이 맵·클로드 앱에 뜨고 제목 바뀜
+2. 그룹에 새 세션 넣기 방법 찾기 (claude:// 링크나 앱 API 조사) — 못 찾으면 사용자에게 클로드 앱에서 끌어 넣기 안내
+
+## ARTIFACTS
+- none
+
+## VERIFY_ON_LOAD
+- `git -C /Users/kim/claude-mindmap log --oneline -1` → 기대: 73460e3 (또는 그 뒤)
+- `test -f /Users/kim/claude-mindmap/src/modules/MindMapAppGroups.js && echo ok` → ok
+- `grep -c custom-title /Users/kim/claude-mindmap/src-tauri/src/session_indexer.rs` → 2 이상
+- `grep -n MindMapAppGroups /Users/kim/claude-mindmap/index.html` → script 태그 1줄
+- `npm test --prefix /Users/kim/claude-mindmap` → 8개 통과
