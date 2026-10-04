@@ -30,9 +30,10 @@
 
     function state(map) {
         if (!map.gh) {
-            let folded = [];
-            try { folded = JSON.parse(localStorage.getItem('gh.folded') || '[]'); } catch { /* 미리보기 */ }
-            map.gh = { on: false, data: null, loading: false, error: null, at: 0, detail: new Map(), open: new Set(), folded: new Set(folded) };
+            // 묶음은 처음엔 모두 접어 둔다 (저장소가 많아 빽빽해서). 펼친 묶음만 기억
+            let unfolded = [];
+            try { unfolded = JSON.parse(localStorage.getItem('gh.unfolded') || '[]'); } catch { /* 미리보기 */ }
+            map.gh = { on: false, data: null, loading: false, error: null, at: 0, detail: new Map(), open: new Set(), unfolded: new Set(unfolded) };
         }
         return map.gh;
     }
@@ -82,8 +83,8 @@
 
     function toggleGroup(map, name) {
         const g = state(map);
-        if (g.folded.has(name)) g.folded.delete(name); else g.folded.add(name);
-        try { localStorage.setItem('gh.folded', JSON.stringify([...g.folded])); } catch { /* 미리보기 */ }
+        if (g.unfolded.has(name)) g.unfolded.delete(name); else g.unfolded.add(name);
+        try { localStorage.setItem('gh.unfolded', JSON.stringify([...g.unfolded])); } catch { /* 미리보기 */ }
         map.render();
     }
 
@@ -156,7 +157,7 @@
         const repos = g.data.repos.filter(match).sort((a, b) => String(b.pushedAt).localeCompare(String(a.pushedAt)));
         for (const grp of groupRepos(map, repos)) {
             const gn = { key: `ghg:${grp.name}`, kind: 'ghgroup', group: grp.name, app: grp.app, label: grp.name, total: grp.repos.length, color: grp.app ? '#4ec9b0' : '#58a6ff', children: [] };
-            if (g.folded.has(grp.name) && !q) gn.hidden = grp.repos.length;
+            if (!g.unfolded.has(grp.name) && !q) gn.hidden = grp.repos.length;
             else {
                 for (const { r, roots } of grp.repos) {
                     const n = { key: `ghr:${r.fullName}`, kind: 'ghrepo', label: r.name, data: r, roots, color: ageColor(r.pushedAt, now), children: [] };
