@@ -12,7 +12,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # unstable: 창 안에 자식 웹뷰(가운데 GitHub·브라우저 탭, center_web.rs)
-tauri = { version = "2", features = ["unstable"] }
+# macos-private-api: 투명 창 — 클로드 앱 붙이기의 구멍 (claude_dock.rs)
+tauri = { version = "2", features = ["unstable", "macos-private-api"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 anyhow = "1"
