@@ -27,6 +27,7 @@ head: f78a248   dirty: no
 - 노드 더블클릭 = 펼치기·닫기 src/modules/MindMapDoubleClick.js (세션은 closedNodes, 한 번 누르기는 0.25초 기다림) (1e1457c)
 - 맵 그룹 누르기 = 그룹 중심 보기 src/modules/MindMapGroupFocus.js (map.groupFocus, 보기 이름 group:<fold>) — 사용자 '그룹 누르면 노드 하나만 나옴'
 - 왼쪽 목록 그룹 제목 누르기도 그룹 중심 (화살표는 목록 접기) (07d77dd)
+- 툰 이어가기 첫 메시지 맨 앞에 세션 제목 SessionHub.withTitle (사용자 지시: 시작 메시지는 제목 먼저 — 메모리·toon 스킬에도 반영)
 ### open_issues
 - [가설] 89개가 한 고리에 다 펼쳐지면 빽빽할 수 있음
 - [가설] 세션 폴더와 이어지는 저장소가 적어 대부분 언어 묶음일 것
