@@ -15,6 +15,7 @@ pub mod ipc;
 pub mod login_path;
 pub mod machine_sync;
 pub mod memo_store;
+pub mod session_cwd;
 pub mod session_indexer;
 pub mod usage_meter;
 

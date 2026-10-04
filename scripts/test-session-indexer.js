@@ -235,6 +235,16 @@ writeSession('-empty', 'sess-meta', line({ type: 'mode', mode: 'normal' }));
     }
 
     fs.rmSync(tmp, { recursive: true, force: true });
+    // 클로드 앱에서 폴더를 옮긴 세션: 기록 파일은 새 자리(repo), 앞줄은 옛 cwd(임시 폴더) → 새 폴더로 묶인다
+    {
+        const dir = path.join(claudeDir, 'projects', SessionIndexer.encodeCwd(repo));
+        fs.mkdirSync(dir, { recursive: true });
+        const f = path.join(dir, 'sess-moved.jsonl');
+        fs.writeFileSync(f, user('2026-10-03T13:00:00Z', '/tmp/scratch-x', '툰 불러와') + user('2026-10-03T13:05:00Z', repo, '야') + user('2026-10-03T13:06:00Z', '/tmp/scratch-x', '또'));
+        const moved = await new SessionIndexer({ claudeDir, linksFile: path.join(tmp, 'links0.json'), foldersFile: path.join(tmp, 'folders0.json'), now: () => NOW })._readSession(f, NOW);
+        assert.strictEqual(moved.cwd, repo, '옮긴 세션은 기록 파일 자리와 맞는 폴더');
+        fs.unlinkSync(f);
+    }
     console.log('SessionIndexer: 모든 테스트 통과');
 })().catch(e => {
     console.error(e);

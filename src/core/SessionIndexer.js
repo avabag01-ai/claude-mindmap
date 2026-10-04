@@ -389,6 +389,7 @@ class SessionIndexer {
             files: []
         };
         const edits = new Map(); // 파일 경로 → 수정 횟수
+        const dirKey = path.basename(path.dirname(file));
 
         const rl = readline.createInterface({ input: fs.createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
         for await (const line of rl) {
@@ -402,9 +403,11 @@ class SessionIndexer {
                     if (ms > s.lastAt) s.lastAt = ms;
                 }
             }
-            if (!s.cwd) {
+            // 첫 cwd 가 아니라 기록 파일 자리와 맞는 cwd (클로드 앱에서 폴더를 바꾸면 파일은 새 자리로 옮겨지고 앞줄은 옛 cwd)
+            if (!s.cwd || (dirKey && SessionIndexer.encodeCwd(s.cwd) !== dirKey)) {
                 const m = CWD_RE.exec(line);
-                if (m) s.cwd = JSON.parse(`"${m[1]}"`);
+                const c = m && JSON.parse(`"${m[1]}"`);
+                if (c && (!s.cwd || SessionIndexer.encodeCwd(c) === dirKey)) s.cwd = c;
             }
             if (!s.gitBranch) {
                 const m = BRANCH_RE.exec(line);

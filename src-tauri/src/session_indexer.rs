@@ -827,6 +827,7 @@ impl SessionIndexer {
         let mut edit_order: Vec<(String, u32)> = Vec::new();
         let mut edit_pos: HashMap<String, usize> = HashMap::new();
 
+        let dir_key = crate::session_cwd::dir_key(file);
         let bytes = fs::read(file).ok()?;
         let text = String::from_utf8_lossy(&bytes);
         for line in LINE_SPLIT_RE.split(&text) {
@@ -844,9 +845,12 @@ impl SessionIndexer {
                     }
                 }
             }
-            if s.cwd.is_empty() {
+            if !crate::session_cwd::settled(&s.cwd, &dir_key) {
                 if let Some(m) = CWD_RE.captures(line) {
-                    s.cwd = unescape(&m[1]);
+                    let c = unescape(&m[1]);
+                    if crate::session_cwd::better(&s.cwd, &c, &dir_key) {
+                        s.cwd = c;
+                    }
                 }
             }
             if s.git_branch.is_empty() {
