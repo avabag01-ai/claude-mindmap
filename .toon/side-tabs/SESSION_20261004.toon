@@ -9,7 +9,7 @@ topic: side-tabs
 session: GitHub 탭 → 가운데 마인드맵을 GitHub 보기로
 hub_task: NEXT 000008 GitHub 마인드맵
 prev_session: .toon/claude-mindmap/SESSION_20261004d.toon
-head: 1e1457c   dirty: no
+head: f78a248   dirty: no
 
 ## STATE
 ### architecture
@@ -21,7 +21,8 @@ head: 1e1457c   dirty: no
 - 데이터 (bef89a1), 화면 (c640dc1), main 푸시, /Applications/클로드 마인드맵.app 교체 (6.41 MiB)
 ### results
 - [확인] cargo test 35개, npm test 9개 통과. 실제 gh 저장소 89개, 상세 1.4초
-- 진짜 앱에서 GitHub 탭 눌러 보기는 못 함 (앱 조종 권한 거절) — 맥 실측 전
+- [확인] 사용자 진짜 앱 손 시험: 그룹 누르기(맵·왼쪽 제목) → 그룹 중심 '됐다' (07d77dd)
+- 진짜 앱에서 GitHub 탭 눌러 보기는 제가 못 함 (앱 조종 권한 거절) — 맥 실측 전
 - 묶음은 처음엔 모두 접힘, 펼친 것만 기억 localStorage gh.unfolded (41ddd8c) — 사용자 '빽빽하다'
 - 노드 더블클릭 = 펼치기·닫기 src/modules/MindMapDoubleClick.js (세션은 closedNodes, 한 번 누르기는 0.25초 기다림) (1e1457c)
 - 맵 그룹 누르기 = 그룹 중심 보기 src/modules/MindMapGroupFocus.js (map.groupFocus, 보기 이름 group:<fold>) — 사용자 '그룹 누르면 노드 하나만 나옴'
@@ -30,9 +31,8 @@ head: 1e1457c   dirty: no
 - [가설] 89개가 한 고리에 다 펼쳐지면 빽빽할 수 있음
 - [가설] 세션 폴더와 이어지는 저장소가 적어 대부분 언어 묶음일 것
 ### next_action
-1. 진짜 앱에서 그룹 누르기(맵·왼쪽 제목) → 그룹 중심, 가운데 누르면 전체로
-2. 진짜 앱에서 세션 노드 더블클릭 접기·펼치기, 한 번 누르기 느낌(0.25초 지연) 손 시험
-2. 진짜 앱에서 GitHub 탭 → 맵 바뀜, ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀 확인
+1. 진짜 앱에서 세션 노드 더블클릭 접기·펼치기, 한 번 누르기 느낌(0.25초 지연) 손 시험
+2. (사용자가 GitHub 맵 보고 '빽빽하다' 함 → 묶음 접기 반영) 진짜 앱에서 GitHub ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀, ▸ PR·브랜치, GitHub 열기, 세션 탭 복귀 확인
 
 ## VERIFY_ON_LOAD
 - `git log --oneline -3 main` → c640dc1, bef89a1 포함
