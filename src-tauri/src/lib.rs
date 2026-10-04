@@ -6,6 +6,7 @@
 pub mod app_dir;
 pub mod approvals;
 pub mod browser_bridge;
+pub mod claude_app;
 pub mod claude_runner;
 pub mod git_panel;
 pub mod handlers;

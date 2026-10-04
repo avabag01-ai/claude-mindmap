@@ -114,4 +114,41 @@ assert.deepStrictEqual(lt.empty, [], '검색 중에는 빈 가지 숨김');
     SMM.spread([{ n: { x: 0, y: 0 }, box }, { n: far, box }]);
     assert.deepStrictEqual([far.x, far.y], [500, 0], '안 겹치면 안 움직임');
 }
+
+// 클로드 앱 보기: 고정 → 그룹(앱 순서) → 세션(만든 순) → 앱 밖, 보관은 숨김, 제목은 앱 제목
+{
+    global.SessionHub = SessionHub;
+    require('../src/modules/HubAppList.js');
+    const p = { root: '/r', name: 'r' };
+    const s = (id, firstAt, lastAt) => ({ p, s: { id, title: id, firstAt, lastAt } });
+    const app = { groups: [{ id: 'g1', name: 'valveforge' }, { id: 'g2', name: '작곡' }], sessions: {
+        a: { group: 'g2', title: '앱 제목 A', createdAt: 1 }, b: { group: 'g2', createdAt: 2 }, c: { group: null, createdAt: 5 },
+        d: { group: null, createdAt: 9 }, e: { group: 'g1', archived: true }, f: { group: 'g1', pinned: true } } };
+    const secs = SessionHub.appSections(app, [s('a', 1, 10), s('b', 2, 20), s('c', 5, 5), s('d', 9, 9), s('e', 1, 1), s('f', 1, 1), s('x', 3, 3)]);
+    assert.deepStrictEqual(secs.map(x => x.title), ['고정됨', '작곡', '세션', '앱 밖 세션', '보관한 세션 1개는 숨김'], '빈 그룹(valveforge)은 안 보임');
+    assert.deepStrictEqual(secs[1].rows.map(r => r.s.id), ['b', 'a'], '그룹 안은 최근 순');
+    assert.strictEqual(secs[1].rows[1].s.title, '앱 제목 A');
+    assert.deepStrictEqual(secs[2].rows.map(r => r.s.id), ['d', 'c'], '세션은 만든 순');
+    assert.deepStrictEqual(secs[3].rows.map(r => r.s.id), ['x']);
+}
+
+// ClaudeApp.read: 클로드 앱 설정·기록 읽기
+{
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const ClaudeApp = require('../src/core/ClaudeApp.js');
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-claude-app-'));
+    const rec = path.join(d, 'claude-code-sessions', 'acct', 'org');
+    fs.mkdirSync(rec, { recursive: true });
+    fs.writeFileSync(path.join(d, 'claude_desktop_config.json'), JSON.stringify({ preferences: { epitaxyPrefs: {
+        'dframe-code-sections': { 'acct/org': { sections: [{ id: 'g2', kind: 'manual', name: '작곡', order: 3 }, { id: 'g1', kind: 'manual', name: 'valveforge', order: 2 }, { id: 'sessions', kind: 'sessions', order: 5 }] } },
+        'dframe-group-scopes': { 'acct/org': { groups: [], assignments: { 'code:local_a': 'g1' } } } } } }));
+    fs.writeFileSync(path.join(rec, 'local_a.json'), JSON.stringify({ sessionId: 'local_a', cliSessionId: 'cli-a', title: '가', createdAt: 1 }));
+    fs.writeFileSync(path.join(rec, 'local_b.json'), '깨진 파일');
+    const r = ClaudeApp.read(d);
+    assert.deepStrictEqual(r.groups, [{ id: 'g1', name: 'valveforge' }, { id: 'g2', name: '작곡' }]);
+    assert.deepStrictEqual(r.sessions['cli-a'], { appId: 'local_a', title: '가', group: 'g1', archived: false, createdAt: 1, pinned: false });
+    assert.strictEqual(ClaudeApp.read(path.join(d, '없음')).ok, false);
+}
 console.log('SessionHub: 모든 테스트 통과');

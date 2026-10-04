@@ -7,7 +7,7 @@ use crate::machine_sync::MachineSync;
 use crate::memo_store::MemoStore;
 use crate::session_indexer::{self as si, MetaPatch, SessionIndexer};
 use crate::usage_meter::UsageMeter;
-use crate::{app_dir, approvals, browser_bridge, claude_runner, login_path};
+use crate::{app_dir, approvals, browser_bridge, claude_app, claude_runner, login_path};
 use once_cell::sync::Lazy;
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
@@ -290,7 +290,8 @@ fn build_session_index() -> anyhow::Result<Value> {
     let _ = SYNC.publish(&index);
     let others = SYNC.read_others();
     let merged = MachineSync::merge(&index, &others, now_ms());
-    Ok(spread(merged, json!({ "machine": machine, "syncDir": SYNC.dir() })))
+    // 클로드 앱 사이드바 구조(그룹·제목·보관) — 왼쪽 목록 "클로드 앱" 보기용, 읽기만
+    Ok(spread(merged, json!({ "machine": machine, "syncDir": SYNC.dir(), "claudeApp": claude_app::read() })))
 }
 
 fn git_reply(ctx: &Ctx, channel: &str, base: Value, r: anyhow::Result<Value>) {

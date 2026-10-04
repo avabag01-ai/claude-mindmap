@@ -86,7 +86,8 @@ async function buildSessionIndex() {
     } catch (error) {
         console.error('Machine sync error:', error); // 공유 폴더 문제로 목록까지 못 보면 안 된다
     }
-    return { ...MachineSync.merge(index, others, Date.now()), machine: index.machine, syncDir: sync.dir() };
+    // 클로드 앱 사이드바 구조(그룹·제목·보관) — 왼쪽 목록 "클로드 앱" 보기용, 읽기만
+    return { ...MachineSync.merge(index, others, Date.now()), machine: index.machine, syncDir: sync.dir(), claudeApp: require('./src/core/ClaudeApp.js').read() };
 }
 
 ipcMain.on('sessions:index', async (event) => {

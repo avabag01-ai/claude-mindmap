@@ -23,8 +23,8 @@ class SessionHub {
         this.el = id => document.getElementById(id);
 
         this.data = null;
-        this.group = 'folder';     // folder(가지·줄기로 묶음) | recent — 고른 것은 기억
-        try { if (localStorage.getItem('hub.group') === 'recent') this.group = 'recent'; } catch { /* 미리보기 */ }
+        this.group = 'app';        // app(클로드 앱처럼) | folder(가지·줄기로 묶음) | recent — 고른 것은 기억
+        try { const g = localStorage.getItem('hub.group'); if (g === 'folder' || g === 'recent') this.group = g; } catch { /* 미리보기 */ }
         this.listQuery = '';
         this.center = 'all';       // all | project | session
         this.sel = null;           // { root, id? }
@@ -396,7 +396,7 @@ class SessionHub {
             return `<button class="hub-item${on ? ' is-on' : ''}${alarm ? ' is-alarm' : ''}${isPrev ? ' is-prev' : ''}"${s.remote ? '' : ' draggable="true"'} data-root="${esc(p.root)}" data-id="${esc(s.id)}" title="${esc(s.title)}"${depth ? ` style="padding-left:${8 + depth * 16}px"` : ''}>
                 <i class="hub-dot hub-${s.status}" style="--c:${this.map._colorOf(p)}"></i>
                 <span class="hub-item-title">${isPrev ? '↑ ' : ''}${esc(s.title)}</span>
-                <span class="hub-item-sub">${chain}${this.group === 'recent' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
+                <span class="hub-item-sub">${chain}${this.group !== 'folder' ? `${esc(p.name)} · ` : ''}${SessionMindMap._ago(s.lastAt, now)}${s.kind === 'chat' ? ' · <b class="hub-kind-chat">대화</b>' : ''}${ctx ? ` · <b class="hub-ctx-${ctx.phase}">${Math.round(ctx.pct * 100)}%</b>` : ''}${s.git ? ` · <b class="smm-git-${s.git}">${SessionMindMap.GIT[s.git]}</b>` : ''}${s.remote ? ` · ${esc(s.machine)}` : ''}</span>
             </button>`;
         };
 
@@ -424,6 +424,8 @@ class SessionHub {
                       <i class="hub-swatch" style="background:${this.map._colorOf(p)}"></i>${esc(p.name)}<span class="hub-count">${count}</span>
                     </button><button class="hub-add" data-add="${esc(p.root)}" title="이 폴더에 새 세션" aria-label="${esc(p.name)} 폴더에 새 세션">+</button>${body}</div>`;
             }
+        } else if (this.group === 'app' && SessionHub.appListHtml) {
+            html = SessionHub.appListHtml(this, rows, item);   // HubAppList.js: 클로드 앱 사이드바 순서
         } else {
             const day = 864e5;
             const start = new Date(now); start.setHours(0, 0, 0, 0);
