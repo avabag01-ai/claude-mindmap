@@ -36,6 +36,7 @@ pub fn reason_text(reason: &str) -> &'static str {
         "no-app" => "클로드 앱이 켜져 있지 않아요",
         "no-title" => "앱 세션 제목을 몰라서 확인할 수 없어요",
         "not-taken" => "입력칸이 글을 받지 않았어요",
+        "no-input" => "클로드 앱 입력칸을 못 찾았어요",
         "not-sent" => "입력칸에 글은 넣었는데 보내기가 안 됐어요. 앱에서 Enter 를 눌러 주세요",
         "trust" => "클로드 앱이 '작업 공간 신뢰'를 묻고 있어요. 앱에서 확인한 뒤 Enter 를 눌러 주세요",
         _ => "보내지 못했어요",
@@ -43,7 +44,7 @@ pub fn reason_text(reason: &str) -> &'static str {
 }
 
 #[cfg(target_os = "macos")]
-pub use mac::{allow_fullscreen, ask_permission, press_new_send, focus, focus_back, place_window, raise_window, send, shown_title};
+pub use mac::{allow_fullscreen, ask_permission, press_new_send, focus, focus_back, insert, place_window, raise_window, send, shown_title};
 
 #[cfg(not(target_os = "macos"))]
 pub fn focus(_app_id: &str) -> bool {
@@ -51,6 +52,10 @@ pub fn focus(_app_id: &str) -> bool {
 }
 #[cfg(not(target_os = "macos"))]
 pub fn send(_app_id: &str, _title: &str, _text: &str) -> Result<(), &'static str> {
+    Err("no-app")
+}
+#[cfg(not(target_os = "macos"))]
+pub fn insert(_text: &str) -> Result<(), &'static str> {
     Err("no-app")
 }
 #[cfg(not(target_os = "macos"))]
@@ -526,6 +531,27 @@ mod mac {
         let Some(win) = claude_window() else { return false };
         let a = cfstr("AXRaise");
         unsafe { AXUIElementPerformAction(win.0, a.0) == 0 }
+    }
+
+    /// 지금 보이는 세션의 입력칸 끝에 글을 덧붙인다 (보내지는 않음). 붙인 클로드 창에 '대화창에' 주소를 넣을 때
+    pub fn insert(text: &str) -> Result<(), &'static str> {
+        if !trusted(true) {
+            return Err("no-permission");
+        }
+        let app = app_element(claude_pid().ok_or("no-app")?);
+        let web = web_area(&app, None).ok_or("no-input")?;
+        let input = find(&web, &|e| role_is(e, "AXTextArea") && desc_in(e, &["프롬프트", "Prompt"])).ok_or("no-input")?;
+        let old = get_str(&input, "AXValue");
+        let gap = if old.is_empty() || old.ends_with(char::is_whitespace) { "" } else { " " };
+        let all = format!("{old}{gap}{text}");
+        let v = cfstr(&all);
+        set(&input, "AXValue", v.0);
+        // ProseMirror: 읽는 값은 잠깐 뒤에 바뀐다 (send 와 같음)
+        let flat = |t: &str| t.split_whitespace().collect::<String>();
+        let want = flat(&all);
+        wait_for(Duration::from_millis(1500), || (flat(&get_str(&input, "AXValue")) == want).then_some(())).ok_or("not-taken")?;
+        set(&input, "AXFocused", unsafe { kCFBooleanTrue });
+        Ok(())
     }
 
     /// 앱 세션에 글을 보낸다. Err = 멈춘 까닭 (reason_text)

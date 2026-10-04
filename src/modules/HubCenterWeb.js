@@ -51,6 +51,16 @@
         if (hub._cw) return hub._cw;
         const main = document.querySelector('main.col');
         const cw = hub._cw = {};
+        // 클로드 앱 입력칸에 넣은 결과는 '대화창에' 단추 글자로 잠깐 보인다 (알림은 마인드맵 탭에서만 보여서)
+        if (hub.ipc) hub.ipc.on('claude-app:insert-result', (e, x) => {
+            const v = hub._cwOn && cw[hub._cwOn];
+            const b = v && v.box.querySelector('[data-cw="chat"]');
+            if (!b) return;
+            b.textContent = x && x.ok ? '넣었어요' : '못 넣었어요';
+            b.title = x && x.ok ? '클로드 앱 입력칸에 넣었어요' : (x && x.message) || '클로드 앱 입력칸을 못 찾았어요';
+            clearTimeout(b._t);
+            b._t = setTimeout(() => { b.textContent = '대화창에'; b.title = '지금 주소를 대화창에 넣기'; }, 2500);
+        });
         for (const [tab, v] of Object.entries(VIEWS)) {
             const box = document.createElement('div');
             box.className = 'hub-panel center-full cw';
@@ -197,6 +207,11 @@
         }
         if (what === 'chat') {
             if (!v.url) return;
+            // 클로드 앱을 붙여 뒀으면 마인드맵 입력칸은 숨어 있다 → 클로드 앱 입력칸에 넣는다 (HubClaudeDock.js)
+            if (document.body.classList.contains('claude-docked') && hub.ipc) {
+                hub.ipc.send('claude-app:insert', { text: `${v.url} ` });
+                return;
+            }
             const input = hub.el('hub-input');
             const before = input && input.value && !/\s$/.test(input.value.slice(0, input.selectionStart ?? input.value.length)) ? ' ' : '';
             hub.insertText(`${before}${v.url} `);

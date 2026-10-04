@@ -257,6 +257,14 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
                 Err(why) => json!({ "ok": false, "id": p.get("id"), "appId": app_id, "reason": why, "message": claude_app_ax::reason_text(why) }),
             });
         }
+        // 붙인 클로드 창의 입력칸에 글 덧붙이기 (가운데 웹 탭 '대화창에')
+        "claude-app:insert" => {
+            let r = claude_app_ax::insert(s(&p, "text").unwrap_or(""));
+            ctx.emit("claude-app:insert-result", match r {
+                Ok(()) => json!({ "ok": true }),
+                Err(why) => json!({ "ok": false, "reason": why, "message": claude_app_ax::reason_text(why) }),
+            });
+        }
         "claude-app:new" => {
             let ok = claude_app::new_in_app(s(&p, "folder").unwrap_or(""), s(&p, "prompt").unwrap_or(""));
             // send: 채워진 첫 메시지를 AX 로 보내기까지 (툰 이어가기)
