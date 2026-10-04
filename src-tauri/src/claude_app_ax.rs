@@ -1,5 +1,7 @@
 //! 클로드 앱 화면을 따라 바꾸고, 앱 세션에 글을 보낸다. JS 쪽은 src/core/ClaudeApp.js (Electron 판은 바꾸기만).
-//! - 바꾸기: claude://code/continue?session=local_<id> 를 연다. 클로드 앱은 -g 를 줘도 스스로 앞으로 나오니(10-04 실측)
+//! - 바꾸기: 앱 사이드바의 세션 단추("<상태> <제목>")를 AX 로 누른다 — 앱이 앞으로 안 나와 깜빡이지 않는다.
+//!   사이드바가 접혀 있으면 잠깐 펼쳤다가 다시 접는다. 단추를 못 찾으면(접힌 그룹·거른 목록)
+//!   claude://code/continue?session=local_<id> 를 연다. 이 링크는 -g 를 줘도 앱이 스스로 앞으로 나오니(10-04 실측)
 //!   앞에 있던 앱(보통 마인드맵)을 다시 앞으로 돌린다.
 //! - 보내기: 손쉬운 사용(AX). 앱에 AXManualAccessibility 를 켜면 웹 화면이 열린다.
 //!   웹 영역 제목 "<세션 제목> - Claude Code" 로 그 세션이 보이는지 확인한 뒤에만,
@@ -349,12 +351,64 @@ mod mac {
         if !valid_app_id(app_id) {
             return false;
         }
-        if let (Some(now), Some(t)) = (shown_title(), crate::claude_app::app_title(app_id)) {
-            if now == t {
+        if let Some(t) = crate::claude_app::app_title(app_id) {
+            if shown_title().as_deref() == Some(t.as_str()) || via_sidebar(&t) {
                 return true;
             }
         }
         open_continue(app_id, restore)
+    }
+
+    /// 사이드바 세션 단추를 눌러 바꾼다. 화면이 그 세션으로 바뀌었으면 true (권한·단추가 없으면 false)
+    fn via_sidebar(title: &str) -> bool {
+        if !trusted(false) {
+            return false;
+        }
+        let Some(pid) = claude_pid() else { return false };
+        let app = app_element(pid);
+        // 세션이 바뀌면 화면이 다시 그려져 예전 요소는 못 쓴다 — 매번 앱에서 새로 찾는다
+        let side = || find(&app, &|e| role_is(e, "AXGroup") && desc_in(e, &["사이드바", "Sidebar"]));
+        let suffix = format!(" {title}");
+        let row = || {
+            side().and_then(|g| {
+                find(&g, &|e| {
+                    role_is(e, "AXButton") && {
+                        let t = get_str(e, "AXTitle");
+                        t == title || t.ends_with(&suffix)
+                    }
+                })
+            })
+        };
+        let any_row = || side().and_then(|g| find(&g, &|e| role_is(e, "AXPopUpButton") && get_str(e, "AXDescription").ends_with("에 대한 더 많은 옵션")));
+        let toggle = || side().and_then(|g| find(&g, &|e| role_is(e, "AXButton") && desc_in(e, &["사이드바 표시", "사이드바 숨기기", "Show sidebar", "Hide sidebar"])));
+        if side().is_none() {
+            return false;
+        }
+        let mut opened = false;
+        let found = match row() {
+            Some(r) => Some(r),
+            None => {
+                opened = toggle().map_or(false, |b| press(&b));
+                if opened { wait_for(Duration::from_millis(1500), row) } else { None }
+            }
+        };
+        let shown = found.map_or(false, |r| press(&r) && wait_for(Duration::from_secs(3), || web_area(&app, Some(&web_title(title)))).is_some());
+        if opened {
+            // 펼쳤던 사이드바를 다시 접는다: 다 그려질 틈을 주고, 접혔는지(세션 줄이 없어졌는지) 보고 한 번 더
+            for _ in 0..3 {
+                std::thread::sleep(Duration::from_millis(300));
+                if any_row().is_none() {
+                    break;
+                }
+                if let Some(b) = toggle() {
+                    press(&b);
+                }
+                if wait_for(Duration::from_millis(800), || any_row().is_none().then_some(())).is_some() {
+                    break;
+                }
+            }
+        }
+        shown
     }
 
     /// 앱 세션에 글을 보낸다. Err = 멈춘 까닭 (reason_text)
@@ -371,7 +425,7 @@ mod mac {
         let pid = claude_pid().ok_or("no-app")?;
         let app = app_element(pid);
         let want = web_title(title);
-        if web_area(&app, Some(&want)).is_none() {
+        if web_area(&app, Some(&want)).is_none() && !via_sidebar(title) {
             open_continue(app_id, None);
         }
         let web = wait_for(Duration::from_secs(5), || web_area(&app, Some(&want))).ok_or("not-shown")?;
