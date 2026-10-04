@@ -141,21 +141,27 @@ pub fn dispatch(ctx: &Ctx, channel: &str, p: Value) {
             let started = req.map_err(anyhow::Error::from).and_then(|mut req| {
                 // 물을 도구는 막지 않고 화면에 묻는다 (클로드 앱처럼)
                 req.approve_script = Some(app_root().join("scripts").join("mindmap-approve-mcp.js").to_string_lossy().into_owned());
-                // 새 세션이면 첫 session_id 가 오는 순간 클로드 앱 기록에도 넣는다 (클로드 앱 사이드바에 보이게)
-                let new_session = req.session_id.as_deref().map_or(true, str::is_empty);
-                let registered = std::sync::atomic::AtomicBool::new(!new_session);
-                let (cwd, title, mode) = (req.cwd.clone(), claude_app::title_from(&req.text, 40), req.permission_mode.clone().unwrap_or_else(|| "auto".into()));
+                // 클로드 앱에도 보이게: 새 세션은 첫 session_id 가 오는 순간, 답이 끝날 때마다 한 번 더 (claude://resume)
+                let shown = std::sync::Arc::new(Mutex::new(req.session_id.clone().filter(|s| !s.is_empty())));
+                let (sh1, sh2) = (shown.clone(), shown.clone());
                 claude_runner::run(
                     &req,
                     move |ev| {
                         if let Some(id) = ev["session_id"].as_str() {
-                            if !registered.swap(true, std::sync::atomic::Ordering::SeqCst) {
-                                claude_app::register(id, &cwd, &title, &mode);
+                            let mut cur = sh1.lock().unwrap();
+                            if cur.is_none() {
+                                *cur = Some(id.to_string());
+                                claude_app::show_in_app(id);
                             }
                         }
                         c1.emit("sessions:run-event", json!({ "runId": r1, "event": ev }))
                     },
-                    move |x| c2.emit("sessions:run-exit", spread(json!({ "runId": r2 }), x)),
+                    move |x| {
+                        if let Some(id) = sh2.lock().unwrap().clone() {
+                            claude_app::show_in_app(&id);
+                        }
+                        c2.emit("sessions:run-exit", spread(json!({ "runId": r2 }), x))
+                    },
                 )
             });
             if let Err(e) = started {

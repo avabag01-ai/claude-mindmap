@@ -389,18 +389,15 @@ ipcMain.on('sessions:send', (event, req = {}) => {
         }
         // 물을 도구는 막지 않고 화면에 묻는다 (클로드 앱처럼). 스크립트 경로는 화면 값을 믿지 않고 여기서 정한다
         req = { ...req, approveScript: require('path').join(__dirname, 'scripts', 'mindmap-approve-mcp.js') };
-        // 새 세션이면 첫 session_id 가 오는 순간 클로드 앱 기록에도 넣는다 (클로드 앱 사이드바에 보이게)
-        let registered = !!req.sessionId;
+        // 클로드 앱에도 보이게: 새 세션은 첫 session_id 가 오는 순간, 답이 끝날 때마다 한 번 더 (claude://resume)
+        const ClaudeApp = require('./src/core/ClaudeApp.js');
+        let shownId = req.sessionId || null;
         claudeRunner.run(req,
             ev => {
-                if (!registered && ev && ev.session_id) {
-                    registered = true;
-                    const ClaudeApp = require('./src/core/ClaudeApp.js');
-                    ClaudeApp.register(ev.session_id, req.cwd, ClaudeApp.titleFrom(req.text), req.permissionMode || 'auto');
-                }
+                if (!shownId && ev && ev.session_id) { shownId = ev.session_id; ClaudeApp.showInApp(shownId); }
                 send('sessions:run-event', { runId: req.runId, event: ev });
             },
-            exit => send('sessions:run-exit', { runId: req.runId, ...exit }));
+            exit => { if (shownId) ClaudeApp.showInApp(shownId); send('sessions:run-exit', { runId: req.runId, ...exit }); });
     } catch (error) {
         send('sessions:run-exit', { runId: req.runId, code: null, stopped: false, error: error.message });
     }

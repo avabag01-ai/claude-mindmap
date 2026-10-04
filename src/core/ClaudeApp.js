@@ -1,6 +1,6 @@
 /**
  * 클로드 데스크톱 앱 코드 탭의 사이드바 구조를 읽는다. Rust 쪽은 src-tauri/src/claude_app.rs.
- * 쓰는 것은 하나: 마인드맵에서 새로 만든 세션의 기록(local_<uuid>.json)을 넣어 클로드 앱 사이드바에도 보이게 (register)
+ * 새로 만든 세션은 앱의 가져오기 링크로 넣는다 (importSession) — 파일은 직접 쓰지 않는다
  * 돌려주는 모양: { ok, groups: [{ id, name }], sessions: { <cliSessionId>: { appId, title, group, archived, createdAt, pinned } } }
  */
 const fs = require('fs');
@@ -67,26 +67,14 @@ function titleFrom(text = '', max = 40) {
     return chars.length > max ? chars.slice(0, max).join('') + '…' : line;
 }
 
-/** 마인드맵에서 새로 만든 세션을 클로드 앱 기록에 넣는다. 이미 있으면 그대로 둔다. 클로드 앱은 켤 때 읽으므로 다시 켜야 보일 수 있다 */
-function register(cliId, cwd, title, permissionMode = 'auto', dir = appDirPath(), now = Date.now()) {
-    if (!cliId || !cwd) return { ok: false, error: '세션 id 나 폴더가 없어요' };
-    const cfg = readJson(path.join(dir, 'claude_desktop_config.json'));
-    const sections = (cfg && cfg.preferences && cfg.preferences.epitaxyPrefs && cfg.preferences.epitaxyPrefs['dframe-code-sections']) || {};
-    const scope = Object.keys(sections)[0] || firstScope(path.join(dir, 'claude-code-sessions'));
-    if (!scope) return { ok: false, error: '클로드 앱 기록 폴더가 없어요' };
-    const found = read(dir).sessions[cliId];
-    if (found) return { ok: true, existed: true, appId: found.appId };
-    const appId = `local_${require('crypto').randomUUID()}`;
-    const rec = { sessionId: appId, cliSessionId: cliId, cwd, originCwd: cwd, createdAt: now, lastActivityAt: now, isArchived: false, title, titleSource: 'manual', permissionMode };
-    const recDir = path.join(dir, 'claude-code-sessions', scope);
-    try {
-        // 반쯤 쓴 파일을 앱이 읽지 않게 임시 파일에 쓰고 이름을 바꾼다
-        fs.mkdirSync(recDir, { recursive: true });
-        const tmp = path.join(recDir, `.${appId}.tmp`);
-        fs.writeFileSync(tmp, JSON.stringify(rec));
-        fs.renameSync(tmp, path.join(recDir, `${appId}.json`));
-        return { ok: true, existed: false, appId };
-    } catch (e) { return { ok: false, error: e.message }; }
+/**
+ * 마인드맵에서 새로 만든 세션을 클로드 앱에 넣는다: 앱의 가져오기 링크(claude://resume)를 뒤에서 연다.
+ * 켜져 있는 앱이 바로 사이드바에 넣고 자기 기록(local_*.json)도 만든다.
+ */
+function importSession(cliId) {
+    if (!/^[0-9a-f-]+$/i.test(cliId || '')) return false;
+    require('child_process').execFile('open', ['-g', `claude://resume?session=${cliId}`], () => {});
+    return true;
 }
 
-module.exports = { read, register, titleFrom, appDirPath };
+module.exports = { read, importSession, titleFrom, appDirPath };
